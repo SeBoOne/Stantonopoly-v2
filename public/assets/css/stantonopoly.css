@@ -1,0 +1,1080 @@
+/* =========================================================================
+   Stantonopoly V2 — Dark-Only SC/Drake-Look (kein Light-Theme)
+   Rundum-Brett wie Monopoly: 4 Seiten à 4 Felder + 4 Ecken = 20 Zellen? 
+   NEIN: 16 Felder (Index 0-15) = 4 Ecken + 4×3 Seitensfelder.
+   Top-Reihe = Felder 0–4 (links→rechts), rechte Seite 5–7 (oben→unten),
+   Bottom 8–11 (rechts→links), linke Seite 12–15 (unten→oben).
+   ========================================================================= */
+
+:root {
+  --bg: #0b0e12;
+  --bg-2: #10141b;
+  --bg-3: #161c26;
+  --line: #232b38;
+  --line-soft: #1a212c;
+  --txt: #dfe6ee;
+  --txt-dim: #8b97a8;
+  --accent-red: #c0392b;
+  --accent-red-hi: #e74c3c;
+  --accent-yellow: #f1c40f;
+
+  /* Preissegment-Farbgruppen (Monopoly-Farb balken, SC/Drake-Tönung) */
+  --band-300: #2e7d46;  /* dunkles Grün/Bronze */
+  --band-300-deep: #1c4a2c;
+  --band-400: #7f8c9b;  /* Stahl/Grau */
+  --band-400-deep: #4a5563;
+  --band-500: #f1c40f;  /* Gelb/Warn */
+  --band-500-deep: #8a6d1b;
+  --band-600: #c0392b;  /* Drake-Rot */
+  --band-600-deep: #7c221a;
+
+  /* Brett-Geometrie: --cell-size wird per JS (ResizeObserver) gesetzt */
+  --cell-size: 118px;
+  --token-size: calc(var(--cell-size) * 0.20);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--txt);
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(192, 57, 43, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 50% 110%, rgba(241, 196, 15, 0.05), transparent 60%),
+    var(--bg);
+}
+
+/* ------------------------------- App/Shell ------------------------------ */
+
+#app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 10px 12px 24px;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 4px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-size: 20px;
+  letter-spacing: 4px;
+  font-weight: 800;
+  color: var(--txt);
+}
+.brand-mark { color: var(--accent-red); }
+.brand-v {
+  font-size: 11px;
+  color: var(--accent-yellow);
+  border: 1px solid var(--accent-yellow);
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 1px;
+  vertical-align: super;
+}
+.header-sub { color: var(--txt-dim); font-size: 12px; letter-spacing: 1px; }
+
+/* ------------------------------- Views ---------------------------------- */
+
+.view { display: none; }
+.view.active {
+  display: block;
+  max-width: 98vw;
+  width: 100%;
+  position: absolute;
+  left: 1vw;
+  right: 1vw;
+}
+
+.screen-card {
+  background: linear-gradient(180deg, var(--bg-2), var(--bg));
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  max-width: 760px;
+  margin: 18px auto;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+}
+.screen-card h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.h2-tag {
+  font-size: 10px;
+  color: var(--accent-yellow);
+  border: 1px solid var(--accent-yellow);
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin-left: 8px;
+  letter-spacing: 1px;
+}
+.screen-note { color: var(--txt-dim); font-size: 12px; line-height: 1.5; margin: 14px 0 0; }
+
+/* Formulare */
+/* Globale Basis für alle Eingabefelder (auch außerhalb .field-label):
+   dunkler Hintergrund, sichtbarer Rand, klare Schrift. */
+#app input[type="text"],
+#app input[type="number"],
+#app input[type="email"],
+#app textarea,
+#app select {
+  background: var(--bg-3);
+  color: var(--txt);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 14px;
+  outline: none;
+}
+#app input:focus,
+#app select:focus,
+#app textarea:focus {
+  border-color: var(--accent-yellow);
+  box-shadow: 0 0 0 2px rgba(241,196,15,0.15);
+}
+.field-label {
+  display: block;
+  font-size: 12px;
+  color: var(--txt-dim);
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.field-label .hint { color: var(--txt-dim); opacity: 0.7; }
+.field-label input,
+.field-label select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  background: var(--bg-3);
+  color: var(--txt);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 14px;
+  outline: none;
+}
+.field-label input:focus,
+.field-label select:focus {
+  border-color: var(--accent-yellow);
+  box-shadow: 0 0 0 2px rgba(241,196,15,0.15);
+}
+.field-label.chk { display: flex; align-items: center; gap: 8px; }
+.field-label.chk input { width: auto; margin: 0; }
+.field-label.chk span { color: var(--txt); font-size: 13px; }
+
+.form-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.preset-pick-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.preset-pick-actions .btn { margin-right: 4px; }
+
+/* Preset-Editor als eigenes Modal */
+.preset-modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1200;
+  background: rgba(6,8,12,0.65);
+  display: flex; align-items: center; justify-content: center;
+  overflow-y: auto;
+}
+.preset-modal-panel {
+  background: var(--card, #141922);
+  border: 1px solid var(--border, #26354a);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  max-width: 720px; max-height: 88vh;
+  padding: 16px 18px;
+  color: var(--foreground, #e6edf6);
+  overflow-y: auto;
+}
+.preset-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.preset-modal-head > span { font-size: 15px; font-weight: 700; }
+
+/* Spielregeln / Settings — gruppiert */
+.settings-editor { margin-top: 8px; border: 1px dashed var(--border, #26354a); border-radius: 8px; padding: 8px 10px; }
+.settings-head { color: var(--muted-foreground, #a5b4c4); font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+/* Einzel-Gruppe: abgegrenzter Bereich mit Überschrift */
+.settings-group {
+  margin-bottom: 10px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.settings-group:last-child { margin-bottom: 0; }
+.settings-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--txt-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+/* 2-spaltiges Grid pro Gruppe — bleibt unverändert */
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 12px; }
+.settings-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.settings-row span { color: var(--muted-foreground, #a5b4c4); flex: 1; min-width: 110px; }
+.settings-row input[type="number"] { width: 72px; padding: 3px 6px; background: var(--card, #141922); color: var(--foreground, #e6edf6); border: 1px solid var(--border, #26354a); border-radius: 5px; }
+.settings-row.chk { display: flex; align-items: center; gap: 6px; }
+.settings-row.chk input { width: auto; }
+
+/* Ausbaustufen-Namen je Preset */
+.levelnames-editor { margin-top: 8px; border: 1px dashed var(--border, #26354a); border-radius: 8px; padding: 8px 10px; }
+.levelnames-head { color: var(--muted-foreground, #a5b4c4); font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.levelnames-grid { display: flex; flex-direction: column; gap: 5px; }
+.levelnames-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.levelnames-row span { color: var(--muted-foreground, #a5b4c4); min-width: 130px; }
+.levelnames-row input { flex: 1; padding: 4px 7px; background: var(--card, #141922); color: var(--foreground, #e6edf6); border: 1px solid var(--border, #26354a); border-radius: 5px; }
+
+/* GM-Fortsetzen: gespeichertes Spiel per GM-Code wieder öffnen */
+.gm-resume-box { margin-top: 16px; border: 1px dashed rgba(120,180,255,0.5); border-radius: 8px; padding: 10px 12px; }
+.gm-resume-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.gm-resume-row input { flex: 1; min-width: 180px; padding: 6px 8px; background: var(--card, #141922); color: var(--foreground, #e6edf6); border: 1px solid var(--border, #26354a); border-radius: 6px; }
+.gm-resume-hint { margin-top: 6px; color: var(--muted-foreground, #a5b4c4); font-size: 12px; }
+.leave-row { margin-top: 6px; text-align: right; }
+
+/* Optionen-Modal-Zeilen */
+.opt-list { display: flex; flex-direction: column; gap: 8px; }
+.opt-row {
+  border: 1px solid var(--border, #26354a);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: var(--muted-foreground, #a5b4c4);
+  font-size: 12.5px;
+  transition: background 0.15s;
+}
+.opt-row:hover { background: rgba(80,140,220,0.12); border-color: rgba(80,140,220,0.6); }
+
+/* Pause-Banner: fixierter Overlay während das Spiel pausiert ist */
+.pause-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 999;
+  background: rgba(4, 6, 10, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pause-inner {
+  background: var(--card, #141922);
+  border: 2px solid #e0b94b;
+  border-radius: 12px;
+  box-shadow: 0 14px 44px rgba(0,0,0,0.65);
+  max-width: 460px;
+  padding: 20px 24px;
+  text-align: center;
+}
+.pause-title { font-size: 19px; font-weight: 800; color: #ffd166; margin-bottom: 8px; }
+.pause-text { font-size: 13.5px; line-height: 1.5; color: var(--muted-foreground, #a5b4c4); margin-bottom: 14px; }
+
+.btn {
+  background: var(--bg-3);
+  color: var(--txt);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 9px 14px;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .05s;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent-yellow); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-xs { font-size: 11px; padding: 3px 8px; }
+.btn-ghost { background: transparent; border-color: var(--line); color: var(--txt); }
+.header-nav { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.gm-code-box, .invite-code-box {
+  margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--bg-3);
+}
+.code-lbl { display:block; font-size: 11px; letter-spacing: 1px; color: var(--txt-dim); margin-bottom: 4px; }
+.code-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; flex-wrap: wrap; }
+.code-ship { color: var(--accent-yellow); font-weight: 700; min-width: 90px; }
+.code-big { color: var(--txt); letter-spacing: 2px; font-weight: 700; }
+.invite-code-box .code-row { border-top: 1px dashed var(--line); padding-top: 6px; }
+.team-config-head { margin-top: 10px; font-size: 12px; letter-spacing: 1px; color: var(--txt); }
+.team-config-list { display: grid; gap: 6px; margin: 8px 0; }
+.team-config-row { display: grid; grid-template-columns: 64px 1fr 1.4fr; gap: 6px; align-items: center; }
+.team-config-idx { font-size: 11px; color: var(--txt-dim); }
+.team-config-row input { font-size: 12.5px; padding: 6px 8px; }
+.leader-switch { margin-top: 10px; font-size: 12px; color: var(--txt-dim); display: flex; flex-direction: column; gap: 6px; }
+.leader-switch select { font-size: 12px; padding: 5px 8px; background: var(--bg-3); color: var(--txt); border: 1px solid var(--line); }
+.leader-hint { margin-top: 10px; font-size: 12px; color: var(--txt-dim); border: 1px dashed var(--line); padding: 6px 8px; border-radius: 4px; }
+.preset-editor { margin-top: 10px; border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: var(--bg-3); }
+.preset-editor-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 700; }
+.preset-editor-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.preset-editor-actions input { font-size: 12px; padding: 5px 8px; min-width: 160px; }
+.preset-field-list { display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.preset-field-row { display: grid; grid-template-columns: 26px 96px 1fr 110px 30px 30px 30px; gap: 4px; align-items: center; }
+/* Zeilen mit Zusatzfeld (Los-Bonus / Gundo-Gebühr): 8 Spalten, breit genug. */
+.preset-field-row.has-extra { grid-template-columns: 26px 92px 1fr 104px 120px 28px 28px 28px; }
+.preset-field-row select, .preset-field-row input { font-size: 12px; padding: 4px 6px; }
+.preset-field-idx { font-size: 11px; color: var(--txt-dim); text-align: center; }
+.preset-field-row .del { color: var(--accent-red); }
+.preset-editor-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.btn-primary {
+  background: linear-gradient(180deg, var(--accent-red-hi), var(--accent-red));
+  border-color: #8f281d;
+  font-weight: 700;
+}
+.btn-primary:hover:not(:disabled) {
+  border-color: var(--accent-yellow);
+  box-shadow: 0 0 12px rgba(192,57,43,0.5);
+}
+
+.hidden { display: none !important; }
+
+/* Modal-System: Bestätigungs-/Info-Dialoge (Dark-Theme) */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1000;
+  background: rgba(6, 8, 12, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-panel {
+  background: var(--card, #141922);
+  border: 1px solid var(--border, #26354a);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  max-width: 420px;
+  padding: 18px 20px;
+  color: var(--foreground, #e6edf6);
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: var(--foreground, #e6edf6);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-close {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border, #26354a);
+  border-radius: 4px;
+  color: var(--muted-foreground, #a5b4c4);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+.modal-close:hover { color: #e06464; }
+.modal-icon { font-size: 28px; text-align: center; margin-bottom: 8px; }
+.modal-body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted-foreground, #a5b4c4);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.modal-body p { margin: 0 0 8px; }
+.modal-body ul { margin: 4px 0 8px 4px; padding-left: 16px; }
+.modal-body strong { color: #ffd166; }
+.modal-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+/* Join-Modal-Felder */
+.join-modal-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.join-modal-row span { color: var(--muted-foreground, #a5b4c4); min-width: 70px; font-size: 12.5px; }
+.join-modal-row input { flex: 1; padding: 6px 8px; background: var(--card, #141922); color: var(--foreground, #e6edf6); border: 1px solid var(--border, #26354a); border-radius: 6px; }
+.join-modal-hint { font-size: 11.5px; color: var(--muted-foreground, #8a99aa); margin-top: 6px; }
+
+/* GM-Code / Einladungscodes */
+.code-out, .invite-out {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-3);
+  padding: 12px;
+}
+.code-row { display: flex; align-items: center; gap: 10px; }
+.code-lbl {
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--txt-dim);
+}
+.code-big {
+  font-size: 22px;
+  font-family: "Cascadia Code", "Consolas", monospace;
+  letter-spacing: 4px;
+  color: var(--accent-yellow);
+  background: #000;
+  border: 1px solid var(--line);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+.invite-out .invite-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--line-soft);
+  font-size: 13px;
+}
+.invite-out .invite-row:last-child { border-bottom: none; }
+.invite-out .invite-ship { color: var(--txt); font-weight: 600; }
+.invite-out .invite-code {
+  margin-left: auto;
+  font-family: "Consolas", monospace;
+  color: var(--accent-yellow);
+  letter-spacing: 2px;
+}
+.invite-title {
+  font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--txt-dim); margin-bottom: 8px;
+}
+
+/* ------------------------------- Lobby ---------------------------------- */
+
+.lobby-card { max-width: 720px; }
+.lobby-teams { display: grid; gap: 10px; margin-bottom: 14px; }
+.team-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--team-color, var(--line));
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+.team-card .t-ship { font-weight: 700; letter-spacing: 0.5px; }
+.team-card .t-players { color: var(--txt-dim); font-size: 12.5px; }
+.team-card .t-leader {
+  font-size: 11px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 2px 8px;
+  color: var(--txt-dim);
+}
+.team-card .t-leader.is-set {
+  color: var(--accent-yellow);
+  border-color: var(--accent-yellow);
+}
+.team-card .t-leader.is-active {
+  color: var(--txt);
+  border-color: var(--team-color, var(--accent-yellow));
+  background: rgba(241,196,15,0.08);
+}
+
+/* --------------------------- Game-Layout -------------------------------- */
+
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  align-items: start;
+  padding-top: 10px;
+}
+.board-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+}
+/* Flex-Modus: Kopf-Banner + Brett vollbreit, ohne Zentrierung */
+#view-game.is-flex .board-wrap {
+  align-items: stretch;
+}
+#view-game.is-flex .board-wrap #board { width: 100%; }
+
+/* ---------- Flex-Modus (eigenes Preset, Feldanzahl ≠ 16) ----------
+   Ziel: Spielfeld (Felderreihe + Mapname) steht OBEN, volle Breite, Overflow
+   nach rechts; Felder beginnen links am sichtbaren Rand. Bedienelemente/Infos
+   liegen DARUNTER und nehmen NICHT die volle Breite ein. Karten im 5:8-Format. */
+#view-game.is-flex .game-layout {
+  grid-template-columns: 1fr;
+  grid-auto-flow: row;
+}
+#view-game.is-flex .board-wrap { order: 1; max-width: 98vw; }
+#view-game.is-flex .side-panel {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  order: 2;
+  width: 100%;
+  margin: 0 auto;
+}
+#view-game.is-flex .player-panel,
+#view-game.is-flex .cashflow,
+#view-game.is-flex .trade-panel { flex: 1 1 30%; min-width: 230px; }
+#view-game.is-flex .action-bar,
+#view-game.is-flex .econ-bar { flex: 1 1 42%; }
+#view-game.is-flex .log { flex: 1 1 100%; order: 99; }
+
+/* --------------------------- Das Brett ---------------------------------- */
+
+#board {
+  position: relative;
+  width: calc(var(--cell-size) * 5);
+  max-width: 100%;
+  height: calc(var(--cell-size) * 5);
+  aspect-ratio: 1 / 1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  grid-template-areas:
+    "f0  f1  f2  f3  f4"
+    "f15 c   c   c   f5"
+    "f14 c   c   c   f6"
+    "f13 c   c   c   f7"
+    "f12 f11 f10 f9  f8";
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px;
+  box-shadow: 0 0 40px rgba(192,57,43,0.12), 0 10px 40px rgba(0,0,0,0.5);
+}
+/* Zellen-Platzierung: Top 0-4 links→rechts, rechts 5-7 ↓, Bottom 8-11 rechts→links, links 12-15 ↑ */
+/* Flexible Form für eigene Presets (Feldanzahl ≠ 16): kompaktes Raster, keine
+   feste 5×5-Annahme — Tokens bleiben auf ihrem Feld und verschwinden nicht. */
+#view-game.is-flex #board.board-flex {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  height: auto;
+  min-height: 150px;
+  aspect-ratio: auto;
+  gap: 8px;
+  padding: 6px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  cursor: grab;
+  grid-template-areas: none;
+}
+#view-game.is-flex #board.board-flex:active { cursor: grabbing; }
+#view-game.is-flex #board.board-flex .field {
+  grid-area: auto !important;
+  flex: 0 0 170px;
+  width: 170px;
+  height: 272px; /* 5 : 8 (breit : hoch) */
+  min-height: 0;
+  scroll-snap-align: center;
+}
+#view-game.is-flex #board.board-flex::-webkit-scrollbar { height: 10px; }
+#view-game.is-flex #board.board-flex::-webkit-scrollbar-thumb { background: var(--line, #333); border-radius: 5px; }
+#view-game.is-flex .board-flex-head {
+  flex: 0 1 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 14px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+#view-game.is-flex .board-flex-head .bc-logo {
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 2px;
+}
+#board .field { overflow: hidden; }
+#board .f0  { grid-area: f0; }
+#board .f1  { grid-area: f1; }
+#board .f2  { grid-area: f2; }
+#board .f3  { grid-area: f3; }
+#board .f4  { grid-area: f4; }
+#board .f5  { grid-area: f5; }
+#board .f6  { grid-area: f6; }
+#board .f7  { grid-area: f7; }
+#board .f8  { grid-area: f8; }
+#board .f9  { grid-area: f9; }
+#board .f10 { grid-area: f10; }
+#board .f11 { grid-area: f11; }
+#board .f12 { grid-area: f12; }
+#board .f13 { grid-area: f13; }
+#board .f14 { grid-area: f14; }
+#board .f15 { grid-area: f15; }
+
+/* Seitensfelder: Drehung, damit Name + Balken entlang der Außenkante lesbar sind.
+   Rechte Seite: Balken außen rechts (via rot(90deg) aus Balken-oben).
+   Bottom: Balken außen unten (rot(-90deg)). Top/links: normal. */
+/* Seitensfelder: Drehung, damit Name + Balken entlang der Außenkante lesbar sind.
+   Rechts: Balken außen rechts (rot(90deg) dreht Balken-oben nach rechts).
+   Unten:  Balken außen unten (rot(180deg), wie beim Monopoly-Brett).
+   Links:  Balken außen links (rot(-90deg)). */
+#board .f-right { transform: rotate(90deg); }
+#board .f-bottom { transform: rotate(180deg); }
+#board .f-left  { transform: rotate(-90deg); }
+
+.field {
+  position: relative;
+  background: linear-gradient(180deg, var(--bg-3), var(--bg-2));
+  border: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--cell-size) * 0.03);
+}
+.field.is-active {
+  outline: 2px solid var(--accent-yellow);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 18px rgba(241,196,15,0.25);
+}
+
+/* Farbgruppe-Balken */
+.colorbar {
+  height: calc(var(--cell-size) * 0.085);
+  min-height: 6px;
+  border-radius: 1px;
+  flex: none;
+  background: var(--band, var(--line));
+}
+.colorbar.b-300 { background: linear-gradient(180deg, var(--band-300), var(--band-300-deep)); }
+.colorbar.b-400 { background: linear-gradient(180deg, var(--band-400), var(--band-400-deep)); }
+.colorbar.b-500 { background: linear-gradient(180deg, var(--band-500), var(--band-500-deep)); }
+.colorbar.b-600 { background: linear-gradient(180deg, var(--band-600), var(--band-600-deep)); }
+
+/* Grundstücksinhalt — Min-Font via max(), damit auch bei 390px lesbar */
+.f-name {
+  font-size: max(8px, calc(var(--cell-size) * 0.082));
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.2px;
+  text-align: center;
+  overflow-wrap: break-word;
+  margin-top: calc(var(--cell-size) * 0.03);
+  height: calc(var(--cell-size) * 0.27);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.f-price {
+  font-size: max(7px, calc(var(--cell-size) * 0.082));
+  font-weight: 800;
+  text-align: center;
+  color: var(--txt);
+  font-variant-numeric: tabular-nums;
+  margin-top: calc(var(--cell-size) * 0.02);
+}
+/* Schwarzer Balken für Feldtypen (Punkt: Balken auch bei Nicht-Grundstücken, weißer zentrierter Typ) */
+.colorbar.b-black {
+  background: #000;
+  color: #fff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  text-align: center;
+  font-size: max(6px, calc(var(--cell-size) * 0.07));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Untere Kartenhälfte: aktuelle Miete + Ausbaustufe (besitzerabhängig) */
+.f-rentcurrent {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding-top: calc(var(--cell-size) * 0.03);
+}
+.f-rentlabel {
+  font-size: max(6px, calc(var(--cell-size) * 0.07));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--txt-dim);
+  opacity: 0.85;
+}
+.f-rentvalue {
+  font-size: max(8px, calc(var(--cell-size) * 0.09));
+  font-weight: 800;
+  color: var(--txt);
+  font-variant-numeric: tabular-nums;
+  min-height: 1.2em;
+}
+.f-levelrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: calc(var(--cell-size) * 0.03);
+  padding-bottom: 2px;
+}
+.f-levelvalue {
+  font-size: max(6px, calc(var(--cell-size) * 0.068));
+  font-weight: 700;
+  color: var(--accent-yellow);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.f-mortrow {
+  font-size: max(6px, calc(var(--cell-size) * 0.07));
+  color: #ff9d9d;
+  text-align: center;
+}
+/* ============================ Feld-Karten-Overlay ============================ */
+/* Absolute Positionierung innerhalb der Karte, überdeckt Inhalt unterhalb Colorbar */
+.f-info {
+  position: absolute;
+  top: calc(var(--cell-size) * 0.085);
+  left: 0; right: 0; bottom: 0;
+  z-index: 10;
+  background: rgba(10, 14, 20, 0.96);
+  color: var(--txt);
+  font-size: max(8px, calc(var(--cell-size) * 0.09));
+  line-height: 1.35;
+  padding: 6px 8px 8px;
+  overflow-y: auto;
+  display: none;
+}
+.f-info:not(.hidden) { display: block; }
+/* Schließen-Button */
+.f-info-close {
+  position: absolute; top: 2px; right: 2px; z-index: 20;
+  background: transparent; border: 1px solid var(--line); border-radius: 3px;
+  color: var(--txt-dim); font-size: 16px; cursor: pointer;
+  padding: 0 5px; line-height: 1.2;
+  transition: color 0.15s, border-color 0.15s;
+}
+.f-info-close:hover { color: var(--accent-red-hi); border-color: var(--accent-red-hi); }
+/* Titel */
+.f-info-head {
+  font-size: max(9px, calc(var(--cell-size) * 0.1));
+  font-weight: 800; color: var(--accent-yellow, #ffd166);
+  text-align: center; padding: 2px 0 4px;
+  border-bottom: 1px solid var(--line); margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+/* Abschnitt-Trenner */
+.f-info-divider {
+  font-size: max(7px, calc(var(--cell-size) * 0.075));
+  font-weight: 700; color: var(--txt-dim); text-transform: uppercase;
+  letter-spacing: 1px; margin-top: 8px; margin-bottom: 2px;
+  padding-bottom: 2px; border-bottom: 1px solid var(--line-soft);
+}
+/* Datenzeilen */
+.f-info-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 2px 0; font-size: max(8px, calc(var(--cell-size) * 0.085));
+  border-bottom: 1px solid var(--line-soft);
+}
+.f-info-row:last-child { border-bottom: none; }
+.f-info-row span { color: var(--accent-yellow, #ffd166); font-weight: 700; }
+.f-info-row em { font-style: normal; color: #9ad1a8; }
+.f-info-row i { font-style: normal; color: #e8c060; }
+/* Nicht-Grundstück-Info */
+.f-info-body {
+  text-align: center; padding: 12px 4px;
+  font-size: max(10px, calc(var(--cell-size) * 0.1)); color: var(--txt);
+}
+.f-info-body strong { color: var(--accent-yellow, #ffd166); }
+/* Klickbar für ALLE Felder */
+.field { cursor: pointer; }
+.field:hover { box-shadow: 0 0 0 1px var(--accent-yellow, #f1c40f) inset; }
+.field.is-mortgaged { filter: saturate(0.3) brightness(0.85); }
+.owner-chip {
+  width: calc(var(--cell-size) * 0.13);
+  height: calc(var(--cell-size) * 0.13);
+  border-radius: 2px;
+  background: var(--team, #444);
+  border: 1px solid rgba(255,255,255,0.55);
+  box-shadow: 0 0 6px rgba(0,0,0,0.6);
+  flex: none;
+}
+
+/* Corner-Eckfeld-Styling entfernt (keine Eckfelder im neuen Reihen-Design) */
+
+/* Brett-Mitte */
+.board-center {
+  grid-area: c;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--cell-size) * 0.06);
+  background:
+    radial-gradient(80% 80% at 50% 50%, rgba(192,57,43,0.10), transparent 70%),
+    linear-gradient(180deg, var(--bg-2), var(--bg));
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  text-align: center;
+  padding: 8px;
+  overflow: hidden;
+}
+.board-center .bc-logo {
+  font-size: calc(var(--cell-size) * 0.17);
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--txt);
+}
+.board-center .bc-sub {
+  font-size: calc(var(--cell-size) * 0.075);
+  letter-spacing: 3px;
+  color: var(--accent-red-hi);
+  text-transform: uppercase;
+}
+.board-center .bc-active {
+  margin-top: calc(var(--cell-size) * 0.08);
+  font-size: calc(var(--cell-size) * 0.085);
+  color: var(--txt-dim);
+  letter-spacing: 1px;
+}
+.board-center .bc-active strong { color: var(--txt); }
+
+/* Tokens: kreisförmig, Lücke innen (Ring), Schiffsfarbe */
+.tokens-layer {
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  z-index: 5;
+}
+.token {
+  position: absolute;
+  width: var(--token-size);
+  height: var(--token-size);
+  border-radius: 50%;
+  border: calc(var(--token-size) * 0.22) solid var(--team, #fff);
+  background: transparent; /* Lücke innen */
+  box-shadow: 0 0 10px var(--team, rgba(255,255,255,0.4)), inset 0 0 6px rgba(0,0,0,0.5);
+  transform: translate(-50%, -50%);
+  transition: left 0.35s ease, top 0.35s ease;
+}
+.token.is-active::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--token-size) * -0.14);
+  border-radius: 50%;
+  border: 2px solid var(--accent-yellow);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.12); }
+}
+
+/* --------------------------- Seitenpanel -------------------------------- */
+
+.side-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.player-panel {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  min-height: 96px;
+}
+.player-panel .pp-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13.5px;
+}
+.player-panel .pp-row .k { color: var(--txt-dim); }
+.player-panel .pp-row .v { font-variant-numeric: tabular-nums; }
+.player-panel .pp-title {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-yellow);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.player-panel .pp-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--team, #888);
+  box-shadow: 0 0 6px var(--team, transparent);
+}
+
+.action-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.action-bar .btn { flex: 1 1 auto; font-size: 12.5px; padding: 8px 10px; }
+
+.log {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.log .log-line { padding: 2px 0; border-bottom: 1px dashed var(--line-soft); color: var(--txt-dim); }
+.log .log-line:last-child { border-bottom: none; }
+.log .log-line b { color: var(--txt); }
+
+.rotate-hint { display: none; font-size: 11px; color: var(--txt-dim); text-align: center; }
+
+/* --------------------------- Toast/Notify ------------------------------- */
+
+.notify {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent-yellow);
+  color: var(--txt);
+  padding: 10px 16px;
+  border-radius: 5px;
+  font-size: 13.5px;
+  z-index: 50;
+  max-width: min(90vw, 480px);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+.notify.is-error { border-left-color: var(--accent-red-hi); }
+
+/* --------------------------- Responsivität ------------------------------ */
+
+/* Tablet/Handy: Brett über Panel, Panel unterhalb */
+@media (max-width: 900px) {
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
+  .log { max-height: 180px; }
+}
+
+/* Handy (≤ ~480px): Brett füllt die Breite, --cell-size via JS */
+@media (max-width: 480px) {
+  #app { padding: 8px 8px 18px; }
+  .app-header { padding: 4px 2px 8px; }
+  .brand { font-size: 16px; letter-spacing: 3px; }
+  .screen-card { padding: 14px; margin: 10px auto; }
+  .rotate-hint { display: block; }
+  .log { max-height: 150px; }
+}
+
+/* Querformat Handy: kompaktes Layout, Brett bleibt dominant */
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 560px) {
+  .game-layout {
+    grid-template-columns: minmax(0, 1fr) 220px;
+  }
+  .log { max-height: 120px; }
+  .player-panel { min-height: 70px; }
+}
+
+/* ================= Spiele-Übersicht ================= */
+.games-tabs { display: flex; gap: 8px; margin: 10px 0; }
+.games-list { display: flex; flex-direction: column; gap: 10px; }
+.game-card { background: var(--card, #141a21); border: 1px solid var(--border, #2a3440); border-radius: 8px; padding: 12px; }
+.game-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.game-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+.game-status.started { background: rgba(80, 200, 120, 0.15); color: #7bd693; }
+.game-status.lobby { background: rgba(220, 180, 80, 0.15); color: #e0c06a; }
+.game-status.paused { background: rgba(255, 209, 102, 0.18); color: #ffd166; }
+.game-id { font-size: 11px; color: var(--muted-foreground, #94a3b3); font-weight: 400; opacity: 0.7; }
+.game-card-teams { color: var(--muted-foreground, #94a3b3); font-size: 12px; margin-top: 6px; }
+.game-card-actions { margin-top: 8px; }
+.games-empty { color: var(--muted-foreground, #94a3b3); padding: 16px 0; }
+
+.game-result { margin-top: 12px; }
+.result-title { font-weight: 700; margin-bottom: 8px; }
+.result-winner { margin-bottom: 8px; }
+.result-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.result-table th, .result-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border, #2a3440); }
+.result-table th { color: var(--muted-foreground, #94a3b3); font-weight: 600; }
+
+/* ================= Cashflow + Economy ================= */
+.cashflow { background: var(--card, #141a21); border: 1px solid var(--border, #2a3440); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 12px; max-height: 150px; overflow-y: auto; }
+.cashflow-head { font-weight: 700; margin-bottom: 6px; }
+.cf-empty { color: var(--muted-foreground, #94a3b3); font-style: italic; padding: 4px 0; }
+.cf-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.cf-row.pos .cf-amt { color: #7bd693; }
+.cf-row.neg .cf-amt { color: #e06464; }
+.cf-txt { color: var(--muted-foreground, #94a3b3); text-align: right; }
+
+.econ-bar { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; background: var(--card, #141a21); border: 1px solid var(--border, #2a3440); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.econ-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.econ-row span { color: var(--muted-foreground, #94a3b3); }
+.econ-row select { flex: 1; }
+.econ-hint { color: var(--muted-foreground, #94a3b3); font-size: 12px; }
+.econ-warn { color: #ffd166; border: 1px dashed rgba(255,209,102,0.5); border-radius: 4px; padding: 5px 8px; margin-bottom: 6px; font-size: 12px; font-weight: 600; }
+.btn-danger { border-color: rgba(224, 100, 100, 0.6); color: #e06464; }
+.btn-danger:hover { background: rgba(224, 100, 100, 0.12); }
+.btn-ok { border-color: rgba(80, 200, 120, 0.6); color: #7bd693; }
+.btn-ok:hover { background: rgba(80, 200, 120, 0.12); }
+
+/* ============ Handelspanel (Angebote + Versteigerung) ============ */
+.trade-panel { background: var(--card, #141a21); border: 1px solid var(--border, #2a3440); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 12px; max-height: 150px; overflow-y: auto; }
+.trade-head { font-weight: 700; margin: 6px 0 4px; }
+.trade-empty { color: var(--muted-foreground, #94a3b3); font-style: italic; padding: 4px 0; }
+.trade-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+.trade-row > span { color: var(--muted-foreground, #94a3b3); }
+.trade-row > div { display: flex; gap: 4px; }
+
+/* ============ Dreh-Hinweis auf sehr schmalen Bildschirmen (< 600px) ============ */
+.rotate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg-1, #0b0e12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px;
+}
+.rotate-overlay .ro-ico { font-size: 44px; }
+.rotate-overlay p { max-width: 280px; color: var(--muted-foreground, #94a3b3); line-height: 1.5; }
+@media (min-width: 600px) { .rotate-overlay { display: none !important; } }
+
+/* =========================================================================
+   Globale Dark-Mode-Scrollbars (Webkit + Firefox)
+   Gilt für alle scrollbaren Bereiche: .games-list, #board.board-flex,
+   .preset-modal-panel, .log, .side-panel, .cashflow, .trade-panel usw.
+   ========================================================================= */
+
+/* Webkit (Chrome, Edge, Safari) */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-2, #10141b); }
+::-webkit-scrollbar-thumb {
+  background: var(--line, #232b38);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--txt-dim, #8b97a8); }
+
+/* Firefox: Scrollbar-Farbe + -breite auf html/body setzen */
+html, body {
+  scrollbar-color: var(--line, #232b38) var(--bg-2, #10141b);
+  scrollbar-width: thin;
+}
+
+/* Firefox: auch auf scrollbaren Containern */
+.games-list,
+#board.board-flex,
+.preset-modal-panel,
+.log,
+.cashflow,
+.trade-panel,
+.modal-body,
+.preset-field-list,
+.side-panel {
+  scrollbar-color: var(--line, #232b38) var(--bg-2, #10141b);
+  scrollbar-width: thin;
+}

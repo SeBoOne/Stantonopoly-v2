@@ -1,0 +1,218 @@
+/**
+ * Stantonopoly V2 — Quelle der Wahrheit (Single Source of Truth)
+ * Portiert von V1 data.js (CommonJS-only für Node-Server).
+ * Server-authoritativ: Der Server berechnet, das Frontend zeigt nur an.
+ * Alle Beträge sind ganze uAEC (Units of AEC).
+ */
+'use strict';
+
+// ---------------------------------------------------------------------------
+// Multiplikatoren
+// ---------------------------------------------------------------------------
+
+// Miete pro Ausbaustufe als Anteil des Kaufpreises (uAEC)
+const RENT_MULT = {
+  ALONE: 0.10,
+  CYCLONE: 0.50,
+  STORM: 1.00,
+  BALLISTA: 2.00,
+  ARMISTICE: 3.00
+};
+
+// Baukosten pro Ausbaustufe als Anteil des Kaufpreises (uAEC)
+// ALONE ist der Ausgangszustand und kostet nichts -> 0
+const BUILD_MULT = {
+  CYCLONE: 0.25,
+  STORM: 0.50,
+  BALLISTA: 1.00,
+  ARMISTICE: 1.50
+};
+
+// Kredit: Darlehen = 75 % des Kaufpreises
+const MORTGAGE_MULT = 0.75;
+
+// Alle Ausbaustufen; 'ARMISTICE' ist die optionale 4./5. Stufe
+const LEVELS = ['ALLEIN', 'CYCLONE', 'STORM', 'BALLISTA', 'ARMISTICE'];
+
+// Anzeigenamen der Ausbaustufen (pro Preset überschreibbar via levelNames).
+const DEFAULT_LEVEL_NAMES = {
+  ALLEIN: 'Standard',
+  CYCLONE: 'Cyclone',
+  STORM: 'Storm',
+  BALLISTA: 'Ballista',
+  ARMISTICE: 'Armistice Zone'
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Spielregel-Einstellungen (pro Preset überschreibbar via `settings`).
+// Die Engine liest ALLE ekonomischen Parameter aus game.settings; fehlt ein
+// Wert, greift dieser Default. So kann ein Preset eigene Miet-Multiplikatoren,
+// Baukosten, Hypothek/Entlastung, Bank-Verkauf, Abbau-Rückerstattung, Timer
+// und Funktionsperren mitbringen.
+// ─────────────────────────────────────────────────────────────────────────
+const DEFAULT_SETTINGS = {
+  // Miete pro Ausbaustufe als Anteil des Kaufpreises (wie RENT_MULT)
+  rentMult: { ALLEIN: 0.10, CYCLONE: 0.50, STORM: 1.00, BALLISTA: 2.00, ARMISTICE: 3.00 },
+  // Baukosten pro Ausbaustufe als Anteil des Kaufpreises (wie BUILD_MULT)
+  buildMult: { ALLEIN: 0, CYCLONE: 0.25, STORM: 0.50, BALLISTA: 1.00, ARMISTICE: 1.50 },
+  // Hypothek: Darlehen = Anteil des Kaufpreises
+  mortgageMult: 0.75,
+  // Entlastung: Rückzahlung = Darlehen × unmortgageRate (10 % Zins → 1.10)
+  unmortgageRate: 1.10,
+  // Bank-Verkauf an die Bank (Sanierung) erlaubt? false = Funktion gesperrt
+  bankSellEnabled: true,
+  // Anteil des Kaufpreises, den die Bank beim Ankauf zahlt
+  bankPayout: 0.75,
+  // Abbau-Rückerstattung: Anteil der Baukosten einer Stufe
+  demolishRefundRate: 0.50,
+  // Versteigerungsdauer (ms)
+  auctionMs: 15000,
+  // Dauer der Aufgeben-Abstimmung (ms)
+  pollMs: 15000,
+  // Armistice (letzte Ausbaustufe) im Preset aktivieren?
+  armisticeEnabled: false
+};
+
+// ---------------------------------------------------------------------------
+// Berechnungsfunktionen (alle auf Integer gerundet via Math.round)
+// ---------------------------------------------------------------------------
+
+function baseRent(price, mult) {
+  const m = mult || RENT_MULT.ALONE;
+  return Math.round(price * m);
+}
+
+function rentFor(price, levelName, settings) {
+  const mult = (settings && settings.rentMult) ? settings.rentMult : RENT_MULT;
+  const key = levelName === 'ALLEIN' ? 'ALONE' : levelName;
+  const key2 = levelName === 'ALLEIN' ? 'ALLEIN' : levelName;
+  const m = mult[key] != null ? mult[key] : mult[key2];
+  if (m == null) {
+    throw new Error('Unbekanntes Level: ' + levelName);
+  }
+  return Math.round(price * m);
+}
+
+function buildCost(price, levelName, settings) {
+  if (levelName === 'ALLEIN') {
+    return 0;
+  }
+  const mult = (settings && settings.buildMult) ? settings.buildMult : BUILD_MULT;
+  if (!(levelName in mult)) {
+    throw new Error('Unbekanntes Level: ' + levelName);
+  }
+  return Math.round(price * mult[levelName]);
+}
+
+function mortgage(price, settings) {
+  const mult = (settings && settings.mortgageMult != null) ? settings.mortgageMult : MORTGAGE_MULT;
+  return Math.round(price * mult);
+}
+
+/**
+ * Zahl -> deutsches Format mit Tausenderpunkten, ohne Dezimalkomma.
+ * Bewusst manuell implementiert (kein toLocaleString), da sich die
+ * Separator-Verhalten zwischen Node und Browser unterscheiden.
+ */
+function formatUAEC(n) {
+  const value = Math.round(Number(n));
+  const sign = value < 0 ? '-' : '';
+  const digits = String(Math.abs(value));
+  let out = '';
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 === 0) {
+      out += '.';
+    }
+    out += digits[i];
+  }
+  return sign + out;
+}
+
+/**
+ * Tiefen-Merge der Preset-Settings über die Defaults. Fehlende Skalare und
+ * fehlende Schlüssel verschachtelter Maps (rentMult/buildMult) werden aufgefüllt,
+ * vorhandene Werte des Presets gewinnen.
+ */
+function mergeSettings(userSettings) {
+  const d = DEFAULT_SETTINGS;
+  const u = (userSettings && typeof userSettings === 'object') ? userSettings : {};
+  const out = {};
+  for (const key of Object.keys(d)) {
+    if (typeof d[key] === 'object' && d[key] !== null && !Array.isArray(d[key])) {
+      out[key] = Object.assign({}, d[key], (u[key] && typeof u[key] === 'object') ? u[key] : {});
+    } else {
+      out[key] = (u[key] !== undefined && u[key] !== '') ? u[key] : d[key];
+    }
+  }
+  return out;
+}
+
+/** Vorberechnete Miet-/Kreditkarte für ein Grundstücksfeld.
+ */
+function tabelleFor(price) {
+  return {
+    base: baseRent(price),
+    cyclone: rentFor(price, 'CYCLONE'),
+    storm: rentFor(price, 'STORM'),
+    ballista: rentFor(price, 'BALLISTA'),
+    mortg: mortgage(price)
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Stammdaten
+// ---------------------------------------------------------------------------
+
+const StantonopolyData = {
+  VERSION: '1.0.0',
+  DEFAULT_CAPITAL: 1500000,
+  LOS_PASS_BONUS: 500000,
+  GUNDO_FEE: 125000,
+  MIN_TEAMS: 2,
+  MAX_TEAMS: 8,
+  DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+
+  RENT_MULT: RENT_MULT,
+  BUILD_MULT: BUILD_MULT,
+  MORTGAGE_MULT: MORTGAGE_MULT,
+  BANK_PAYOUT: 0.75,   // An die Bank verkaufen (Sanierung): Anteil des Feldwerts
+  LEVELS: LEVELS,
+
+  baseRent: baseRent,
+  rentFor: rentFor,
+  buildCost: buildCost,
+  mortgage: mortgage,
+  formatUAEC: formatUAEC,
+  tabelleFor: tabelleFor,
+  mergeSettings: mergeSettings,
+  DEFAULT_LEVEL_NAMES: DEFAULT_LEVEL_NAMES,
+
+  // Karten-Presets; Reihenfolge der fields: Index 0-15 (id = Index)
+  PRESETS: {
+    'Crusader Cluster': {
+      name: 'Crusader Cluster',
+      levelNames: Object.assign({}, DEFAULT_LEVEL_NAMES),
+      fields: [
+        { type: 'los', name: 'Orison' },                                    // 0
+        { type: 'grundstueck', name: 'Seraphim', price: 400000, tabelle: tabelleFor(400000) },                        // 1
+        { type: 'grundstueck', name: 'Shubin Mining SCD-1', price: 500000, tabelle: tabelleFor(500000) },           // 2
+        { type: 'grundstueck', name: 'Kudre Ore', price: 500000, tabelle: tabelleFor(500000) },                     // 3
+        { type: 'grundstueck', name: 'Brios Breaker Yard', price: 400000, tabelle: tabelleFor(400000) },            // 4
+        { type: 'grundstueck', name: 'Arc Mining 141', price: 500000, tabelle: tabelleFor(500000) },                // 5
+        { type: 'ereignis', name: 'Covalex Hub Gundo', fee: 125000 },                                                      // 6
+        { type: 'grundstueck', name: 'Miner Lament', price: 300000, tabelle: tabelleFor(300000) },                  // 7
+        { type: 'grundstueck', name: 'Grim Hex', price: 500000, tabelle: tabelleFor(500000) },                     // 8
+        { type: 'grundstueck', name: 'NT-999-XX', price: 600000, tabelle: tabelleFor(600000) },                    // 9
+        { type: 'grundstueck', name: 'Deakins Research', price: 500000, tabelle: tabelleFor(500000) },             // 10
+        { type: 'grundstueck', name: 'Terra Mills HydroFarm', price: 300000, tabelle: tabelleFor(300000) },        // 11
+        { type: 'grundstueck', name: 'Gallete Family Farms', price: 300000, tabelle: tabelleFor(300000) },         // 12
+        { type: 'grundstueck', name: 'Hickes Research', price: 500000, tabelle: tabelleFor(500000) },              // 13
+        { type: 'grundstueck', name: 'Security Post Kareah', price: 600000, tabelle: tabelleFor(600000) },         // 14
+        { type: 'grundstueck', name: 'Comm Array ST2-55', price: 600000, tabelle: tabelleFor(600000) }             // 15
+      ]
+    }
+  }
+};
+
+// CommonJS-Export (Server).
+module.exports = StantonopolyData;

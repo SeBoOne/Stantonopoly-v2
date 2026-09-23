@@ -1,0 +1,33 @@
+# Abhängigkeiten
+node_modules/
+
+# Laufzeit-Daten & Secrets — NIE ins Repo
+data/*.db
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Lokale Devwatch-/Prozess-Artefakte
+*.log
+*.pid
+.devservices.json
+
+# Dogfood-Testabdrücke (Screenshots/Reports aus QA-Läufen)
+dogfood-out/
+screenshots/
+.cache/
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/
+
+# Hermes-/Agenten-Arbeitsartefakte (kein Produktcode)
+.hermes-plan*.md
+.hermes-plan.md
+public/__test.html

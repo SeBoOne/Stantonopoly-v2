@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0e12" />
+  <title>Stantonopoly V2 — AAWA-Event</title>
+  <link rel="stylesheet" href="/assets/css/stantonopoly.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark">◤</span> STANTONOPOLY <span class="brand-v">V2</span></div>
+      <div class="header-sub">Crusader Cluster · AAWA-Event</div>
+      <nav class="header-nav" aria-label="Ansicht wählen">
+        <button type="button" id="nav-games" class="btn btn-ghost btn-xs">Spiele</button>
+        <button type="button" id="nav-join" class="btn btn-ghost btn-xs">Spiel beitreten</button>
+        <button type="button" id="nav-setup" class="btn btn-ghost btn-xs">Spiel erstellen</button>
+      </nav>
+    </header>
+
+    <!-- ============ Spiele-Übersicht (alle Spiele, Zuschauen, Endresultate) ============ -->
+    <section id="view-games" class="view" aria-label="Spiele-Übersicht">
+      <div class="screen-card">
+        <h2>Spiele <span class="h2-tag">aktiv &amp; beendet</span></h2>
+        <div class="games-tabs">
+          <button type="button" id="games-tab-active" class="btn btn-xs btn-ghost">Aktive Spiele</button>
+          <button type="button" id="games-tab-paused" class="btn btn-xs btn-ghost">⏸ Pausiert</button>
+          <button type="button" id="games-tab-done" class="btn btn-xs btn-ghost">Abgeschlossen</button>
+        </div>
+        <div id="games-list" class="games-list" aria-live="polite">
+          <div class="games-empty">Lädt…</div>
+        </div>
+        <div id="game-result" class="game-result hidden" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- ============ GM-Erstell-Screen ============ -->
+    <section id="view-setup" class="view" aria-label="Spiel erstellen">
+      <div class="screen-card">
+        <h2>Neues Spiel anlegen <span class="h2-tag">GM</span></h2>
+        <form id="gm-create-form" autocomplete="off">
+          <label class="field-label">Teams <span class="hint">(2–8)</span>
+            <input id="cfg-teams" type="number" min="2" max="8" step="1" value="4" required />
+          </label>
+          <div class="team-config-head">
+            <span>Schiff &amp; Aufgabe je Team <span class="hint">(Schiff = Teamname "Team &lt;Schiff&gt;")</span></span>
+          </div>
+          <div id="team-config-list" class="team-config-list"></div>
+          <label class="field-label">Startkapital (uAEC)
+            <input id="cfg-capital" type="number" min="100000" step="50000" value="1000000" required />
+          </label>
+          <label class="field-label">Würfeln
+            <select id="cfg-dice">
+              <option value="1w6">1w6</option>
+              <option value="2w6">2w6</option>
+              <option value="frei">frei</option>
+            </select>
+          </label>
+          <label class="field-label">Preset
+            <select id="cfg-preset"></select>
+            <span class="hint" id="preset-meta"></span>
+          </label>
+          <div class="preset-pick-actions">
+            <button type="button" id="btn-open-preset-editor" class="btn btn-xs btn-ghost">⚙ Karte &amp; Regeln bearbeiten</button>
+            <span class="hint">(optional — nur wer ein eigenes Preset anpassen will)</span>
+          </div>
+          <div class="form-actions">
+            <button id="btn-create" type="button" class="btn btn-primary">Spiel erstellen</button>
+          </div>
+        </form>
+
+        <p class="screen-note">
+          Spiel erstellen → danach GM-Code + Einladungscodes in der Lobby
+          sehen und an die Spieler verteilen.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ Preset-Editor (eigenes Modal) ============ -->
+    <div id="preset-modal" class="preset-modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Preset-Editors">
+      <div class="preset-modal-panel">
+        <div class="preset-modal-head">
+          <span>Preset bearbeiten</span>
+          <button type="button" id="btn-preset-close" class="modal-close">✕</button>
+        </div>
+        <div class="preset-editor">
+          <div class="preset-editor-head">
+            <span>Karte</span>
+            <div class="preset-editor-actions">
+              <button type="button" id="btn-preset-new" class="btn btn-xs btn-ghost">Neues Preset</button>
+              <button type="button" id="btn-preset-save" class="btn btn-xs btn-ghost">Speichern</button>
+              <button type="button" id="btn-preset-delete" class="btn btn-xs btn-ghost">Löschen</button>
+              <input id="preset-name" type="text" placeholder="Preset-Name (zum Speichern)" maxlength="40" />
+            </div>
+          </div>
+          <div id="preset-field-list" class="preset-field-list"></div>
+          <div class="preset-editor-foot">
+            <button type="button" id="btn-field-add" class="btn btn-xs btn-ghost">+ Feld</button>
+            <span class="hint">Felder = Spielfelder in Reihenfolge (0 = Los). Grundstück: Preis; Miete/Bau automatisch.</span>
+          </div>
+          <!-- Ausbaustufen-Namen -->
+          <div class="levelnames-editor">
+            <div class="levelnames-head">Ausbaustufen-Namen</div>
+            <div class="levelnames-grid">
+              <label class="levelnames-row"><span>Stufe 1 (Standard)</span><input id="lvl-ALLEIN" type="text" maxlength="24" placeholder="Standard" /></label>
+              <label class="levelnames-row"><span>Stufe 2</span><input id="lvl-CYCLONE" type="text" maxlength="24" placeholder="Cyclone" /></label>
+              <label class="levelnames-row"><span>Stufe 3</span><input id="lvl-STORM" type="text" maxlength="24" placeholder="Storm" /></label>
+              <label class="levelnames-row"><span>Stufe 4</span><input id="lvl-BALLISTA" type="text" maxlength="24" placeholder="Ballista" /></label>
+              <label class="levelnames-row"><span>Stufe 5 (Armistice)</span><input id="lvl-ARMISTICE" type="text" maxlength="24" placeholder="Armistice Zone" /></label>
+            </div>
+          </div>
+          <!-- Regeln / Settings — gruppiert -->
+          <div class="settings-editor">
+            <div class="settings-head">Spielregeln <span class="hint">(Multiplikatoren in %, z. B. 50 = 0,50)</span></div>
+
+            <!-- Gruppe: Mietstufen -->
+            <div class="settings-group">
+              <div class="settings-group-title">Mietstufen</div>
+              <div class="settings-grid">
+                <label class="settings-row"><span>Miete Stufe 1</span><input id="s-rent-ALLEIN" type="number" min="0" step="1" placeholder="10" title="Basis-Miete pro Zug auf unverbauten Grundstücken (10 = 10 % des Kaufpreises)" /></label>
+                <label class="settings-row"><span>Miete Stufe 2</span><input id="s-rent-CYCLONE" type="number" min="0" step="1" placeholder="50" title="Anteil des Kaufpreises, den der Besitzer von einem Besucher pro Zug kassiert, wenn das Feld Stufe 2 (Cyclone) erreicht ist (50 = 50 %)" /></label>
+                <label class="settings-row"><span>Miete Stufe 3</span><input id="s-rent-STORM" type="number" min="0" step="1" placeholder="100" title="Anteil des Kaufpreises bei Stufe 3 (Storm) — der Besucher zahlt diesen Prozentsatz pro Zug (100 = 100 %)" /></label>
+                <label class="settings-row"><span>Miete Stufe 4</span><input id="s-rent-BALLISTA" type="number" min="0" step="1" placeholder="200" title="Anteil des Kaufpreises bei Stufe 4 (Ballista) — der Besucher zahlt diesen Prozentsatz pro Zug (200 = 200 %)" /></label>
+                <label class="settings-row"><span>Miete Stufe 5</span><input id="s-rent-ARMISTICE" type="number" min="0" step="1" placeholder="300" title="Anteil des Kaufpreises bei Stufe 5 (Armistice) — der Besucher zahlt diesen Prozentsatz pro Zug (300 = 300 %)" /></label>
+              </div>
+            </div>
+
+            <!-- Gruppe: Baukosten -->
+            <div class="settings-group">
+              <div class="settings-group-title">Baukosten</div>
+              <div class="settings-grid">
+                <label class="settings-row"><span>Bau Stufe 2</span><input id="s-build-CYCLONE" type="number" min="0" step="1" placeholder="25" title="Kosten in uAEC, um ein Grundstück von Stufe 1 auf Stufe 2 (Cyclone) auszubauen" /></label>
+                <label class="settings-row"><span>Bau Stufe 3</span><input id="s-build-STORM" type="number" min="0" step="1" placeholder="50" title="Kosten in uAEC, um ein Grundstück von Stufe 2 auf Stufe 3 (Storm) auszubauen" /></label>
+                <label class="settings-row"><span>Bau Stufe 4</span><input id="s-build-BALLISTA" type="number" min="0" step="1" placeholder="100" title="Kosten in uAEC, um ein Grundstück von Stufe 3 auf Stufe 4 (Ballista) auszubauen" /></label>
+                <label class="settings-row"><span>Bau Stufe 5</span><input id="s-build-ARMISTICE" type="number" min="0" step="1" placeholder="150" title="Kosten in uAEC, um ein Grundstück von Stufe 4 auf Stufe 5 (Armistice) auszubauen" /></label>
+              </div>
+            </div>
+
+            <!-- Gruppe: Hypothek & Entlastung -->
+            <div class="settings-group">
+              <div class="settings-group-title">Hypothek &amp; Entlastung</div>
+              <div class="settings-grid">
+                <label class="settings-row"><span>Hypothek (Anteil)</span><input id="s-mortgage-mult" type="number" min="0" max="100" step="1" placeholder="75" title="Prozentsatz des Kaufpreises, den man bei einer Hypothek erhält (75 = 75 % des Kaufpreises)" /></label>
+                <label class="settings-row"><span>Entlastung (+% auf Hypothek)</span><input id="s-unmortgage-rate" type="number" min="0" step="1" placeholder="10" title="Zuschlag in % beim Rückkauf einer Hypothek (z. B. 10 % = man zahlt 82,5 % des Kaufpreises statt 75 %)" /></label>
+              </div>
+            </div>
+
+            <!-- Gruppe: Bank & Abbau -->
+            <div class="settings-group">
+              <div class="settings-group-title">Bank &amp; Abbau</div>
+              <div class="settings-grid">
+                <label class="settings-row"><span>Bank-Verkauf (Anteil)</span><input id="s-bank-payout" type="number" min="0" max="100" step="1" placeholder="75" title="Prozentsatz des Kaufpreises, den die Bank beim Zwangsverkauf zahlt (75 = 75 % des Kaufpreises)" /></label>
+                <label class="settings-row"><span>Abbau-Rückerstattung</span><input id="s-demolish-refund" type="number" min="0" max="100" step="1" placeholder="50" title="Prozentsatz der Baukosten, den man zurückbekommt, wenn man Gebäude abbaut (50 = 50 %)" /></label>
+                <label class="settings-row chk"><input id="s-bank-sell" type="checkbox" checked title="Erlaubt, dass Grundstücke mit Gebäuden nicht an andere Spieler, sondern nur an die Bank verkauft werden können" /> <span>Verkauf an die Bank erlauben</span></label>
+              </div>
+            </div>
+
+            <!-- Gruppe: Timer -->
+            <div class="settings-group">
+              <div class="settings-group-title">Timer</div>
+              <div class="settings-grid">
+                <label class="settings-row"><span>Versteigerung (s)</span><input id="s-auction-ms" type="number" min="1" step="1" placeholder="15" title="Zeit in Sekunden, die Spieler für eine Versteigerung eines Feldes haben" /></label>
+                <label class="settings-row"><span>Abstimmung (s)</span><input id="s-poll-ms" type="number" min="1" step="1" placeholder="15" title="Zeit in Sekunden, die Spieler für eine Abstimmung/Abstimmungsphase haben" /></label>
+              </div>
+            </div>
+
+            <!-- Gruppe: Armistice -->
+            <div class="settings-group">
+              <div class="settings-group-title">Armistice</div>
+              <div class="settings-grid">
+                <label class="settings-row chk">
+                  <input id="s-armistice" type="checkbox" title="Aktiviert die letzte Ausbaustufe Armistice, sodass alle Felder auf Stufe 5 (Armistice Zone) ausgebaut werden können" />
+                  <span>Armistice (letzte Ausbaustufe) aktivieren</span>
+                </label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spiel beitreten läuft jetzt über das Modal (→ „Spiel beitreten"-Button). -->
+
+    <!-- ============ Lobby ============ -->
+    <section id="view-lobby" class="view" aria-label="Lobby">
+      <div class="screen-card lobby-card">
+        <h2>Lobby <span class="h2-tag">Teams &amp; Leitungswahl</span></h2>
+        <div id="gm-code-box" class="gm-code-box hidden" aria-live="polite"></div>
+        <div id="invite-code-box" class="invite-code-box hidden" aria-live="polite"></div>
+        <div id="lobby-teams-list" class="lobby-teams"></div>
+        <div class="form-actions">
+          <button id="btn-start" class="btn btn-primary hidden">Spiel starten</button>
+          <button id="btn-leave-lobby" type="button" class="btn btn-xs hidden">↩ Spiel verlassen</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Spiel ============ -->
+    <section id="view-game" class="view" aria-label="Spiel">
+      <div class="game-layout">
+        <div class="board-wrap">
+          <div id="board" aria-label="Stantonopoly-Brett"></div>
+        </div>
+        <aside class="side-panel">
+          <div id="player-panel" class="player-panel" aria-live="polite"></div>
+          <div id="cashflow" class="cashflow hidden" aria-live="polite"></div>
+          <div id="trade-panel" class="trade-panel hidden" aria-live="polite"></div>
+          <div id="action-bar" class="action-bar" role="toolbar" aria-label="Aktionen"></div>
+          <div id="econ-bar" class="econ-bar" role="toolbar" aria-label="Immobilien & Finanzen"></div>
+          <div id="log" class="log" aria-live="polite" aria-label="Spiel-Log"></div>
+          <div class="rotate-hint">Tipp: Handy horizontal halten für mehr Übersicht.</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Temporäre Meldung (Fehler/Tips), wird von client.js befüllt -->
+    <div id="notify" class="notify hidden" role="status" aria-live="assertive"></div>
+
+    <!-- Dreh-Hinweis: erscheint nur unter 600px Breite (Smartphone-Hochformat).
+         Vertikale Monitore sind weiterhin breit genug → sehen die Reihe normal. -->
+    <div id="rotate-overlay" class="rotate-overlay">
+      <div class="ro-ico">🔄</div>
+      <strong>Bitte Gerät drehen</strong>
+      <p>Das Spielfeld ist horizontal ausgelegt. Für die beste Ansicht drehe dein Gerät ins Querformat.</p>
+      <button type="button" class="btn btn-xs btn-ghost" id="rotate-skip">Trotzdem zeigen</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/assets/js/board.js"></script>
+  <script src="/assets/js/client.js"></script>
+</body>
+</html>
