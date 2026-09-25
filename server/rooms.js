@@ -883,9 +883,11 @@ class Rooms {
     }
     // Spieler entfernen
     dbm.removePlayer(gameId, sock.id);
-    // Wenn der Verlassende Leader war: neuen Leader auflösen
+    // Wenn der Verlassende Leader war: neuen Leader auflösen und State broadcasten
     if (isLeader && me) {
       this.resolveTeamLeader(gameId, me.teamId);
+      // Broadcast an verbleibende Clients — sie sehen sonst keine neue leaderId
+      this.broadcast(gameId);
     }
     try { sock.leave(this._roomOf(gameId)); } catch (e) {}
     // Client-State bereinigen (localStorage löscht der Client selbst).
