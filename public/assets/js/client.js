@@ -128,7 +128,40 @@
     isGM: false,
     lastState: null,   // letzter empfangener state
     boardReady: false,
+    palette: 'holo',   // aktive Farbpalette
   };
+
+  /* ---------------- Paletten-Switcher ---------------- */
+  const PALETTES = ['holo', 'aawa', 'stanton'];
+  const PALETTE_NAMES = { holo: 'Holo', aawa: 'AAWA', stanton: 'Stanton' };
+  function applyPalette(name) {
+    client.palette = name;
+    document.documentElement.setAttribute('data-palette', name);
+    try { localStorage.setItem('stantonopoly.palette', name); } catch(e) {}
+    // Switcher-Buttons aktualisieren
+    document.querySelectorAll('.palette-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.getAttribute('data-palette') === name);
+    });
+  }
+  function initPaletteSwitcher() {
+    const wrap = $('palette-switcher');
+    if (!wrap) return;
+    // Gespeicherte Palette laden
+    let saved = 'holo';
+    try { saved = localStorage.getItem('stantonopoly.palette') || 'holo'; } catch(e) {}
+    if (!PALETTES.includes(saved)) saved = 'holo';
+    applyPalette(saved);
+    // Buttons erstellen
+    PALETTES.forEach((p) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'palette-btn' + (p === saved ? ' active' : '');
+      btn.setAttribute('data-palette', p);
+      btn.textContent = PALETTE_NAMES[p] || p;
+      btn.addEventListener('click', () => applyPalette(p));
+      wrap.appendChild(btn);
+    });
+  }
 
   // Join-Stand in localStorage sichern, damit ein Neuladen automatisch
   // rejoin-t (eigene Identität/Team bleibt erhalten).
@@ -864,6 +897,9 @@
       if (client.lastState && client.lastState.gameId === client.gameId) {
         client.renderGameUI(client.lastState);
       }
+      // Action-Bar re-rendern: erster Broadcast kommt oft VOR joined → btn-options
+      // wäre sonst disabled. Explizites Re-Render nach Setzen von teamId/role (analog Z.864).
+      renderActionBar(client.lastState);
     } else {
       showView('lobby');
       showNotify(data && data.rejoined ? 'Wiedereingetreten — Lobby geladen.' : 'Eingetreten — Lobby geladen.');
@@ -1602,42 +1638,46 @@
         if (!wrap) return;
         wrap.querySelectorAll('[data-opt]').forEach((row) => {
           const o = row.getAttribute('data-opt');
-          if (o === 'leave') { closeModal({ runCancel: false }); onLeaveClick(); }
-          else if (o === 'pause') { closeModal({ runCancel: false }); onPauseClick(); }
-          else if (o === 'forfeitPoll') { closeModal({ runCancel: false }); onStartForfeitPoll(); }
-          else if (o === 'setleader') {
-            // Teamleiter-Formular: Team-Auswahl → Spieler-Ausfüllen + Bestätigen
-            const form = row;
-            const teamSel = $('lc-team');
-            const playerSel = $('lc-player');
-            const confirmBtn = $('lc-confirm');
-            // Spieler-Options beim Teamwechsel aufbauen
-            if (teamSel) teamSel.addEventListener('change', () => {
-              if (!playerSel || !confirmBtn) return;
-              const chosenTeamId = teamSel.value;
-              const st3 = client.lastState;
-              const teams3 = st3 && Array.isArray(st3.teams) ? st3.teams : [];
-              const chosenTeam = teams3.find((t) => String(t.teamId != null ? t.teamId : t.id) === chosenTeamId);
-              const players3 = (chosenTeam && Array.isArray(chosenTeam.players)) ? chosenTeam.players : [];
-              playerSel.innerHTML = '<option value="">— Mitglied wählen —</option>' +
-                players3.map((p) => {
-                  const pid = p.playerId != null ? p.playerId : p.id;
-                  const pname = p.name || p.playerName || 'Spieler';
-                  return '<option value="' + pid + '">' + pname + '</option>';
-                }).join('');
-              confirmBtn.disabled = true;
-            });
-            if (playerSel) playerSel.addEventListener('change', () => {
-              if (confirmBtn) confirmBtn.disabled = !playerSel.value;
-            });
-            if (confirmBtn) confirmBtn.addEventListener('click', () => {
-              const tid = teamSel ? teamSel.value : '';
-              const pid = playerSel ? playerSel.value : '';
-              if (!tid || !pid) { showNotify('Bitte Team und Mitglied wählen.'); return; }
-              socket.emit('gm:setleader', { gameId: client.gameId, gmCode: client.gmCode, teamId: tid, playerId: pid });
-              closeModal({ runCancel: false });
-            });
-          }
+          // Nur Klick-Listener binden; Aktionen ausschließlich im Handler ausführen.
+          row.addEventListener('click', () => {
+            if (o === 'leave') { closeModal({ runCancel: false }); onLeaveClick(); }
+            else if (o === 'pause') { closeModal({ runCancel: false }); onPauseClick(); }
+            else if (o === 'forfeitPoll') { closeModal({ runCancel: false }); onStartForfeitPoll(); }
+            else if (o === 'setleader') {
+              // Teamleiter-Formular: Team-Auswahl → Spieler-Ausfüllen + Bestätigen
+              const form = row;
+              const teamSel = $('lc-team');
+              const playerSel = $('lc-player');
+              const confirmBtn = $('lc-confirm');
+              // Spieler-Options beim Teamwechsel aufbauen
+              if (teamSel) teamSel.addEventListener('change', () => {
+                if (!playerSel || !confirmBtn) return;
+                const chosenTeamId = teamSel.value;
+                const st3 = client.lastState;
+                const teams3 = st3 && Array.isArray(st3.teams) ? st3.teams : [];
+                const chosenTeam = teams3.find((t) => String(t.teamId != null ? t.teamId : t.id) === chosenTeamId);
+                const players3 = (chosenTeam && Array.isArray(chosenTeam.players)) ? chosenTeam.players : [];
+                playerSel.innerHTML = '<option value="">— Mitglied wählen —</option>' +
+                  players3.map((p) => {
+                    const pid = p.playerId != null ? p.playerId : p.id;
+                    const pname = p.name || p.playerName || 'Spieler';
+                    return '<option value="' + pid + '">' + pname + '</option>';
+                  }).join('');
+                confirmBtn.disabled = true;
+              });
+              if (playerSel) playerSel.addEventListener('change', () => {
+                if (confirmBtn) confirmBtn.disabled = !playerSel.value;
+              });
+              if (confirmBtn) confirmBtn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const tid = teamSel ? teamSel.value : '';
+                const pid = playerSel ? playerSel.value : '';
+                if (!tid || !pid) { showNotify('Bitte Team und Mitglied wählen.'); return; }
+                socket.emit('gm:setleader', { gameId: client.gameId, gmCode: client.gmCode, teamId: tid, playerId: pid });
+                closeModal({ runCancel: false });
+              });
+            }
+          });
         });
       }
     });
@@ -1922,6 +1962,8 @@
 
   // Preset-Editor initialisieren.
   initPresetEditor();
+  // Paletten-Switcher initialisieren
+  initPaletteSwitcher();
 
   // Automatischer Rejoin: gespeicherten Join-Stand wiederherstellen.
   const saved = loadJoin();
