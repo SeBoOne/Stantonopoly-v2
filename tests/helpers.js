@@ -40,7 +40,10 @@ function startServer() {
     port,
     dbPath,
     ready: true,
-    stop: () => { try { srv.close(); } catch (e) {} }
+    stop: () => {
+      try { srv.close(); } catch (e) {}
+      _current = null; // Cache invalidieren, damit ein Folgetest einen frischen Server bekommt
+    }
   };
   return _current;
 }

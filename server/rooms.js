@@ -653,6 +653,18 @@ class Rooms {
     const req = this._requireActiveLeaderForTrade({ gameId, sock });
     if (req.error) return req;
     const engine = req.engine;
+    // Ziel-Team-Check: nur der Leader des Ziels darf das Angebot annehmen/ablehnen.
+    // WICHTIG: NICHT per respondOffer(offerId, 0) "peeken" — respondOffer entfernt das
+    // Angebot IMMER aus engine.offers (auch bei accept=0) und würde den echten Aufruf
+    // auf derselben Engine-Instanz ins Leere laufen lassen. Angebot nur LESEN:
+    const offer = (engine.offers || []).find((o) => String(o.id) === String(offerId));
+    if (!offer) return { error: { code: 'TRADE', message: 'Angebot nicht gefunden.' } };
+    // In beiden Angebot-Arten ist targetIdx das Team, das antworten darf.
+    const targetIdx = Number(offer.targetIdx);
+    const meIdx = this._piOf(engine, req.team.teamId);
+    if (meIdx !== targetIdx) {
+      return { error: { code: 'NOT_YOUR_OFFER', message: 'Du bist nicht das Ziel-Team dieses Angebots.' } };
+    }
     // accept kommt von getAttribute -> String "1"/"0"; streng Zahl, sonst "1"===1 false → fälschlich Ablehnung.
     const acceptVal = (String(accept).trim() === '1') ? 1 : 0;
     const r = engine.respondOffer(offerId, acceptVal);
@@ -758,6 +770,8 @@ class Rooms {
     };
     engine.forfeitPoll.votes[sock.id] = 1; // Starter stimmt automatisch JA
     this.logEngine(gameId, engine, me.name + ' startet eine Abstimmung: Team aufgeben? (15 s) — Starter stimmt JA, Enthaltung zählt nicht.');
+    // Nach Ablauf automatisch auflösen (analog zur Auktion, Z.675).
+    setTimeout(() => this._resolveForfeitPollOnServer(gameId), pollMs + 300);
     return this._persistAndReturn(gameId, engine, true);
   }
 
