@@ -92,6 +92,52 @@ function aliveCount(game) {
   return n;
 }
 
+// ---------------------------------------------------------------------
+// (2m-A) Vermögenswert eines Teams: Guthaben + Summe der Grundstückswerte
+// INKL. Ausbauwert. Für Hypotheken-belastete Felder zählt NUR 10 % ihres
+// Werts. Reine Funktion (unit-testbar), ohne game-Mutation.
+// ---------------------------------------------------------------------
+function propertyWorth(game, fieldIdx, own) {
+  const f = (game && game.fields && game.fields[fieldIdx]) ? game.fields[fieldIdx] : null;
+  if (!f || f.type !== 'grundstueck') return 0;
+  const base = (typeof f.price === 'number') ? f.price : 0;
+  const level = (own && own.level) || 'ALLEIN';
+  // Ausbauwert = Summe der Baukosten aller erreichten Ausbaustufen (jede Stufe
+  // wird beim Bauen separat bezahlt; ALLEIN kostet nichts).
+  let build = 0;
+  const li = LEVEL_ORDER.indexOf(level);
+  if (li > 0) {
+    for (let s = 1; s <= li; s++) {
+      try { build += D.buildCost(base, LEVEL_ORDER[s], game.settings) || 0; } catch (e) { /* ignorieren */ }
+    }
+  }
+  const total = base + build;
+  if (own && own.mortgaged) return Math.round(total * 0.10); // nur 10 %
+  return total;
+}
+
+function teamWealth(game, playerIdx) {
+  const p = game.players[playerIdx];
+  if (!p) return 0;
+  let w = (typeof p.budget === 'number') ? p.budget : 0;
+  const props = p.properties || {};
+  for (const fid in props) w += propertyWorth(game, Number(fid), props[fid]);
+  return Math.round(w);
+}
+
+// Index des reichsten (nicht bankrotten) Teams; -1 falls keines aktiv.
+function richestTeamIdx(game) {
+  let best = -1;
+  let bestW = -Infinity;
+  for (let i = 0; i < game.players.length; i++) {
+    if (game.players[i].bankrupt) continue;
+    const w = teamWealth(game, i);
+    if (w > bestW) { bestW = w; best = i; }
+  }
+  return best;
+}
+
+
 // true wenn vollständig gezahlt, false wenn der Zahler den Betrag nicht decken kann.
 // Regel (Sebo): Der Gläubiger erhält immer die VOLLE Summe; der Schuldner geht ins
 // Minus (Budget negativ) und muss die offene Schuld (debt) bis zum Zugende tilgen,
@@ -173,6 +219,9 @@ function attachMethods(game) {
   game.resolveInsolvency = function (playerIdx) { return StantonopolyGame.resolveInsolvency(game, playerIdx); };
   game.nextTurn = function () { return StantonopolyGame.nextTurn(game); };
   game.serialize = function () { return StantonopolyGame.serialize(game); };
+  // (2m-A) Vermögenswert-Helper (Server-Auto-Beenden)
+  game.teamWealth = function (playerIdx) { return teamWealth(game, playerIdx); };
+  game.richestTeamIdx = function () { return richestTeamIdx(game); };
   return game;
 }
 
@@ -1087,3 +1136,10 @@ const StantonopolyGame = {
 };
 
 module.exports = StantonopolyGame;
+
+// (2m-A) Reine, unit-testbare Vermögenswert-Helper zusätzlich als statische Exporte
+// (damit Tests direkt ohne createGame-Objekt pro PlayerIdx rechnen können).
+module.exports.teamWealth = teamWealth;
+module.exports.propertyWorth = propertyWorth;
+module.exports.richestTeamIdx = richestTeamIdx;
+module.exports.aliveCount = aliveCount;

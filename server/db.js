@@ -38,7 +38,9 @@ db.exec(`
     name       TEXT,
     gmName     TEXT NOT NULL DEFAULT 'GM',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    lastActivity INTEGER,            -- (2m-A) ms-Timestamp letzte Spieleraktion (Auto-Pause)
+    lastPausedAt INTEGER             -- (2m-A) ms-Timestamp Beginn Pause (Auto-Beenden)
   );
   CREATE TABLE IF NOT EXISTS teams (
     gameId      TEXT NOT NULL,
@@ -87,22 +89,25 @@ db.exec(`
   if (!cols.includes('paused')) { try { db.exec(`ALTER TABLE games ADD COLUMN paused INTEGER NOT NULL DEFAULT 0`); } catch (e) {} }
   if (!cols.includes('gm_owner')) { try { db.exec(`ALTER TABLE games ADD COLUMN gm_owner TEXT`); } catch (e) {} }
   if (!cols.includes('gmName')) { try { db.exec(`ALTER TABLE games ADD COLUMN gmName TEXT NOT NULL DEFAULT 'GM'`); } catch (e) {} }
+  if (!cols.includes('lastActivity')) { try { db.exec(`ALTER TABLE games ADD COLUMN lastActivity INTEGER`); } catch (e) {} }
+  if (!cols.includes('lastPausedAt')) { try { db.exec(`ALTER TABLE games ADD COLUMN lastPausedAt INTEGER`); } catch (e) {} }
   const pcols = db.prepare(`SELECT name FROM pragma_table_info('presets')`).all().map((c) => c.name);
   if (!pcols.includes('level_names')) { try { db.exec(`ALTER TABLE presets ADD COLUMN level_names TEXT`); } catch (e) {} }
   if (!pcols.includes('settings')) { try { db.exec(`ALTER TABLE presets ADD COLUMN settings TEXT`); } catch (e) {} }
 })();
 
 const stmts = {
-  insertGame: db.prepare('INSERT INTO games (gameId, gmCode, state, started, over, name, gmName) VALUES (?, ?, ?, ?, ?, ?, ?)'),
+  insertGame: db.prepare('INSERT INTO games (gameId, gmCode, state, started, over, name, gmName, lastActivity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'),
   getGame: db.prepare('SELECT * FROM games WHERE gameId = ?'),
   getGameByGm: db.prepare('SELECT * FROM games WHERE gmCode = ?'),
-  listGames: db.prepare('SELECT gameId, gmCode, started, over, paused, name, created_at, updated_at FROM games ORDER BY created_at DESC'),
+  listGames: db.prepare('SELECT gameId, gmCode, started, over, paused, name, created_at, updated_at, lastActivity, lastPausedAt FROM games ORDER BY created_at DESC'),
   setGameName: db.prepare('UPDATE games SET name = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
   setGmName: db.prepare('UPDATE games SET gmName = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
   touchGame: db.prepare('UPDATE games SET updated_at = datetime(\'now\') WHERE gameId = ?'),
+  touchActivity: db.prepare('UPDATE games SET lastActivity = ? WHERE gameId = ?'),
   updateState: db.prepare('UPDATE games SET state = ?, started = ?, over = ? WHERE gameId = ?'),
   setStarted: db.prepare('UPDATE games SET started = ? WHERE gameId = ?'),
-  setPaused: db.prepare('UPDATE games SET paused = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
+  setPaused: db.prepare('UPDATE games SET paused = ?, lastPausedAt = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
   setGmOwner: db.prepare('UPDATE games SET gm_owner = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
   insertTeam: db.prepare('INSERT OR REPLACE INTO teams (gameId, teamId, ship, color, invite_code, leaderId) VALUES (?, ?, ?, ?, ?, ?)'),
   getTeams: db.prepare('SELECT * FROM teams WHERE gameId = ?'),
@@ -131,7 +136,7 @@ const stmts = {
 };
 
 function createGame({ gameId, gmCode, state, started = 0, over = 0, name = null, gmName = 'GM' }) {
-  stmts.insertGame.run(gameId, gmCode, state, started ? 1 : 0, over ? 1 : 0, name, gmName);
+  stmts.insertGame.run(gameId, gmCode, state, started ? 1 : 0, over ? 1 : 0, name, gmName, Date.now());
 }
 
 function listAllGames() {
@@ -148,6 +153,11 @@ function setGmName(gameId, name) {
 
 function touchGame(gameId) {
   stmts.touchGame.run(gameId);
+}
+
+// (2m-A) Markiert eine Spieleraktion (zählt als Aktivität — verhindert Auto-Pause).
+function touchActivity(gameId) {
+  stmts.touchActivity.run(Date.now(), gameId);
 }
 
 function getGame(gameId) {
@@ -170,7 +180,12 @@ function setStarted(gameId, started) {
 }
 
 function setPaused(gameId, paused) {
-  stmts.setPaused.run(paused ? 1 : 0, gameId);
+  // (2m-A) Beim Pausieren den Pause-Startstempel setzen; beim Fortsetzen den
+  // Aktivitäts-Stempel aktualisieren und den Pause-Stempel zurücksetzen,
+  // damit die 30-Tage-Auto-Beenden-Zeit neu startet.
+  const pausedAt = paused ? Date.now() : null;
+  stmts.setPaused.run(paused ? 1 : 0, pausedAt, gameId);
+  if (!paused) stmts.touchActivity.run(Date.now(), gameId);
 }
 
 function upsertTeam({ gameId, teamId, ship, color, invite_code, leaderId = null }) {
@@ -310,6 +325,7 @@ module.exports = {
   setGameName,
   setGmName,
   touchGame,
+  touchActivity,
   updateState,
   setStarted,
   setPaused,
