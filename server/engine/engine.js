@@ -37,6 +37,63 @@ function fieldName(game, idx) {
   return f ? f.name : ('Feld ' + idx);
 }
 
+// (2o-A) Bebaut = Ausbaustufe über der Standardstufe ('ALLEIN'). Reine Helfer
+// für die neuen Hypotheken-/Verkaufsregeln.
+function isBuiltOwn(own) {
+  return !!own && typeof own.level === 'string' && LEVEL_ORDER.indexOf(own.level) > 0;
+}
+
+// (2o-A) Entlastungs-/Zinsrate des Spiels (unmortgageRate, Default 1.10).
+function unmortgageRateOf(game) {
+  return (game && game.settings && game.settings.unmortgageRate != null) ? game.settings.unmortgageRate : 1.10;
+}
+
+// (2o-A) Alle Grundstücks-Indizes derselben Farbgruppe wie fieldIdx (identische
+// Gruppen-Ermittlung wie in build(): Kanoniker Key oder Preisband; Einzelgänger
+// ergeben [fieldIdx]). Für die "beliehenes Gruppenfeld blockt"-Regel (P5).
+function groupFieldIdx(game, fieldIdx) {
+  const f = game.fields[fieldIdx];
+  if (!f || f.type !== 'grundstueck') return [fieldIdx];
+  const groupOf = (fid) => {
+    const gf = game.fields[fid];
+    if (!gf || gf.type !== 'grundstueck') return null;
+    if (gf.group != null && String(gf.group) !== '') return normalizeGroupKey(String(gf.group));
+    return (gf.price || 0) > 400000 ? 'BAND1' : 'BAND0';
+  };
+  const grpKey = groupOf(fieldIdx);
+  const group = [];
+  for (let gi = 0; gi < game.fields.length; gi++) {
+    if (game.fields[gi] && game.fields[gi].type === 'grundstueck' && groupOf(gi) === grpKey) group.push(gi);
+  }
+  return group.length > 1 ? group : [fieldIdx];
+}
+
+// (2o-A P3) Grundstück (fieldIdx) ist beliehen und wechselt zu buyerIdx (engine-
+// Player-Index des Käufers). Die Übernahme stellt den Käufer vor die Wahl:
+//  - 'keep'  : 10 % Zins auf die Hypothek zahlen, Feld beliehen lassen
+//              (spätere Entlastung kostet dann nochmal unmortgageRate).
+//  - 'clear' : sofort voll entlasten (Hypothek + 10 % Zins in einem).
+// Zins je etabliertem unmortgageRate (Default 1.10). mortgagedValue/takenOver
+// gehen konsistent auf den Käufer über. Setzt daS Pending-Feld game.mortgageChoice.
+function requireMortgageChoice(game, fieldIdx, buyerIdx) {
+  const rate = unmortgageRateOf(game);
+  const f = game.fields[fieldIdx];
+  const buyerOwn = game.players[buyerIdx] ? game.players[buyerIdx].properties[fieldIdx] : null;
+  const mortgagedValue = (buyerOwn && buyerOwn.mortgagedValue != null)
+    ? buyerOwn.mortgagedValue
+    : Math.round((f && typeof f.price === 'number' ? f.price : 0) * (game.settings && game.settings.mortgageMult != null ? game.settings.mortgageMult : 0.75));
+  game.mortgageChoice = {
+    fieldIdx,
+    buyerIdx,
+    mortgagedValue,
+    interest: Math.round(mortgagedValue * Math.max(0, rate - 1)),
+    fullClear: Math.round(mortgagedValue * rate)
+  };
+  return game.mortgageChoice;
+}
+
+
+
 // Normalisiert ein Feld (aus Preset/Auer config) und berechnet die Miet-/Baukarten.
 // (2m #3) Kanonische Keys der 10 Farbgruppen (+ Legacy-Buchstaben A–F aus Runde 2k).
 // Dient der normalisierten Farbgruppen-Zugehörigkeit in der Engine.
@@ -210,6 +267,7 @@ function attachMethods(game) {
   game.forfeit = function () { return StantonopolyGame.forfeit(game); };
   game.forfeitTeam = function (teamIdx) { return StantonopolyGame.forfeitTeam(game, teamIdx); };
   game.sellProperty = function (fieldIdx, buyerIdx, price) { return StantonopolyGame.sellProperty(game, fieldIdx, buyerIdx, price); };
+  game.resolveMortgageChoice = function (buyerIdx, choice) { return StantonopolyGame.resolveMortgageChoice(game, buyerIdx, choice); };
   game.auctionField = function (fieldIdx, bids) { return StantonopolyGame.auctionField(game, fieldIdx, bids); };
   game.makeOffer = function (opts) { return StantonopolyGame.makeOffer(game, opts); };
   game.respondOffer = function (offerId, accept) { return StantonopolyGame.respondOffer(game, offerId, accept); };
@@ -279,6 +337,7 @@ const StantonopolyGame = {
       offers: [],             // offene Handels-Angebote (Verkauf/Kauf) je Team
       auction: null,          // aktive Versteigerung (ein Besitzer versteigert sein Feld)
       forfeitPoll: null,      // Aufgeben-Abstimmung (Mitglieder-Votes; rooms verwaltet sie)
+      mortgageChoice: null,   // (2o-A P3) Pending Hypotheken-Übernahme-Wahl des Käufers
       turnSeconds: Math.max(0, Math.round(Number(config.turnSeconds) || 0)), // (2g#17) Zug-Timer in s
       turnDeadline: Number(config.turnDeadline) || 0,                        // Server-Zeitstempel Ablauf
       log: []
@@ -376,15 +435,22 @@ const StantonopolyGame = {
         turnPassed = true;
       } else {
         const level = owner.properties[to].level;
-        const rent = game.data.rentFor(landingField.price, level, game.settings);
-        log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', Stufe ' + level + ') → Miete ' + fmt(rent) + '.');
-        const ok = pay(game, p, owner, rent, 'Miete für „' + landingField.name + '“');
-        events.push('Miete ' + fmt(rent) + ' an ' + owner.name);
-        if (!ok) {
+        // (2o-A P4) Ein beliehenes (mortgaged) Feld kassiert KEINE Miete.
+        if (owner.properties[to].mortgaged) {
+          log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', beliehen) → keine Miete fällig.');
+          events.push('Keine Miete an ' + owner.name + ' (Feld ist beliehen)');
           turnPassed = true;
         } else {
-          log(game, owner.name + ' erhält ' + fmt(rent) + ' Miete.');
-          turnPassed = true;
+          const rent = game.data.rentFor(landingField.price, level, game.settings);
+          log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', Stufe ' + level + ') → Miete ' + fmt(rent) + '.');
+          const ok = pay(game, p, owner, rent, 'Miete für „' + landingField.name + '“');
+          events.push('Miete ' + fmt(rent) + ' an ' + owner.name);
+          if (!ok) {
+            turnPassed = true;
+          } else {
+            log(game, owner.name + ' erhält ' + fmt(rent) + ' Miete.');
+            turnPassed = true;
+          }
         }
       }
     } else if (landingField.type === 'los') {
@@ -413,9 +479,12 @@ const StantonopolyGame = {
           p.jailBail = bail;
           landing.jailChoice = { bail, turns: p.jailTurns };
           log(game, p.name + ' landet im Gefängnis („' + landingField.name + '“). Lösegeld ' + fmt(bail) + ' — freikaufen oder absitzen?');
-          events.push('⚠️ Gefängnis · Lösegeld ' + fmt(bail) + ' zahlen oder absitzen?');
-          // turnPassed bleibt false → Zug pausiert auf Entscheidung
-          events.push('JailChoice');
+          // (2o-A P2) Wahl-Abfrage ist an den LANDENDEN (p.id als Team-/Player-Id)
+          // gerichtet — Mitspieler/Zuschauer sollen nur den Log-Eintrag sehen,
+          // kein Modal. Der Client (Task B) zeigt das Modal nur, wenn er dieser
+          // Spieler ist. turnPassed bleibt false → Zug pausiert auf Entscheidung.
+          events.push({ text: '⚠️ Gefängnis · Lösegeld ' + fmt(bail) + ' zahlen oder absitzen?', playerId: p.id, kind: 'jail-choice' });
+          events.push({ text: 'JailChoice', playerId: p.id, kind: 'jail-choice' });
         } else {
           log(game, p.name + ' landet im Gefängnis („' + landingField.name + '“) — überspringt die nächsten ' + p.jailTurns + ' Zug/Züge.');
           events.push('Gefängnis · ' + p.jailTurns + ' Zug/Züge aussetzen');
@@ -575,6 +644,20 @@ const StantonopolyGame = {
     }
     // Einzelgänger (Gruppe mit nur diesem Feld): immer bauen lassen.
     if (group.length <= 1) { group = [fieldIdx]; }
+
+    // (2o-A P5) Beliehenes Gruppenfeld blockt Ausbau: Bei aktiver Besitz-Regel
+    // (buildGroupOwnership) darf auf KEINEM Feld der Farbgruppe ausgebaut werden,
+    // wenn ein anderes Gruppenfeld beliehen (mortgaged) ist. Das Zielfeld selbst
+    // ist über seine eigene Gruppe abgedeckt (ein beliehenes Feld ist nicht baubar).
+    if (ruleOwnership) {
+      for (let gi = 0; gi < group.length; gi++) {
+        const gp = p.properties[group[gi]];
+        if (gp && gp.mortgaged) {
+          const gname = game.fields[group[gi]] ? game.fields[group[gi]].name : ('Feld ' + group[gi]);
+          return { ok: false, reason: 'GROUP_MORTGAGED', notify: 'Auf „' + f.name + '“ kann nicht ausgebaut werden: ' + gname + ' ist beliehen. Erst die Hypothek ablösen.' };
+        }
+      }
+    }
 
     if (ruleOwnership && ruleEven && group.length > 1) {
       // (1) Alle Felder der Gruppe müssen demselben Besitzer gehören.
@@ -739,6 +822,26 @@ const StantonopolyGame = {
     if (!own) return { ok: false, reason: 'not_owned' };
     if (own.mortgaged) return { ok: false, reason: 'already_mortgaged' };
     const f = game.fields[fieldIdx];
+    // (2o-A P6) Auf ein bebautes Feld darf KEINE Hypothek aufgenommen werden.
+    if (isBuiltOwn(own)) {
+      return { ok: false, reason: 'BUILT_NOT_MORTGAGEABLE', notify: '„' + (f ? f.name : 'Feld ' + fieldIdx) + '“ ist ausgebaut — erst alle Gebäude abbauen, dann beleihen.' };
+    }
+    // (2o-A P5) Besitz-Regel aktiv: Hypothek auf ein Gruppenfeld nur, wenn ALLE
+    // Gebäude ALLER Felder der Gruppe auf Standardstufe abgebaut sind.
+    let ruleOwnership = true;
+    if (game.settings && typeof game.settings.buildGroupOwnership === 'boolean') ruleOwnership = game.settings.buildGroupOwnership;
+    else if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') ruleOwnership = game.settings.monopolyBuildRule;
+    if (ruleOwnership) {
+      const group = groupFieldIdx(game, fieldIdx);
+      for (let gi = 0; gi < group.length; gi++) {
+        if (group[gi] === fieldIdx) continue; // Ziel ist dank P6 ohnehin unausgebaut
+        const g = game.players[game.activeIdx].properties[group[gi]];
+        if (g && isBuiltOwn(g)) {
+          const gname = game.fields[group[gi]] ? game.fields[group[gi]].name : ('Feld ' + group[gi]);
+          return { ok: false, reason: 'GROUP_NOT_DEMOLISHED', notify: '„' + (f ? f.name : 'Feld ' + fieldIdx) + '“ kann nicht beliehen werden: ' + gname + ' ist noch ausgebaut. Erst alle Gebäude der Farbgruppe abbauen.' };
+        }
+      }
+    }
     const val = f && typeof f.price === 'number' ? f.price : 0;
     const loan = Math.round(val * (game.settings.mortgageMult != null ? game.settings.mortgageMult : 0.75));
     own.mortgaged = true;
@@ -764,6 +867,51 @@ const StantonopolyGame = {
     log(game, p.name + ' tilgt Hypothek auf „' + (f ? f.name : 'Feld ' + fieldIdx) + '“ (zahlt ' + fmt(pay) + ').');
     this.ledgerPush(game, p, -pay, 'Hypothek tilgen „' + (f ? f.name : fieldIdx) + '“');
     return { ok: true, pay, fieldIdx };
+  },
+
+  // (2o-A P3) Käufer löst die Hypotheken-Übernahme-Wahl: 'clear' = sofort voll
+  // entlasten (Hypothek + 10 % Zins in einem), 'keep' = 10 % Zins zahlen und das
+  // Feld weiter beliehen lassen (spätere Entlastung kostet nochmal unmortgageRate).
+  resolveMortgageChoice: function (game, buyerIdx, choice) {
+    if (game.over) return { ok: false, reason: 'over', notify: 'Das Spiel ist beendet.' };
+    const buyer = game.players[buyerIdx];
+    if (!buyer || buyer.bankrupt) return { ok: false, reason: 'inactive', notify: 'Dein Team ist nicht (mehr) aktiv.' };
+    const mc = game.mortgageChoice;
+    if (!mc || mc.buyerIdx !== buyerIdx) {
+      return { ok: false, reason: 'no_choice', notify: 'Es liegt keine offene Hypotheken-Übernahme für dich vor.' };
+    }
+    const own = buyer.properties[mc.fieldIdx];
+    const fname = fieldName(game, mc.fieldIdx);
+    if (!own) {
+      game.mortgageChoice = null;
+      return { ok: false, reason: 'not_owned', notify: 'Das Grundstück gehört dir nicht mehr.' };
+    }
+    if (!own.mortgaged) {
+      game.mortgageChoice = null;
+      return { ok: false, reason: 'not_mortgaged', notify: 'Das Grundstück ist nicht mehr beliehen.' };
+    }
+    const clear = String(choice).toLowerCase() === 'clear';
+    const pay = clear ? mc.fullClear : mc.interest;
+    if (buyer.budget < pay) {
+      return { ok: false, reason: 'no_money', need: pay, notify: 'Du hast zu wenig Guthaben (' + fmt(buyer.budget) + ' von ' + fmt(pay) + ' aUEC) für diese Wahl.' };
+    }
+    buyer.budget -= pay;
+    let cleared = false;
+    if (clear) {
+      own.mortgaged = false;
+      own.mortgagedValue = undefined;
+      own.takenOver = undefined;
+      cleared = true;
+      this.ledgerPush(game, buyer, -pay, 'Hypothek sofort entlasten „' + fname + '“');
+      log(game, buyer.name + ' entlastet das übernommene Grundstück „' + fname + '“ sofort (Hypothek + Zins: ' + fmt(pay) + ').');
+    } else {
+      this.ledgerPush(game, buyer, -pay, 'Hypotheken-Zins (beliehen übernommen) „' + fname + '“');
+      log(game, buyer.name + ' zahlt ' + fmt(pay) + ' Zins und behält das Grundstück „' + fname + '“ beliehen (spätere Entlastung kostet nochmal ' + Math.round(mc.mortgagedValue * unmortgageRateOf(game)) + ').');
+    }
+    const result = { ok: true, fieldIdx: mc.fieldIdx, choice: clear ? 'clear' : 'keep', pay, cleared };
+    game.mortgageChoice = null;
+    this.resolveInsolvency(game, buyerIdx);
+    return result;
   },
 
   // ------------------------------------------------------------------
@@ -873,6 +1021,11 @@ const StantonopolyGame = {
     // (2g#15) Ein belehntes Grundstück kann NICHT an die Bank verkauft werden.
     if (buyerIdx == null || Number(buyerIdx) < 0) {
       if (own.mortgaged) return { ok: false, reason: 'mortgaged' };
+      // (2o-A P8) Ein bebautes Feld kann NICHT an die Bank verkauft werden —
+      // erst müssen ALLE Gebäude abgebaut werden.
+      if (isBuiltOwn(own)) {
+        return { ok: false, reason: 'BANK_BUY_BUILT', notify: '„' + (game.fields[fieldIdx] ? game.fields[fieldIdx].name : 'Feld ' + fieldIdx) + '“ ist ausgebaut und kann nicht verkauft werden. Erst alle Gebäude abbauen.' };
+      }
       if (game.settings && game.settings.bankSellEnabled === false) {
         return { ok: false, reason: 'bank_sell_disabled' };
       }
@@ -892,6 +1045,11 @@ const StantonopolyGame = {
     if (!(amt >= 0)) return { ok: false, reason: 'bad_price' };
     if (buyer.budget < amt) return { ok: false, reason: 'buyer_no_money' };
     const f = game.fields[fieldIdx];
+    // (2o-A P8) Ein bebautes Feld darf NICHT an ein anderes Team verkauft werden —
+    // erst müssen ALLE Gebäude abgebaut werden.
+    if (isBuiltOwn(own)) {
+      return { ok: false, reason: 'BUILT_NOT_SELLABLE', notify: '„' + (f ? f.name : 'Feld ' + fieldIdx) + '“ ist ausgebaut und kann nicht verkauft werden. Erst alle Gebäude abbauen.' };
+    }
     // Eigentum übertragen (Ausbaustufe + Hypothek-Status bleiben).
     // (2g#15) Übertragene Hypothek: Käufer übernimmt; Flag markiert sie für
     // die Zinsen-pro-Runde-Abrechnung (kann alternativ sofort getilgt werden).
@@ -902,8 +1060,15 @@ const StantonopolyGame = {
     this.ledgerPush(game, buyer, -amt, 'Kauf von „' + (f ? f.name : fieldIdx) + '“');
     log(game, seller.name + ' verkauft „' + (f ? f.name : 'Feld ' + fieldIdx) + '“ an ' + buyer.name + ' für ' + fmt(amt) + '.');
     creditEarnings(game, seller, amt, 'Verkauf „' + (f ? f.name : fieldIdx) + '“');
+    // (2o-A P3) Beliehen gekauft → Käufer steht vor der Wahl (beliehen lassen
+    // nach 10 % Zins ODER sofort voll entlasten).
+    let mortgageChoice = null;
+    if (own.mortgaged) {
+      mortgageChoice = requireMortgageChoice(game, fieldIdx, buyerIdx);
+      log(game, buyer.name + ' übernimmt das beliehene Grundstück „' + (f ? f.name : 'Feld ' + fieldIdx) + '“ → Entscheidung nötig: 10 % Zins zahlen und beliehen lassen oder sofort entlasten.');
+    }
     this.resolveInsolvency(game, game.activeIdx);
-    return { ok: true, fieldIdx, buyerIdx, price: amt };
+    return { ok: true, fieldIdx, buyerIdx, price: amt, mortgageChoice, mortgageChoiceRequired: !!mortgageChoice };
   },
 
   // ------------------------------------------------------------------
@@ -984,6 +1149,10 @@ const StantonopolyGame = {
     const owner = game.players[ownerIdx];
     if (!owner || owner.bankrupt) return { ok: false, reason: 'inactive' };
     if (!owner.properties[fieldIdx]) return { ok: false, reason: 'not_owned' };
+    // (2o-A P8) Ein bebautes Feld darf nicht versteigert werden — erst abbauen.
+    if (isBuiltOwn(owner.properties[fieldIdx])) {
+      return { ok: false, reason: 'BUILT_NOT_SELLABLE', notify: '„' + (game.fields[fieldIdx] ? game.fields[fieldIdx].name : 'Feld ' + fieldIdx) + '“ ist ausgebaut und kann nicht versteigert werden. Erst alle Gebäude abbauen.' };
+    }
     const dur = opts.durationMs > 0 ? opts.durationMs : (game.settings && game.settings.auctionMs != null ? game.settings.auctionMs : (game.data.AUCTION_MS || 15000));
     const f = game.fields[fieldIdx];
     const minBid = Math.max(1, Math.round((typeof f.price === 'number' ? f.price : 0) * 0.1));
@@ -1030,6 +1199,11 @@ const StantonopolyGame = {
       const own = owner.properties[au.fieldIdx];
       const amt = au.highest.amount;
       if (!own) return { ok: false, reason: 'not_owned' };
+      // (2o-A P8) Ein bebautes Feld darf nicht über die Auktion verkauft werden.
+      if (isBuiltOwn(own)) {
+        game.auction = null; // Auktion war beendet; Feld bleibt beim Eigentümer
+        return { ok: false, reason: 'BUILT_NOT_SELLABLE', notify: '„' + (f ? f.name : 'Feld ' + au.fieldIdx) + '“ ist ausgebaut und kann nicht versteigert werden. Erst alle Gebäude abbauen.' };
+      }
       delete owner.properties[au.fieldIdx];
       winner.properties[au.fieldIdx] = own;
       winner.budget -= amt;
@@ -1037,7 +1211,13 @@ const StantonopolyGame = {
       log(game, 'Versteigerung „' + f.name + '“ endet: ' + winner.name + ' ersteigert für ' + fmt(amt) + '.');
       this.ledgerPush(game, winner, -amt, 'Ersteigerung „' + f.name + '“');
       this.ledgerPush(game, owner, amt, 'Verkauf via Auktion „' + f.name + '“');
-      return { ok: true, sold: true, winnerIdx: au.highest.playerIdx, price: amt };
+      // (2o-A P3) Beliehen ersteigert → Käufer steht vor der Wahl.
+      let mortgageChoice = null;
+      if (own.mortgaged) {
+        mortgageChoice = requireMortgageChoice(game, au.fieldIdx, au.highest.playerIdx);
+        log(game, winner.name + ' ersteigert das beliehene Grundstück „' + f.name + '“ → Entscheidung nötig: 10 % Zins zahlen und beliehen lassen oder sofort entlasten.');
+      }
+      return { ok: true, sold: true, winnerIdx: au.highest.playerIdx, price: amt, mortgageChoice, mortgageChoiceRequired: !!mortgageChoice };
     }
     log(game, 'Versteigerung von „' + (game.fields[au.fieldIdx] ? game.fields[au.fieldIdx].name : 'Feld ' + au.fieldIdx) + '“ ohne Kauf abgebrochen.');
     return { ok: true, sold: false };
@@ -1083,6 +1263,7 @@ const StantonopolyGame = {
       offers: game.offers || [],
       auction: game.auction || null,
       forfeitPoll: game.forfeitPoll || null,
+      mortgageChoice: game.mortgageChoice || null,
       turnSeconds: Math.max(0, Math.round(Number(game.turnSeconds) || 0)),
       turnDeadline: typeof game.turnDeadline === 'number' ? game.turnDeadline : 0,
       log: game.log
@@ -1127,6 +1308,7 @@ const StantonopolyGame = {
       offers: Array.isArray(raw.offers) ? raw.offers : [],
       auction: raw.auction || null,
       forfeitPoll: raw.forfeitPoll || null,
+      mortgageChoice: raw.mortgageChoice || null,
       turnSeconds: Math.max(0, Math.round(Number(raw.turnSeconds) || 0)),
       turnDeadline: (typeof raw.turnDeadline === 'number') ? raw.turnDeadline : 0,
       log: Array.isArray(raw.log) ? raw.log.slice() : []

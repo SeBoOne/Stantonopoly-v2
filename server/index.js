@@ -289,6 +289,7 @@ io.on('connection', (socket) => {
     'action:mortgage': 'actionMortgage',
     'action:unmortgage': 'actionUnmortgage',
     'action:demolish': 'actionDemolish',
+    'action:mortgageChoice': 'actionMortgageChoice',
     'action:forfeit': 'actionForfeit',
     'forfeit:vote': 'forfeitVote',
     'action:sell': 'actionSell',
@@ -314,7 +315,8 @@ io.on('connection', (socket) => {
         const amount = (data && data.amount != null && data.amount !== '') ? data.amount : undefined;
         const accept = (data && data.accept != null && data.accept !== '') ? data.accept : undefined;
         const agree = (data && data.agree != null && data.agree !== '') ? data.agree : undefined;
-        const ret = rooms[method]({ gameId, field, playerId, buyerIdx, price, kind, targetIdx, offerId, amount, accept, agree, sock: socket });
+        const choice = (data && data.choice != null && data.choice !== '') ? data.choice : undefined;
+        const ret = rooms[method]({ gameId, field, playerId, buyerIdx, price, kind, targetIdx, offerId, amount, accept, agree, choice, sock: socket });
         handleResult(ret);
       } catch (e) { error('SERVER', String((e && e.message) || e)); }
     });
