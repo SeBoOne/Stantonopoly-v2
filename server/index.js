@@ -351,7 +351,11 @@ io.on('connection', (socket) => {
         gmCode: (data && data.gmCode) || '',
         sock: socket
       });
-      handleResult(ret);
+      if (ret && ret.error) { error(ret.error.code, ret.error.message); return; }
+      // (2m P10) Beim Abbrechen eines PAUSIERTEN Spiels KEINEN state-Broadcast senden:
+      // cancelGame hat bereits 'game:cancelled' an den Raum geschickt. Ein zusätzlicher
+      // paused-state würde am Client die gerade geschlossene Lobby wieder öffnen.
+      if (ret && ret.ok && ret.removed) handleResult(ret);
       if (ret && ret.ok) emit('cancelled', { gameId: ret.gameId, removed: !!ret.removed, paused: !!ret.paused });
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });

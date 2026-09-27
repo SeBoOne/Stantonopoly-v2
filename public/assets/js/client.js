@@ -950,7 +950,14 @@
     // (2k #2) Button-Label entsprechend der Rolle setzen (GM → Abbrechen).
     updateLobbyLeaveBtn();
     showView('lobby');
-    showNotify(data && data.resumed ? 'Spiel fortgesetzt — Einladungscodes wieder verfügbar.' : 'Spiel erstellt — Einladungscodes zeigen und an die Spieler verteilen.');
+    // (2m P9) Ein pausiertes Spiel öffnen heißt NICHT fortsetzen — nur die Lobby.
+    if (data && data.resumed && data.paused) {
+      showNotify('Pausiertes Spiel geöffnet — das Spiel läuft erst wieder mit „Fortsetzen“.');
+    } else if (data && data.resumed) {
+      showNotify('Spiel fortgesetzt — Einladungscodes wieder verfügbar.');
+    } else {
+      showNotify('Spiel erstellt — Einladungscodes zeigen und an die Spieler verteilen.');
+    }
   });
 
   /* ---------------- Flow 2: Team-Join ---------------- */
@@ -2027,52 +2034,13 @@
     renderLog(st.log);
     maybeShowJailChoice(st);
     maybeShowInsolvencyWarning(st);
-    renderPauseBanner(st);
     renderForfeitPollUI(st);
   };
 
-  // Pausierung: Wenn der GM das Spiel pausiert hat, verdecken → ein Banner mit
-  // [Spiel verlassen] und deaktivierte Aktionen. Fortgesetzt → Banner entfernt.
-  function renderPauseBanner(st) {
-    let banner = $('pause-banner');
-    if (st && st.paused) {
-      if (!client.__leftToSetup) {
-        client.__leftToSetup = false;
-      }
-      if (!banner) {
-        banner = document.createElement('div');
-        banner.id = 'pause-banner';
-        banner.className = 'pause-banner';
-        document.body.appendChild(banner);
-      }
-      // GM-Code prominent anzeigen (nur für GM sichtbar)
-      let gmCodeHtml = '';
-      if (client.isGM && client.gmCode) {
-        gmCodeHtml = '<div class="pause-gm-code">GM-Code für Fortsetzen: <strong>' + client.gmCode + '</strong>' +
-          '<button type="button" class="btn btn-xs btn-ghost" data-copy="' + client.gmCode + '">Kopieren</button></div>';
-      }
-      banner.innerHTML = '<div class="pause-inner">' +
-        '<div class="pause-title">⏸ Spiel pausiert</div>' +
-        '<div class="pause-text">Der Gamemaster hat das Spiel pausiert. Aktionen sind deaktiviert — du kannst das Spiel verlassen und später mit deinem Einladungscode zurückkehren.</div>' +
-        gmCodeHtml +
-        '<button type="button" class="btn btn-xs" id="pause-leave">↩ Spiel verlassen</button>' +
-        '</div>';
-      // Kopier-Button für GM-Code
-      if (client.isGM) {
-        const copyBtn = banner.querySelector('[data-copy]');
-        if (copyBtn) copyBtn.addEventListener('click', () => copyText(copyBtn.getAttribute('data-copy'), copyBtn));
-      }
-      const lb = banner.querySelector('#pause-leave');
-      if (lb) lb.addEventListener('click', () => { client.__leftToSetup = true; leaveNow(); });
-      // Alle Action-Buttons deaktivieren
-      const bar = $('action-bar');
-      if (bar) Array.from(bar.querySelectorAll('button')).forEach((b) => { b.disabled = true; });
-      const econ = $('econ-bar');
-      if (econ) Array.from(econ.querySelectorAll('button')).forEach((b) => { b.disabled = true; });
-    } else if (banner) {
-      banner.remove();
-    }
-  }
+  // (2m P9/P10) Kein renderPauseBanner mehr: pausierte Spiele werden clientseitig IMMER
+  // in die Lobby geroutet (state-Handler/joined), nie in die Spielansicht — das Banner
+  // wäre in renderGameUI (nur bei !paused erreichbar) toter Code. Pause wird in der
+  // Lobby angezeigt, nicht als Overlay über dem Brett.
 
   // Aufgeben-Abstimmung: zeigt das laufende Poll-Modal für die eigenen Teammitglieder.
   let pollUIKey = '';
