@@ -1567,6 +1567,32 @@ class Rooms {
   }
 
   // ------------------------------------------------------------------
+  // (2o-BONUS) Admin: Spiel komplett löschen (Hard-Delete aus DB inkl.
+  // aller verketteten Daten). Beendet auch laufende/Timer und leitet alle
+  // im Raum angemeldeten Sockets aus dem Spiel — damit kein Client
+  // weiter in einer gelöschten Lobby/Spiel hängt.
+  // ------------------------------------------------------------------
+  adminDeleteGame(gameId) {
+    const gameRow = dbm.getGame(gameId);
+    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+    this._clearTurnTimer(gameId);
+    if (this._gmSockets[gameId]) { delete this._gmSockets[gameId]; }
+    // Alle im Raum sitzenden Sockets aus der Room + player-Membership entfernen.
+    const players = dbm.getPlayers(gameId) || [];
+    players.forEach((p) => {
+      const ps = this.io && this.io.sockets && this.io.sockets.sockets.get(p.id);
+      try { if (ps && ps.leave) ps.leave(this._roomOf(gameId)); } catch (e) {}
+      dbm.removePlayer(gameId, p.id);
+    });
+    // Den Raum informieren, dass das Spiel gelöscht wurde.
+    try { if (this.io && this.io.to) this.io.to(this._roomOf(gameId)).emit('game:deleted', { gameId, removed: true }); } catch (e) {}
+    try { if (this.io && this.io.in) this.io.in(this._roomOf(gameId)).socketsLeave(this._roomOf(gameId)); } catch (e) {}
+    dbm.deleteGame(gameId);
+    dbm.logAdmin('delete_game', gameId, 'Nachname: ' + (gameRow.name || 'Ohne Namen'));
+    return { ok: true, gameId, removed: true };
+  }
+
+  // ------------------------------------------------------------------
   // Spieleliste: alle Spiele mit Status (aktiv/abgeschlossen). gmCode wird
   // NICHT exponiert — nur Kennung, Name, Status, Start-, Endzeit.
   // ------------------------------------------------------------------

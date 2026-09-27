@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de" data-palette="cargo">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#0b0c10" />
+  <title>Stantonopoly V2 — Admin</title>
+  <link rel="icon" type="image/png" sizes="48x48" href="/assets/logo/favicon-48.png" />
+  <link rel="stylesheet" href="/assets/css/stantonopoly.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="hdr">
+      <div class="hd-l">
+        <span class="logo-slot logo-mark"><img class="lg-img" src="/assets/logo/logo-mark-96.png" alt="Stantonopoly" width="30" height="41" /><i class="lg-mask" aria-hidden="true"></i></span>
+        <span class="hd-brand">STANTONOPOLY</span><span class="hd-v">ADMIN</span>
+      </div>
+      <nav class="hd-nav" id="admin-nav" aria-label="Admin-Bereich"></nav>
+      <div class="hd-r"><span class="hint" id="admin-user" style="color:var(--fg-faint)"></span></div>
+    </header>
+
+    <main>
+      <!-- ============ Login-Gate ============ -->
+      <section id="view-login" class="view">
+        <div class="frame login-frame" style="max-width:460px;margin:4vh auto 0">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head"><span class="eyebrow">ADMIN · AUTH-GATE</span><h2>Anmeldung</h2></div>
+          <form id="login-form" autocomplete="off">
+                      <label class="cfg field-label"><span class="t-lbl">Benutzername</span>
+                        <input id="login-user" type="text" maxlength="40" autocomplete="username" />
+                      </label>
+                      <label class="cfg field-label"><span class="t-lbl">Passwort</span>
+                        <input id="login-pass" type="password" maxlength="128" autocomplete="current-password" />
+                      </label>
+                      <div class="form-actions">
+                        <button type="submit" id="btn-login" class="btn btn-primary btn-lg">Anmelden</button>
+                      </div>
+                      <p class="screen-note" id="login-note"></p>
+                    </form>
+                    <form id="setup-form" class="hidden" autocomplete="off">
+                      <div class="sub" style="margin-top:0"><span class="t-lbl">Ersteinrichtung</span><span class="hint">Noch kein Admin-Konto — lege es hier an (ohne Terminal).</span></div>
+                      <label class="cfg field-label"><span class="t-lbl">Admin-Benutzername</span>
+                        <input id="setup-user" type="text" maxlength="40" autocomplete="username" />
+                      </label>
+                      <label class="cfg field-label"><span class="t-lbl">Passwort (min. 8 Zeichen)</span>
+                        <input id="setup-pass" type="password" maxlength="128" autocomplete="new-password" />
+                      </label>
+                      <div class="form-actions">
+                        <button type="submit" id="btn-setup" class="btn btn-primary btn-lg">Konto anlegen</button>
+                      </div>
+                      <p class="screen-note" id="setup-note"></p>
+                    </form>
+        </div>
+      </section>
+
+      <!-- ============ Dashboard ============ -->
+      <section id="view-dashboard" class="view">
+        <div class="frame">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head"><span class="eyebrow">ADMIN · ÜBERSICHT</span><h2>Dashboard</h2></div>
+          <div class="ad-stats" id="ad-stats"></div>
+        </div>
+      </section>
+
+      <!-- ============ Spiele-Management ============ -->
+      <section id="view-games" class="view">
+        <div class="frame">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head"><span class="eyebrow">ADMIN · SPIELE</span><h2>Spiele-Management</h2></div>
+          <div class="sub"><span class="t-lbl">Nicht beendete Spiele (aktiv + pausiert + Lobby)</span><span class="hint">Game-Code nur hier sichtbar</span></div>
+          <div id="ad-games-list" class="ad-list"></div>
+          <div class="sub"><span class="t-lbl">Archiv (beendete Spiele)</span></div>
+          <div id="ad-archived-list" class="ad-list"></div>
+        </div>
+      </section>
+
+      <!-- ============ Presets-Management ============ -->
+      <section id="view-presets" class="view">
+        <div class="frame">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head">
+            <span class="eyebrow">ADMIN · PRESETS</span><h2>Karten &amp; Regeln verwalten</h2>
+          </div>
+          <div class="ad-preset-top">
+            <select id="ad-preset-select" class="ad-select"></select>
+            <button type="button" id="btn-ad-preset-new" class="btn btn-xs btn-ghost">Neues Preset</button>
+            <button type="button" id="btn-ad-preset-edit" class="btn btn-xs btn-ghost">Bearbeiten</button>
+            <button type="button" id="btn-ad-preset-delete" class="btn btn-xs btn-ghost">Löschen</button>
+          </div>
+          <div id="ad-preset-meta" class="hint" style="margin:8px 0 4px"></div>
+        </div>
+      </section>
+
+      <!-- ============ Preset-Editor (Admin) ============ -->
+      <div id="admin-preset-modal" class="preset-modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Admin Preset-Editor">
+        <div class="preset-modal-panel">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="preset-modal-head">
+            <span>Preset bearbeiten</span>
+            <button type="button" id="btn-admin-preset-close" class="modal-close">✕</button>
+          </div>
+          <div class="preset-editor">
+            <div class="preset-editor-head">
+              <span class="t-lbl">Karte</span>
+              <div class="preset-editor-actions">
+                <input id="ad-preset-name" type="text" placeholder="Preset-Name" maxlength="40" />
+                <button type="button" id="btn-admin-preset-save" class="btn btn-xs btn-ghost">Speichern</button>
+              </div>
+            </div>
+            <div id="ad-preset-field-list" class="preset-field-list"></div>
+            <div class="preset-editor-foot">
+              <button type="button" id="btn-ad-field-add" class="btn btn-xs btn-ghost">+ Feld</button>
+              <span class="hint">Felder = Spielfelder in Reihenfolge (0 = Los). Grundstück: Preis + Farbgruppe.</span>
+            </div>
+            <div class="levelnames-editor">
+              <div class="levelnames-head">Ausbaustufen-Namen</div>
+              <div class="levelnames-grid">
+                <label class="levelnames-row"><span class="t-lbl">Stufe 1 (Standard)</span><input id="ad-lvl-ALLEIN" type="text" maxlength="24" /></label>
+                <label class="levelnames-row"><span class="t-lbl">Stufe 2</span><input id="ad-lvl-CYCLONE" type="text" maxlength="24" /></label>
+                <label class="levelnames-row"><span class="t-lbl">Stufe 3</span><input id="ad-lvl-STORM" type="text" maxlength="24" /></label>
+                <label class="levelnames-row"><span class="t-lbl">Stufe 4</span><input id="ad-lvl-BALLISTA" type="text" maxlength="24" /></label>
+                <label class="levelnames-row"><span class="t-lbl">Stufe 5 (Armistice)</span><input id="ad-lvl-ARMISTICE" type="text" maxlength="24" /></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ Protokoll ============ -->
+      <section id="view-log" class="view">
+        <div class="frame">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head"><span class="eyebrow">ADMIN · PROTOKOLL</span><h2>Audit-Log</h2></div>
+          <div id="ad-log-list" class="ad-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <div id="notify" class="notify hidden" role="status" aria-live="assertive"></div>
+  </div>
+
+  <script src="/assets/js/admin.js"></script>
+</body>
+</html>

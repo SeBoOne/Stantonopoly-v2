@@ -79,6 +79,17 @@ db.exec(`
     settings TEXT,                    -- JSON-Objekt: Spielregeln (Miet-Mult/Cost/Hypothek/Bank/Timer)
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS admin_config (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS admin_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    action     TEXT NOT NULL,          -- z.B. 'delete_game' | 'delete_preset' | 'save_preset'
+    target     TEXT,                   -- z.B. gameId | preset-Name
+    detail     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migrationen für Bestands-DBs: fehlende Spalten ergänzen.
@@ -315,6 +326,22 @@ function deleteGame(gameId) {
   db.prepare('DELETE FROM games WHERE gameId = ?').run(gameId);
 }
 
+// ---------------- Admin (Konfiguration + Audit-Log) ----------------
+function getAdminConfig(key) {
+  const row = db.prepare('SELECT value FROM admin_config WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+function setAdminConfig(key, value) {
+  db.prepare('INSERT INTO admin_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+}
+function logAdmin(action, target = null, detail = null) {
+  db.prepare('INSERT INTO admin_log (action, target, detail) VALUES (?, ?, ?)').run(action, target, detail);
+}
+function listAdminLog(limit = 100) {
+  const rows = db.prepare('SELECT * FROM admin_log ORDER BY id DESC LIMIT ?').all(limit);
+  return rows || [];
+}
+
 module.exports = {
   db,
   DB_PATH,
@@ -352,5 +379,9 @@ module.exports = {
   getPreset,
   deletePreset,
   seedBuiltinPresets,
-  deleteGame
+  deleteGame,
+  getAdminConfig,
+  setAdminConfig,
+  logAdmin,
+  listAdminLog
 };

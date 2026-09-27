@@ -12,6 +12,7 @@ const { Server } = require('socket.io');
 
 const { Rooms } = require('./rooms.js');
 const dbm = require('./db.js');
+const { registerAdmin } = require('./admin.js');
 // Eingebaute Presets beim Start seeden (falls DB frisch).
 dbm.seedBuiltinPresets();
 
@@ -33,6 +34,9 @@ const rooms = new Rooms({
 // ---- Static + health ----
 app.use(express.static(PUBLIC));
 app.use(express.json());
+
+// ---- (2o-BONUS) Admin-REST-API (Auth-gated) ----
+registerAdmin(app, rooms);
 
 app.get('/health', (req, res) => {
   res.set('Content-Type', 'application/json');
