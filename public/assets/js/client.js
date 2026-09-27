@@ -534,21 +534,39 @@
         // (Los/Ereignis/Gefängnis/Steuer/Frei Parken) haben KEINE Gruppe.
         let groupSel = null;
         if (f.type === 'grundstueck') {
-          groupSel = document.createElement('select');
-          groupSel.title = 'Farbgruppe (Monopoly-Bauregel: nur gleichfarbig ausbaubar)';
+          // (2o-B P1) Sichtbarer Farb-Swatch NEBEN dem Dropdown. Die geschlossene
+          // <select>-Box rendert option-Hintergrund in Chromium NICHT (nur das
+          // geöffnete Popup) — deshalb zeigt ein fixierter Span aus STAN_COLORS[].hex
+          // die gewählte Farbe dauerhaft sichtbar im Editor-Grid.
+          groupSel = document.createElement('div');
+          groupSel.className = 'preset-group-pick';
+          const swatch = document.createElement('span');
+          swatch.className = 'preset-group-swatch';
+          groupSel.appendChild(swatch);
+          const sel = document.createElement('select');
+          sel.title = 'Farbgruppe (Monopoly-Bauregel: nur gleichfarbig ausbaubar)';
           const noneOpt = document.createElement('option');
           noneOpt.value = ''; noneOpt.textContent = '–';
-          groupSel.appendChild(noneOpt);
+          sel.appendChild(noneOpt);
           // (2m #3) 10 benannte Farbgruppen. Nicht-kaufbare Felder haben keine Gruppe.
           const COLORS = (window.STAN_COLORS || []);
           const currentGroupKey = window.stanGroupKey ? window.stanGroupKey(f.group) : (f.group || '');
           COLORS.forEach((c) => {
             const oo = document.createElement('option');
-            oo.value = c.key; oo.textContent = (c.label || c.key) + ' ▮';
+            oo.value = c.key; oo.textContent = (c.label || c.key);
+            if (c.hex) oo.className = 'preset-group-opt';
             if (String(f.group) === c.key || (currentGroupKey && String(currentGroupKey) === c.key)) oo.selected = true;
-            groupSel.appendChild(oo);
+            sel.appendChild(oo);
           });
-          groupSel.addEventListener('change', () => { f.group = groupSel.value; });
+          const syncSwatch = () => {
+            const ck = window.stanGroupKey ? window.stanGroupKey(sel.value) : (sel.value || '');
+            const c = COLORS.find((x) => x.key === ck);
+            swatch.style.background = (c && c.hex) ? c.hex : 'transparent';
+            swatch.title = c ? (c.label || c.key) : 'keine Farbgruppe';
+          };
+          syncSwatch();
+          sel.addEventListener('change', () => { f.group = sel.value; syncSwatch(); });
+          groupSel.appendChild(sel);
         }
         // Sonder-Werte: Los-Feld = Los-Bonus; Gundo-Feld = Übernahme-Gebühr (negativ = Bonus)
         let bonusIn = null, feeIn = null;
@@ -1500,6 +1518,38 @@
         return (o && typeof o === 'object') ? o : (o != null ? { level: o } : null);
       }
 
+      // (2o-B P9) Farbgruppen-Zugehörigkeit eines Feldes (Spiegel von engine.groupOf):
+      // nutzt f.group, sonst Preisband-Fallback. Liefert den Gruppen-Key oder null.
+      function groupKeyOf(fidx) {
+        const gf = flds[fidx];
+        if (!gf || gf.type !== 'grundstueck') return null;
+        if (gf.group != null && String(gf.group) !== '') return String(gf.group);
+        return (gf.price || 0) > 400000 ? 'BAND1' : 'BAND0';
+      }
+      // (2o-B P9) Ist ein anderes Feld derselben Farbgruppe beliehen (mortgaged)?
+      // → Ausbau auf diesem Feld ist serverseitig blockiert (GROUP_MORTGAGED).
+      // ABER nur, wenn die Besitz-Regel aktiv ist (Spiegel von engine.build
+      // engine.js:652 `if (ruleOwnership)`) — mit buildGroupOwnership=false lässt
+      // der Server den Ausbau auch bei beliehenem Gruppenfeld zu, dann kein Gate.
+      function ownershipRuleOn() {
+        const s = ECON_SETTINGS;
+        if (s && typeof s.buildGroupOwnership === 'boolean') return s.buildGroupOwnership;
+        if (s && typeof s.monopolyBuildRule === 'boolean') return s.monopolyBuildRule;
+        return true; // Default: Regel aktiv
+      }
+      function groupMortgaged(fidx) {
+        if (!ownershipRuleOn()) return false;
+        const gk = groupKeyOf(fidx);
+        if (gk == null) return false;
+        for (let gi = 0; gi < flds.length; gi++) {
+          if (gi === fidx) continue;
+          if (groupKeyOf(gi) !== gk) continue;
+          const gp = props[gi];
+          if (gp && typeof gp === 'object' && gp.mortgaged) return true;
+        }
+        return false;
+      }
+
       // Verfügbarkeitsbasierte Buttons für das gewählte Feld + Info-Modals.
       function renderBtnRow() {
         const row = btn('econ-btnrow');
@@ -1510,10 +1560,12 @@
         const price = (f && typeof f.price === 'number') ? f.price : 0;
         const curIdx = own ? ECON_LEVELS.indexOf(own.level) : -1;
         const mortgaged = !!(own && own.mortgaged);
+        // (2o-B P9) Ausgebaut (Stufe > ALLEIN) → Hypothek/Verkauf/Versteigern blockiert.
+        const built = own && curIdx > 0;
         const buttons = [];
 
-        if (own && !mortgaged) {
-          // Hypothek nur, wenn NICHT schon beliehen. Info + Bestätigung.
+        if (own && !mortgaged && !built) {
+          // Hypothek nur, wenn NICHT schon beliehen UND nicht ausgebaut. Info + Bestätigung.
           const loan = Math.round(price * MORTGAGE_SHOW);
           buttons.push({ id: 'econ-mortgage', label: '🔒 Hypothek', cls: 'btn-xs', act: () => {
             openModal({
@@ -1546,7 +1598,7 @@
             });
           } });
         }
-        if (own && !mortgaged && curIdx >= 0 && curIdx < ECON_LEVELS.length - 1) {
+        if (own && !mortgaged && !groupMortgaged(fidx) && curIdx >= 0 && curIdx < ECON_LEVELS.length - 1) {
           // Ausbauen (nächste Stufe zeigen). ARMISTICE nur, wenn aktiviert (Server prüft zusätzlich).
           const nextLvl = ECON_LEVELS[curIdx + 1];
           const armOn = !!(st.game && st.game.armisticeEnabled);
@@ -1583,8 +1635,9 @@
             });
           } });
         }
-        if (own) {
+        if (own && !built) {
           // An die Bank verkaufen (Sanierung): bankPayout des Basiswerts.
+          // (2o-B P9) Ausgebautes Feld kann nicht verkauft werden (BUILT_NOT_SELLABLE).
           const amt = Math.round(price * BANK_SHOW);
           const bankSellOk = (typeof ECON_SETTINGS.bankSellEnabled !== 'boolean') || ECON_SETTINGS.bankSellEnabled === true;
           if (bankSellOk) {
@@ -1602,7 +1655,7 @@
             } });
           }
         }
-        if (own) {
+        if (own && !built) {
           buttons.push({ id: 'econ-auction-me', label: '🔨 Versteigern', cls: 'btn-xs', act: () => {
             openModal({
               title: 'Feld versteigern',
@@ -2262,7 +2315,7 @@
       });
       return;
     }
-    const msg = (err && (err.message || err.error)) || 'Unbekannter Fehler (' + code + ')';
+    const msg = (err && (err.notify || err.message || err.error)) || 'Unbekannter Fehler (' + code + ')';
     showNotify(msg);
     if (window.__notifyEl) window.__notifyEl.classList.add('is-error');
   });

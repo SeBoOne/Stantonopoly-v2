@@ -207,7 +207,7 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
   margin-bottom: 12px; }
 .preset-editor-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .preset-field-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 110px 40px 40px 38px; gap: 8px;
+.preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 150px 40px 40px 38px; gap: 8px;
   align-items: center; border: 2px solid var(--line); background: var(--panel-2); padding: 7px 10px; }
 /* (2n-QA P1) "Frei Parken" hat KEIN Gruppen-Select und KEIN Bonus/Fee-Feld → 7 Kinder.
    Ohne is-plain säße es im 8-Spalten-Grid und die ↑/↓/✕-Buttons rutschten nach links. */
@@ -215,6 +215,18 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .preset-field-row.has-extra { grid-template-columns: 22px 130px 1fr 110px 110px 40px 40px 38px; }
 .preset-field-idx { font: 700 13px/1 ui-monospace, monospace; color: var(--accent); }
 .preset-field-row select { padding: 7px 6px; font-size: 12px; }
+/* (2o-B P1) Farb-Swatch in der Farbgruppen-Auswahl des Preset-Editors:
+   <option>-Hintergrund wird in Chrome/Firefox/Edge im Dropdown gerendert.
+   Fallback für Browser, die option-Hintergrund ignorieren: Textfarbe auf
+   hellem Grund lesbar halten. */
+.preset-group-opt { color: #0b0e12; font-weight: 600; }
+.preset-group-opt[value="weiss"] { color: #3a3e46; }
+/* (2o-B P1) Sichtbarer Farb-Swatch neben dem Gruppen-Dropdown: dunkler Rahmen,
+   18×14 Block direkt vor dem Select; group column ist 150px breit (Select + Swatch). */
+.preset-group-pick { display: flex; align-items: center; gap: 6px; }
+.preset-group-pick .preset-group-swatch { flex: none; width: 18px; height: 14px;
+  border: 2px solid var(--line-bright); border-radius: 2px; background: transparent; }
+.preset-group-pick select { flex: 1 1 auto; min-width: 0; }
 .preset-field-row input { padding: 7px 8px; font-size: 13px; }
 .preset-editor-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
 .levelnames-editor { margin-top: 20px; }
