@@ -467,8 +467,21 @@ class Rooms {
     if (!team) return { error: { code: 'TEAM_GONE', message: 'Team nicht gefunden.' } };
 
     const name = String(playerName || 'Pilot').slice(0, 24) || 'Pilot';
-    let token = null;
-    const existing = dbm.getPlayer(sock.id);
+
+        // (2m P6) Gerätewechsel: Jemand tritt mit demselben Spieler-Namen UND demselben
+        // Team-Code bei → er übernimmt den vorhandenen Login (alle Rollen: GM, Team,
+        // Leiter, Eigentum, Guthaben). Der alte Login wird mit der Meldung
+        // „Von einem anderen Standort eingeloggt“ aus dem Spiel entfernt.
+        const sameName = (dbm.getPlayers(resolvedGameId) || [])
+          .find((p) => p.teamId === team.teamId
+            && String(p.name).toLowerCase() === String(name).toLowerCase()
+            && String(p.id) !== String(sock.id));
+        if (sameName) {
+          return this._takeoverPlayer({ gameId: resolvedGameId, team, name, oldPlayer: sameName, sock });
+        }
+
+        let token = null;
+                const existing = dbm.getPlayer(sock.id);
     // Punkt 2 (Auto-Austritt bei Wechsel): wer bereits in einer anderen Lobby/einem
     // anderen Spiel Mitglied ist und sich per Einladungscode in ein NEUES Spiel
     // begibt, wird sauber aus der alten Membership entfernt (Leader-Nachfolge,
@@ -488,20 +501,68 @@ class Rooms {
     }
 
     sock.join(this._roomOf(resolvedGameId));
-    return {
-      ok: true,
-      gameId: resolvedGameId,
-      teamId: team.teamId,
-      playerId: sock.id,
-      token,
-      role: 'member'
-    };
-  }
+        return {
+          ok: true,
+          gameId: resolvedGameId,
+          teamId: team.teamId,
+          playerId: sock.id,
+          token,
+          role: 'member'
+        };
+      }
 
-  // ------------------------------------------------------------------
-  // Rejoin nach Browser-Neuladen: Token -> Spieler wiederherstellen
-  // ------------------------------------------------------------------
-  rejoin({ gameId, token, sock }) {
+      // ------------------------------------------------------------------
+      // (2m P6) Gerätewechsel: gleicher Name + gleicher Team-Code ersetzt den
+      // vorhandenen Login. Der neue Socket übernimmt die Identität des alten
+      // (Rollen, Leader, Votes, GM, Token); der alte Socket wird mit der Meldung
+      // „Von einem anderen Standort eingeloggt“ aus dem Spiel entfernt.
+      // ------------------------------------------------------------------
+      _takeoverPlayer({ gameId, team, name, oldPlayer, sock }) {
+        // Falls der neue Socket bereits eine Membership in diesem Spiel hat (andere
+        // Identität), sauber entfernen, damit remapPlayerSock nicht auf einen
+        // PK-Konflikt (zwei Zeilen mit derselben Socket-ID) läuft.
+        const existing = dbm.getPlayer(sock.id);
+        if (existing && existing.gameId === gameId && String(existing.id) !== String(oldPlayer.id)) {
+          this._cleanupMembership(gameId, sock);
+        }
+        // Alten Login auf den neuen Socket umsetzen (Votes, Leader, Spieler-ID).
+        dbm.remapPlayerSock(sock.id, oldPlayer.id);
+        // Namen auf den neuen (exakten) Namen setzen; Token bleibt stabil.
+        const taken = dbm.getPlayer(sock.id);
+        dbm.addPlayer({ id: sock.id, gameId, teamId: team.teamId, name, token: taken ? taken.token : null });
+        // GM-Rolle übernehmen, falls der alte Login der aktive GM war.
+        const gameRow = dbm.getGame(gameId);
+        if (gameRow && String(gameRow.gm_owner || '') === String(oldPlayer.id)) {
+          dbm.setGmOwner(gameId, sock.id);
+        }
+        this._addGmSocket(gameId, sock);
+        // Alten Socket aus dem GM-Register + Disconnect-Timeout entfernen.
+        this._removeGmSocket(gameId, oldPlayer.id);
+        this._cancelPendingDisconnect(oldPlayer.id);
+        // Alten Socket mit der Meldung aus dem Spiel leiten.
+        try { if (this.io && this.io.to) this.io.to(String(oldPlayer.id)).emit('game:redirected', { gameId, reason: 'replaced', message: 'Von einem anderen Standort eingeloggt' }); } catch (e) {}
+        try {
+          const os = this.io && this.io.sockets && this.io.sockets.sockets.get(oldPlayer.id);
+          if (os && os.leave) os.leave(this._roomOf(gameId));
+        } catch (e) {}
+        sock.join(this._roomOf(gameId));
+        const team2 = dbm.getTeam(gameId, team.teamId);
+        const isLeader = !!team2 && team2.leaderId != null && String(team2.leaderId) === String(sock.id);
+        return {
+          ok: true,
+          gameId,
+          teamId: team.teamId,
+          playerId: sock.id,
+          token: taken ? taken.token : null,
+          role: isLeader ? 'leader' : 'member',
+          replaced: true
+        };
+      }
+
+      // ------------------------------------------------------------------
+      // Rejoin nach Browser-Neuladen: Token -> Spieler wiederherstellen
+            // ------------------------------------------------------------------
+         rejoin({ gameId, token, sock }) {
     const gameRow = dbm.getGame(gameId);
     if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
     const pl = dbm.getPlayerByToken(String(token || ''));
@@ -1155,21 +1216,50 @@ class Rooms {
   }
 
   // GM: Spiel verlassen (jede Rolle): aus dem Raum + aus der Spieler-Tabelle entfernen.
-  leaveGame({ gameId, sock }) {
-    const gameRow = dbm.getGame(gameId);
-    // Punkte 1 (+8): Ein aktiver GM (ohne Nachfolger) kann sich während eines laufenden
-    // Spiels NICHT selbst entfernen — Verlassen wäre für das Spiel fatal (kein GM mehr,
-    // der das Spiel starten/pausieren/fortsetzen kann). HART blockieren.
-    if (gameRow && gameRow.started && !gameRow.over && !gameRow.paused &&
-        (this._isGmSocket(gameId, sock.id) || String(gameRow.gm_owner || '') === String(sock.id))) {
-      return { error: { code: 'GM_ACTIVE', message: 'Du bist der GM dieses laufenden Spiels und kannst es nicht verlassen, solange kein Nachfolge-GM existiert.' } };
+    // (2m P7) Ist der Verlassende der LETZTE aktive Spieler seines Teams, wird zuerst
+    // eine Bestätigungs-Abfrage an den Client gesendet; erst nach Bestätigung
+    // (confirm=true) wird das Team per Forfeit-Logik ausgeschieden und verlassen.
+    leaveGame({ gameId, sock, confirm }) {
+      const gameRow = dbm.getGame(gameId);
+      // Punkte 1 (+8): Ein aktiver GM (ohne Nachfolger) kann sich während eines laufenden
+      // Spiels NICHT selbst entfernen — Verlassen wäre für das Spiel fatal (kein GM mehr,
+      // der das Spiel starten/pausieren/fortsetzen kann). HART blockieren.
+      if (gameRow && gameRow.started && !gameRow.over && !gameRow.paused &&
+          (this._isGmSocket(gameId, sock.id) || String(gameRow.gm_owner || '') === String(sock.id))) {
+        return { error: { code: 'GM_ACTIVE', message: 'Du bist der GM dieses laufenden Spiels und kannst es nicht verlassen, solange kein Nachfolge-GM existiert.' } };
+      }
+      const me = dbm.getPlayer(sock.id);
+      // (2m P7) Letzter aktiver Spieler seines Teams (nur in einem laufenden Spiel).
+      if (me && me.gameId === gameId && gameRow && gameRow.started && !gameRow.over) {
+        const teamMembers = (dbm.getPlayers(gameId) || []).filter((p) => p.teamId === me.teamId);
+        const isLast = teamMembers.length === 1 && String(teamMembers[0].id) === String(sock.id);
+        if (isLast && !confirm) {
+          // Bestätigungs-Abfrage an den Client senden — noch NICHT verlassen.
+          this._emitTo(sock.id, 'leave:confirm', {
+            gameId,
+            message: 'Wenn du das Spiel verlässt, gibt dein Team auf.'
+          });
+          return { ok: false, confirmRequired: true, gameId };
+        }
+        if (isLast && confirm) {
+          // Team per Forfeit-Logik ausscheiden (wie Bankrott: Eigentum/Guthaben aufgeben).
+          const engine = this._loadEngine(gameId);
+          if (engine) {
+            const teamIdx = this._piOf(engine, me.teamId);
+            if (teamIdx >= 0 && !engine.players[teamIdx].bankrupt) {
+              engine.forfeitTeam(teamIdx);
+              this.logEngine(gameId, engine, me.name + ' verlässt als letzter Spieler — Team gibt auf (Forfeit).');
+              dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: engine.over ? 1 : 0 });
+            }
+          }
+        }
+      }
+      this._cleanupMembership(gameId, sock);
+      // GM-Socket bei gestattetem Verlassen (Lobby/Wurf/beendet) als GM abmelden.
+      this._removeGmSocket(gameId, sock.id);
+      // Client-State bereinigen (localStorage löscht der Client selbst).
+      return { ok: true, gameId, left: true };
     }
-    this._cleanupMembership(gameId, sock);
-    // GM-Socket bei gestattetem Verlassen (Lobby/Wurf/beendet) als GM abmelden.
-    this._removeGmSocket(gameId, sock.id);
-    // Client-State bereinigen (localStorage löscht der Client selbst).
-    return { ok: true, gameId, left: true };
-  }
 
   // (2k #2) Spiel abbrechen (GM): NEU ERSTELLTES Spiel (noch nicht gestartet) wird
   // komplett entfernt; ein PAUSIERTES Spiel wird nur vom Fortsetzen zurückgeführt

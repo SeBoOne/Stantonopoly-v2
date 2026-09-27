@@ -184,8 +184,14 @@ test('P4b: Nur-1-Mitglied-Team: Leader verlässt -> leaderId null', async () => 
   await gmStartP; await sleep(120);
   const team0Id = ev.tokens[0].teamId;
   assert.strictEqual(leaderOf(srv, ev.gameId, team0Id), a.id, 'A ist Leader (Einzel-Team)');
-  const leftP = once(a, 'left');
+  // (2m P7) A ist der LETZTE Spieler seines Teams in einem laufenden Spiel:
+  // der Server fragt zuerst nach Bestätigung (leave:confirm), erst nach
+  // Bestätigung (confirm:true) folgt Forfeit + leave.
+  const confirmP = once(a, 'leave:confirm');
   a.emit('game:leave', { gameId: ev.gameId });
+  await confirmP; await sleep(60);
+  const leftP = once(a, 'left');
+  a.emit('game:leave', { gameId: ev.gameId, confirm: true });
   await leftP; await sleep(100);
   assert.strictEqual(leaderOf(srv, ev.gameId, team0Id), null, 'Nur-Leader-Team: leaderId null nach Verlassen');
   [gm, a, d].forEach((x) => x.disconnect());
