@@ -597,12 +597,17 @@ class Rooms {
         // Namen auf den neuen (exakten) Namen setzen; Token bleibt stabil.
         const taken = dbm.getPlayer(sock.id);
         dbm.addPlayer({ id: sock.id, gameId, teamId: team.teamId, name, token: taken ? taken.token : null });
-        // GM-Rolle übernehmen, falls der alte Login der aktive GM war.
+        // GM-Rolle übernehmen, NUR wenn der alte Login der aktive GM war.
+        // Ein NORMALES Teammitglied (nicht GM) darf nach dem Gerätewechsel NICHT
+        // hier als GM registriert werden — sonst blockiert GM_ACTIVE fälschlich sein
+        // Verlassen (P6 2n). Ist der neue Socket bereits über den GM-Code registriert
+        // (2m P11-Pfad ruft _addGmSocket vor _takeoverPlayer auf), bleibt das hier
+        // unangetastet.
         const gameRow = dbm.getGame(gameId);
         if (gameRow && String(gameRow.gm_owner || '') === String(oldPlayer.id)) {
           dbm.setGmOwner(gameId, sock.id);
+          this._addGmSocket(gameId, sock);
         }
-        this._addGmSocket(gameId, sock);
         // Alten Socket aus dem GM-Register + Disconnect-Timeout entfernen.
         this._removeGmSocket(gameId, oldPlayer.id);
         this._cancelPendingDisconnect(oldPlayer.id);
