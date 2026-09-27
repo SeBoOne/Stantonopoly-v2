@@ -207,7 +207,7 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
   margin-bottom: 12px; }
 .preset-editor-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .preset-field-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 40px 40px 38px; gap: 8px;
+.preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 110px 40px 40px 38px; gap: 8px;
   align-items: center; border: 2px solid var(--line); background: var(--panel-2); padding: 7px 10px; }
 .preset-field-row.has-extra { grid-template-columns: 22px 130px 1fr 110px 110px 40px 40px 38px; }
 .preset-field-idx { font: 700 13px/1 ui-monospace, monospace; color: var(--accent); }
@@ -662,6 +662,10 @@ body.view-game .actionbar { display: flex; }
 
 /* ===== (2i #7) Nav-Punkte in Lobby/Spiel ausblenden — Verlassen nur über Optionen ===== */
 body.view-lobby .hd-nav, body.view-game .hd-nav { display: none; }
+/* (2n-A P3) Wenn die Nav ausgeblendet ist, verliert .hd-r (Palette) seinen
+   margin-left:auto-Push vom .hd-nav und rutscht neben das V2-Logo. Diese Regel
+   hält die Palette in Lobby/Spiel rechtsbündig im Header-Verbund. */
+body.view-lobby .hd-r, body.view-game .hd-r { margin-left: auto; }
 
 /* ===== (2m-B P4) Palette-Auswahl bleibt IMMER sichtbar & bedienbar =====
    Die Farbpalette (.#palette-switcher / #palette-select) lebt in .hd-r und gehört

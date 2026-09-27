@@ -837,6 +837,9 @@
         const out = { type: f.type || 'los', name: f.name || 'Feld' };
         if (f.type === 'grundstueck') {
           if (typeof f.price === 'number') out.price = f.price;
+          // (2n-A P4) Farbgruppe mit an den Server senden — sonst fehlt f.group
+          // im Spielzustand und das k-band fällt auf das Preisband zurück.
+          if (f.group !== undefined && f.group !== null && String(f.group) !== '') out.group = String(f.group);
         } else if (f.type === 'los') {
           if (typeof f.bonus === 'number') out.bonus = f.bonus;
         } else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis') {
