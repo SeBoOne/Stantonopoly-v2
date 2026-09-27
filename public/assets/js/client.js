@@ -500,7 +500,7 @@
       editingFields.forEach((f, i) => {
         const row = document.createElement('div');
         // Los/Gundo haben ein Zusatzfeld (Los-Bonus/Gebühr) → 8-spaltiges Grid.
-        row.className = 'preset-field-row' + ((f.type === 'los' || f.type === 'ereignis' || f.type === 'gundo' || f.type === 'gefangnis' || f.type === 'steuer') ? ' has-extra' : '');
+        row.className = 'preset-field-row' + ((f.type === 'los' || f.type === 'ereignis' || f.type === 'gundo' || f.type === 'gefangnis' || f.type === 'steuer') ? ' has-extra' : '') + (f.type === 'freiparken' ? ' is-plain' : '');
         const idx = document.createElement('span');
         idx.className = 'preset-field-idx';
         idx.textContent = i;

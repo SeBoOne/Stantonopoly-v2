@@ -209,6 +209,9 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .preset-field-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 110px 40px 40px 38px; gap: 8px;
   align-items: center; border: 2px solid var(--line); background: var(--panel-2); padding: 7px 10px; }
+/* (2n-QA P1) "Frei Parken" hat KEIN Gruppen-Select und KEIN Bonus/Fee-Feld → 7 Kinder.
+   Ohne is-plain säße es im 8-Spalten-Grid und die ↑/↓/✕-Buttons rutschten nach links. */
+.preset-field-row.is-plain { grid-template-columns: 22px 130px 1fr 110px 40px 40px 38px; }
 .preset-field-row.has-extra { grid-template-columns: 22px 130px 1fr 110px 110px 40px 40px 38px; }
 .preset-field-idx { font: 700 13px/1 ui-monospace, monospace; color: var(--accent); }
 .preset-field-row select { padding: 7px 6px; font-size: 12px; }
