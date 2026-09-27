@@ -161,7 +161,7 @@ io.on('connection', (socket) => {
       handleResult(ret);
       if (ret && ret.ok) {
         const g = dbm.getGame(ret.gameId);
-        emit('joined', { gameId: ret.gameId, teamId: ret.teamId, playerId: ret.playerId, token: ret.token, role: ret.role, started: !!(g && g.started), over: !!(g && g.over) });
+        emit('joined', { gameId: ret.gameId, teamId: ret.teamId, playerId: ret.playerId, token: ret.token, role: ret.role, replaced: !!ret.replaced, started: !!(g && g.started), over: !!(g && g.over) });
       }
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
@@ -334,7 +334,7 @@ io.on('connection', (socket) => {
   // ---------- Spiel verlassen (jede Rolle) ----------
   socket.on('game:leave', (data) => {
     try {
-      const ret = rooms.leaveGame({ gameId: (data && data.gameId) || '', sock: socket });
+      const ret = rooms.leaveGame({ gameId: (data && data.gameId) || '', sock: socket, confirm: !!(data && data.confirm) });
       handleResult(ret);
       if (ret && ret.ok) emit('left', { gameId: ret.gameId, ok: true });
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
