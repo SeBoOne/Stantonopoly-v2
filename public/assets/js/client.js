@@ -136,6 +136,7 @@
     playerId: null,    // eigene Spieler-ID
     role: null,        // 'gm' | 'leader' | 'member' | 'spectator'
     isGM: false,
+    gmName: null,      // GM-Anzeigename (aus dem Erstellen-Formular / State)
     lastState: null,   // letzter empfangener state
     boardReady: false,
     palette: 'cargo',   // aktive Farbpalette
@@ -867,6 +868,8 @@
     if (ev && ev.preventDefault) ev.preventDefault();
     const btn = $('btn-create');
     const config = collectConfig();
+    // (2n P2) GM-Anzeigenamen merken, damit die Lobby ihn direkt nach gameCreated zeigt.
+    client.gmName = config.gmName || 'GM';
     console.log('[client.js] gm:create senden', { config });
     socket.emit('gm:create', { config });
     if (btn) btn.disabled = true;
@@ -953,6 +956,9 @@
     // (2k #2) Button-Label entsprechend der Rolle setzen (GM → Abbrechen).
     updateLobbyLeaveBtn();
     showView('lobby');
+    // (2n P2) GM-Anzeigename direkt nach gameCreated in der Lobby zeigen
+    // (der Server broadcastet nach gameCreated keinen state).
+    renderGmNameBox(client.gmName);
     // (2m P9) Ein pausiertes Spiel öffnen heißt NICHT fortsetzen — nur die Lobby.
     if (data && data.resumed && data.paused) {
       showNotify('Pausiertes Spiel geöffnet — das Spiel läuft erst wieder mit „Fortsetzen“.');
@@ -1014,7 +1020,17 @@
       confirmText: 'Beitreten',
       cancelText: 'Abbrechen',
       confirmClass: 'btn-primary',
-      onConfirm: doJoin
+      onConfirm: doJoin,
+      // (2n P7) Enter in einem Beitreten-Feld = Klick auf „Beitreten“ (mit Validierung).
+      onOpen: () => {
+        ['join-code', 'join-name'].forEach((id) => {
+          const inp = $(id);
+          if (!inp) return;
+          inp.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); doJoin(); }
+          });
+        });
+      }
     });
   }
 
@@ -1086,7 +1102,19 @@
     return map;
   }
 
+  // (2n P2) GM-Anzeigename in der Lobby anzeigen (aus State oder client.gmName,
+  // nie hart "GM"). Wird von renderLobby UND direkt nach gameCreated aufgerufen.
+  function renderGmNameBox(name) {
+    const gmNameBox = $('gm-name-box');
+    if (!gmNameBox) return;
+    const gmName = (name && String(name).trim()) ? String(name).trim() : 'GM';
+    gmNameBox.innerHTML = '<span class="code-lbl">GM</span>' +
+      '<div class="code-row"><code class="code-big">' + esc(gmName) + '</code></div>';
+  }
+
   function renderLobby(st) {
+    // (2n P2) GM-Anzeigename anzeigen (State hat Vorrang, sonst gemerkter Name).
+    renderGmNameBox((st && st.gmName) || client.gmName);
     // (2k #1/#2) Codes (GM-Code + Einladungscodes) NUR für den aktiven GM sichtbar.
     const gmBox = $('gm-code-box');
     const invBox = $('invite-code-box');
@@ -2070,7 +2098,11 @@
       body: '<div class="rk-head">Platzierung (Sieger → erster Ausscheider)</div>' +
         '<div class="rk-list">' + (rows || '<div class="rk-empty">Keine Platzierung verfügbar.</div>') + '</div>',
       confirmText: null,
-      cancelText: 'Schließen'
+      cancelText: 'Schließen',
+      // (2n P5) Siegermodal schließen → Spiel sauber verlassen (zurück zur Startansicht).
+      // Das Spiel ist serverseitig beendet (st.over), daher reicht der leave-Flow:
+      // game:leave wird gesendet, auf 'left' gewartet, Identität geleert, Setup gezeigt.
+      onCancel: () => { emitLeaveAndAck('Spiel verlassen — zurück zur Startansicht.'); }
     });
   }
 
