@@ -1129,7 +1129,13 @@ const StantonopolyGame = {
       // buy: Ziel (Besitzer) verkauft an from; sell: from verkauft an Ziel.
       const seller = offer.kind === 'buy' ? target : from;
       const buyer = offer.kind === 'buy' ? from : target;
-      this.sellProperty(game, offer.fieldIdx, game.players.indexOf(buyer), offer.price, game.players.indexOf(seller));
+      const res = this.sellProperty(game, offer.fieldIdx, game.players.indexOf(buyer), offer.price, game.players.indexOf(seller));
+      // (2o-A P8) sellProperty lehnt bebauten Verkauf ab (BUILT_NOT_SELLABLE + notify) —
+      // dieses Ergebnis darf NICHT verschluckt werden, sonst erscheint das Angebot
+      // kommentarlos als „durchgegangen“ und Task B kann den Ablehnungsweg nicht abdecken.
+      if (!res || !res.ok) {
+        return { ok: false, reason: res.reason, notify: res.notify };
+      }
       return { ok: true, done: true, offer };
     }
     log(game, offer.targetName + ' lehnt das Angebot für „' + (f ? f.name : 'Feld ' + offer.fieldIdx) + '“ ab.');

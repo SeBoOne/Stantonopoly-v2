@@ -142,6 +142,58 @@ test('2o Wire P8: Soldat bebautes Feld an die Bank → error reason BANK_BUY_BUI
   assert.ok(err.notify && err.notify.length > 0);
 });
 
+test('2o Wire P8-Handel: Team-Kauf bebautes Feld → error BUILT_NOT_SELLABLE; unausgebaut geht durch', async () => {
+  const { teams, gameId } = await setupGame();
+  // A (idx0) besitzt Feld 1 mit Bebauung; B (idx1) ist aktiv und bietet einen Kauf.
+  setEngine(gameId, (e) => {
+    e.settings.buildGroupOwnership = false;
+    e.activeIdx = 1;                       // B am Zug → darf Kauf-Angebot senden
+    e.players[0].budget = 5000000;
+    e.players[1].budget = 5000000;
+    e.players[0].properties[1] = { level: 'CYCLONE' };  // bebaut
+  });
+  // B (idx1) macht A ein Kauf-Angebot für Feld 1 (kind=buy).
+  const stOffer = waitState(teams[1], (s) => s && s.game && s.game.offers && s.game.offers.length > 0, 6000);
+  teams[1].emit('trade:make', { gameId, kind: 'buy', field: 1, targetIdx: 0, price: 100000 });
+  const st1 = await stOffer;
+  const offerId = st1.game.offers[0].id;
+  // A (Ziel/Besitzer) nimmt an → P8: bebautes Feld ist per Handels-Angebot NICHT verkaufbar.
+  const errP = onceErr(teams[0]);
+  teams[0].emit('trade:respond', { gameId, offerId, accept: 1 });
+  const err = await errP;
+  assert.strictEqual(err.reason, 'BUILT_NOT_SELLABLE');
+  assert.strictEqual(err.code, 'TRADE');
+  assert.ok(err.notify && err.notify.length > 0, 'notify-Satz für den Handels-Ablehnungsweg');
+  // Feld bleibt bei A (kein Geldfluss, kein Eigentumswechsel trotz „annehmen“).
+  const eRejected = readEngine(gameId);
+  assert.ok(eRejected.players[0].properties[1], 'A behält Feld 1');
+  assert.strictEqual(eRejected.players[0].properties[1].level, 'CYCLONE', 'Bebauung unangetastet');
+  assert.ok(!eRejected.players[1].properties[1], 'B hat das Feld nicht');
+
+  // Kontrollpfad: Feld abgebaut (ALLEIN) → Verkauf per Handels-Angebot geht durch.
+  setEngine(gameId, (e) => {
+    e.settings.buildGroupOwnership = false;
+    e.activeIdx = 1;
+    e.players[0].budget = 5000000;
+    e.players[1].budget = 5000000;
+    e.players[0].properties[1] = { level: 'ALLEIN' };
+  });
+  const stOffer2 = waitState(teams[1], (s) => s && s.game && s.game.offers && s.game.offers.some((o) => o.fieldIdx === 1 && o.kind === 'buy'), 6000);
+  teams[1].emit('trade:make', { gameId, kind: 'buy', field: 1, targetIdx: 0, price: 100000 });
+  const st2 = await stOffer2;
+  const offerId2 = st2.game.offers.find((o) => o.fieldIdx === 1 && o.kind === 'buy').id;
+  const bBudget = st2.game.players[1].budget;
+  const aBudget = st2.game.players[0].budget;
+  // A nimmt an → diesmal durch: Geld fliesst, Eigentum wechselt.
+  const stSold = waitState(teams[1], (s) => s && s.game && s.game.players[1].properties[1], 6000);
+  teams[0].emit('trade:respond', { gameId, offerId: offerId2, accept: 1 });
+  const st3 = await stSold;
+  assert.ok(st3.game.players[1].properties[1], 'B besitzt Feld 1 nach unausgebautem Verkauf');
+  assert.ok(!st3.game.players[0].properties[1], 'A hat Feld 1 verloren');
+  assert.strictEqual(st3.game.players[1].budget, bBudget - 100000, 'B zahlt den Kaufpreis');
+  assert.strictEqual(st3.game.players[0].budget, aBudget + 100000, 'A erhält den Kaufpreis');
+});
+
 test('2o Wire P5: Ausbau bei beliehenem Gruppenfeld → error reason GROUP_MORTGAGED', async () => {
   const { teams, gameId } = await setupGame();
   setEngine(gameId, (e) => {
