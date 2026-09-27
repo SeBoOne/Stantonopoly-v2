@@ -170,3 +170,54 @@ test('2m P7: letzter Spieler verlässt → erst leave:confirm, nach Bestätigung
   assert.equal(engAfter.players[0].budget, 0, 'Guthaben aufgegeben');
   assert.deepEqual(engAfter.players[0].properties, {}, 'Eigentum aufgegeben');
 });
+
+// ─── 2n P6: Nach Rejoin-Gerätewechsel kann ein Normalspieler wieder verlassen ─
+// Regressionstest: X (normales Teammitglied) macht einen Gerätewechsel (gleicher
+// Name + Team-Code → _takeoverPlayer). DANACH muss X das Spiel verlassen können
+// ('left'), statt fälschlich als aktiver GM blockiert zu werden (GM_ACTIVE).
+// Der WIRKLICHE GM bleibt weiterhin blockiert (GM_ACTIVE).
+test('2n P6: Normalspieler darf nach Rejoin-Gerätewechsel verlassen; echter GM bleibt blockiert', async () => {
+  const gm = track(await connect('p6x-gm'));
+  const ev = await createGame(gm, 2);
+  const t0 = ev.tokens[0];
+  const t1 = ev.tokens[1];
+
+  // Team0: ZWEI Spieler X + Y (damit X nach Rejoin nicht der letzte ist → P7
+  // leave:confirm greift hier nicht). Team1: ein Spieler erreicht gm:start.
+  const X = track(await connect('p6x-X'));
+  const jX = await joinTeam(X, ev.gameId, t0.code, 'X');
+  const Y = track(await connect('p6x-Y'));
+  await joinTeam(Y, ev.gameId, t0.code, 'Y');
+  const Z = track(await connect('p6x-Z'));
+  await joinTeam(Z, ev.gameId, t1.code, 'Z');
+
+  gm.emit('gm:start', { gameId: ev.gameId, gmCode: ev.gmCode });
+  await waitState(X, (s) => s && s.started === true);
+  await sleep(80);
+
+  // GM ist der aktive GM (gm_owner + GM-Socket-Registrierung → Verlassen blockiert).
+  assert.equal(dbMod.getGame(ev.gameId).gm_owner, gm.id, 'gm_owner = GM-Socket');
+
+  // Gerätewechsel: neuer Socket X2 tritt mit demselben Namen + Team-Code bei.
+  const X2 = track(await connect('p6x-X2'));
+  const redirectedP = once(X, 'game:redirected');
+  const jX2 = await joinTeam(X2, ev.gameId, t0.code, 'X');
+  await redirectedP;
+  assert.equal(jX2.replaced, true, 'X2 übernimmt den Login (Gerätewechsel)');
+
+  // X2 ist ein NORMALES Teammitglied — darf nach dem Wechsel verlassen.
+  const leftP = once(X2, 'left');
+  X2.emit('game:leave', { gameId: ev.gameId });
+  const lr = await leftP;
+  assert.equal(lr.ok, true, 'X2 verlässt nach Rejoin (erhält left) — nicht GM_ACTIVE');
+  assert.equal(dbMod.getPlayer(X2.id), null, 'X2 nach Verlassen aus dem Spiel entfernt');
+
+  // Der echte GM G bleibt weiterhin blockiert (GM_ACTIVE), kein 'left'.
+  let gmLeft = false;
+  gm.once('left', () => { gmLeft = true; });
+  const gmErrP = once(gm, 'error');
+  gm.emit('game:leave', { gameId: ev.gameId });
+  const gmErr = await gmErrP;
+  assert.equal(gmErr.code, 'GM_ACTIVE', 'echter GM weiterhin blockiert (GM_ACTIVE)');
+  assert.equal(gmLeft, false, 'GM erhält kein left');
+});
