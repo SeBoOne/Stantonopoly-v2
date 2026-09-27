@@ -367,8 +367,12 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .kcard { position: relative; }
 .kcard .k-band, .kcard .k-top { position: relative; z-index: 6; }
 .kc-info { display: none; }
+/* (2m-B P5) Info-Layer startet UNTERHALB von k-band+k-top — überdeckt das Farbband
+   und die Kopfzeile (Feldnummer/Typ) nicht mehr. Top-Offset = band(5px)+top-Margin(8px)
+   +top(13px)+Card-Padding(14px) ≈ 46px ab Kartenkopf; im tall-Modus (band 8px, top 15px)
+   ebenso ausreichend. */
 .kcard.is-info-open .kc-info { display: flex; flex-direction: column; gap: 4px;
-  position: absolute; left: 0; right: 0; bottom: 0; top: 0;
+  position: absolute; left: 0; right: 0; bottom: 0; top: 46px;
   background: var(--card, #16171e); padding: 12px 12px 10px;
   z-index: 5; overflow: auto; }
 .kcard.is-info-open .kc-info .kv { font-size: 12.5px; padding: 2px 0; }
@@ -644,3 +648,11 @@ body.view-game .actionbar { display: flex; }
 
 /* ===== (2i #7) Nav-Punkte in Lobby/Spiel ausblenden — Verlassen nur über Optionen ===== */
 body.view-lobby .hd-nav, body.view-game .hd-nav { display: none; }
+
+/* ===== (2m-B P4) Palette-Auswahl bleibt IMMER sichtbar & bedienbar =====
+   Die Farbpalette (.#palette-switcher / #palette-select) lebt in .hd-r und gehört
+   NICHT zu den ausgeblendeten Nav-Punkten. Diese Regel sichert das explizit ab:
+   egal welche View aktiv ist, wird der Palette-Umschalter nie ausgeblendet. */
+body.view-lobby .pal-switch, body.view-game .pal-switch,
+body.view-lobby #palette-switcher, body.view-game #palette-switcher,
+body.view-setup #palette-switcher { visibility: visible; }
