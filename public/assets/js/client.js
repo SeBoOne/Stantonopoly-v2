@@ -53,27 +53,37 @@
     document.addEventListener('keydown', escH);
 
     const panel = document.createElement('div');
-    panel.className = 'modal-panel';
-    if (opts.title) {
-      const h = document.createElement('div');
-      h.className = 'modal-title';
-      h.innerHTML = esc(opts.title);
-      // ✕-Schließen oben rechts (immer vorhanden)
-      const x = document.createElement('button');
-      x.type = 'button';
-      x.className = 'modal-close';
-      x.textContent = '✕';
-      x.addEventListener('click', () => closeModal({ runCancel: true }));
-      h.appendChild(x);
-      panel.appendChild(h);
-    }
-    if (opts.icon) {
-      const ic = document.createElement('div');
-      ic.className = 'modal-icon';
-      ic.innerHTML = opts.icon;
-      panel.appendChild(ic);
-    }
-    if (opts.body) {
+        panel.className = 'modal-panel';
+        // Kopfzeile: Icon (falls vorhanden) inline VOR dem Titel in einer flex row.
+        // ✕-Schließen oben rechts NIE rendern — modal-btns enthält immer einen
+        // Abbrechen/Schließen-Button (sonst doppeltes Schließen — 2i #1).
+        const hasBtnClose = true;
+        if (opts.title || opts.icon) {
+          const head = document.createElement('div');
+          head.className = 'modal-head';
+          if (opts.icon) {
+            const ic = document.createElement('div');
+            ic.className = 'modal-icon';
+            ic.innerHTML = opts.icon;
+            head.appendChild(ic);
+          }
+          if (opts.title) {
+            const h = document.createElement('div');
+            h.className = 'modal-title';
+            h.innerHTML = esc(opts.title);
+            head.appendChild(h);
+          }
+          if (!hasBtnClose) {
+            const x = document.createElement('button');
+            x.type = 'button';
+            x.className = 'modal-close';
+            x.textContent = '✕';
+            x.addEventListener('click', () => closeModal({ runCancel: true }));
+            head.appendChild(x);
+          }
+          panel.appendChild(head);
+        }
+        if (opts.body) {
       const b = document.createElement('div');
       b.className = 'modal-body';
       b.innerHTML = opts.body;
@@ -128,12 +138,12 @@
     isGM: false,
     lastState: null,   // letzter empfangener state
     boardReady: false,
-    palette: 'holo',   // aktive Farbpalette
+    palette: 'cargo',   // aktive Farbpalette
   };
 
-  /* ---------------- Paletten-Switcher ---------------- */
-  const PALETTES = ['holo', 'aawa', 'stanton'];
-  const PALETTE_NAMES = { holo: 'Holo', aawa: 'AAWA', stanton: 'Stanton' };
+  /* ---------------- Paletten-Switcher (F-Schale: cargo/ion/uplink) ---------------- */
+  const PALETTES = ['cargo', 'ion', 'uplink'];
+  const PALETTE_NAMES = { cargo: 'Cargo', ion: 'Ion', uplink: 'Uplink' };
   function applyPalette(name) {
     client.palette = name;
     document.documentElement.setAttribute('data-palette', name);
@@ -147,24 +157,24 @@
     const wrap = $('palette-switcher');
     if (!wrap) return;
     // Gespeicherte Palette laden
-    let saved = 'holo';
-    try { saved = localStorage.getItem('stantonopoly.palette') || 'holo'; } catch(e) {}
-    if (!PALETTES.includes(saved)) saved = 'holo';
+    let saved = 'cargo';
+    try { saved = localStorage.getItem('stantonopoly.palette') || 'cargo'; } catch(e) {}
+    if (!PALETTES.includes(saved)) saved = 'cargo';
     applyPalette(saved);
-    // Buttons erstellen
+    // Dropdown (2i #6): kompakte Auswahl statt dauerhaft sichtbarer Buttons
+    const sel = $('palette-select');
+    if (!sel) return;
     PALETTES.forEach((p) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'palette-btn' + (p === saved ? ' active' : '');
-      btn.setAttribute('data-palette', p);
-      btn.textContent = PALETTE_NAMES[p] || p;
-      btn.addEventListener('click', () => applyPalette(p));
-      wrap.appendChild(btn);
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = PALETTE_NAMES[p] || p;
+      sel.appendChild(opt);
     });
+    sel.value = saved;
+    sel.addEventListener('change', () => applyPalette(sel.value));
   }
 
-  // Join-Stand in localStorage sichern, damit ein Neuladen automatisch
-  // rejoin-t (eigene Identität/Team bleibt erhalten).
+  /* ---------------- Join-Stand in localStorage ---------------- */
   const LS_KEY = 'stantonopoly.joined.v1';
   function saveJoin() {
     if (!client.gameId || !client.token) return;
@@ -232,6 +242,14 @@
         el.classList.toggle('active', v === name);
       }
     });
+    // Body-Klasse für View-Bindung von fixierten Elementen
+    document.body.classList.remove('view-game');
+    document.body.classList.remove('view-games');
+    document.body.classList.remove('view-setup');
+    document.body.classList.remove('view-lobby');
+    if (name && VIEWS.indexOf(name) !== -1) {
+      document.body.classList.add('view-' + name);
+    }
   }
 
   /* ---------------- Rollen-Helfer ---------------- */
@@ -249,9 +267,15 @@
 
   /* ---------------- Header-Navigation (Ansicht wechseln) ------------- */
   const navSetup = $('nav-setup');
-  const navJoin = $('nav-join');
-  if (navSetup) navSetup.addEventListener('click', () => showView('setup'));
-  if (navJoin) navJoin.addEventListener('click', () => openJoinModal());
+    const navJoin = $('nav-join');
+    if (navSetup) navSetup.addEventListener('click', () => showView('setup'));
+    if (navJoin) navJoin.addEventListener('click', () => openJoinModal());
+    // Landing-Hero-Buttons (Sichtcheck-Block 2 #9): „＋ Spiel erstellen“ → Setup,
+    // „🎟 Mit Code beitreten“ → Join-Modal.
+    const navSetup2 = $('nav-setup2');
+    const navJoin2 = $('nav-join2');
+    if (navSetup2) navSetup2.addEventListener('click', () => showView('setup'));
+    if (navJoin2) navJoin2.addEventListener('click', () => openJoinModal());
 
   /* ---------------- Kopieren-Helfer ------------- */
   function copyText(text, btn) {
@@ -304,6 +328,8 @@
 
     let presetList = [];          // [{name, builtin}]
     let currentPresetName = 'Crusader Cluster';
+    // (2j #2) Nach Speichern einzuwerfendes Preset im cfg-preset-Dropdown (vor Server-Ack gesetzt).
+    let pendingSelectPreset = null;
     let editingFields = DEFAULT_FIELDS();
     // Ausbaustufen-Namen (je Preset anpassbar). Defaults = data.js DEFAULT_LEVEL_NAMES.
     const DEFAULT_LEVEL_NAMES = { ALLEIN: 'Standard', CYCLONE: 'Cyclone', STORM: 'Storm', BALLISTA: 'Ballista', ARMISTICE: 'Armistice Zone' };
@@ -328,17 +354,24 @@
     // Spielregeln (Settings) je Preset. Interne Werte = Dezimal (wie Server);
     // die Eingabefelder zeigen Prozent (50 → 0.50). Defaults = data.js DEFAULT_SETTINGS.
     const DEFAULT_SETTINGS_CLIENT = {
-      rentMult: { ALLEIN: 0.10, CYCLONE: 0.50, STORM: 1.00, BALLISTA: 2.00, ARMISTICE: 3.00 },
-      buildMult: { ALLEIN: 0, CYCLONE: 0.25, STORM: 0.50, BALLISTA: 1.00, ARMISTICE: 1.50 },
-      mortgageMult: 0.75,
-      unmortgageRate: 1.10,
-      bankSellEnabled: true,
-      bankPayout: 0.75,
-      demolishRefundRate: 0.50,
-      auctionMs: 15000,
-      pollMs: 15000,
-      armisticeEnabled: false
-    };
+          rentMult: { ALLEIN: 0.10, CYCLONE: 0.50, STORM: 1.00, BALLISTA: 2.00, ARMISTICE: 3.00 },
+          buildMult: { ALLEIN: 0, CYCLONE: 0.25, STORM: 0.50, BALLISTA: 1.00, ARMISTICE: 1.50 },
+          mortgageMult: 0.75,
+          unmortgageRate: 1.10,
+          bankSellEnabled: true,
+          bankPayout: 0.75,
+          demolishRefundRate: 0.50,
+          auctionMs: 15000,
+          pollMs: 15000,
+          armisticeEnabled: false,
+          // (2k #5) Monopoly-Bauregel abschaltbar (Farbgruppen-Zwang für Ausbau).
+          monopolyBuildRule: true,
+          // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s, 0 = aus).
+          // Diese Werte sind Game-Pace-Einstellungen und werden beim Start als
+          // diceConfig/turnSeconds an den Server übergeben (nicht als Preset-Regel).
+          diceConfig: '1w6',
+                    turnSeconds: 0
+                  };
     let currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
     function syncSettingsInputs() {
       const set = (id, v) => { const el = $(id); if (el && el.value !== undefined) { if (typeof v === 'undefined' || v === null) el.value = ''; else el.value = Math.round(v * 100); } };
@@ -357,9 +390,14 @@
       set('s-demolish-refund', currentSettings.demolishRefundRate);
       const bs = $('s-bank-sell'); if (bs) bs.checked = !!currentSettings.bankSellEnabled;
       { const el = $('s-auction-ms'); if (el) el.value = Math.round(currentSettings.auctionMs / 1000); }
-      { const el = $('s-poll-ms'); if (el) el.value = Math.round(currentSettings.pollMs / 1000); }
-      { const el = $('s-armistice'); if (el) el.checked = !!currentSettings.armisticeEnabled; }
-    }
+            { const el = $('s-poll-ms'); if (el) el.value = Math.round(currentSettings.pollMs / 1000); }
+            { const el = $('s-armistice'); if (el) el.checked = !!currentSettings.armisticeEnabled; }
+            // (2k #5) Monopoly-Bauregel-Toggle
+            { const el = $('s-monopoly-rule'); if (el) el.checked = !!currentSettings.monopolyBuildRule; }
+            // (2h#5/#6) Spielablauf: Würfelmodus + Zug-Timer
+            { const el = $('s-dice'); if (el) el.value = currentSettings.diceConfig || '1w6'; }
+            { const el = $('s-turnsecs'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0))); }
+          }
     function readSettingsInputs() {
       const p = (v, d) => { if (v == null) return d; const x = Number(v); return Number.isFinite(x) && x >= 0 ? x : d; };
       const read = (id, apply) => { const el = $(id); if (el) { const v = el.value; if (v !== undefined && v !== '') apply(v); } };
@@ -378,9 +416,14 @@
       read('s-demolish-refund', (v) => currentSettings.demolishRefundRate = p(v, 0.50) / 100);
       const bs = $('s-bank-sell'); if (bs) currentSettings.bankSellEnabled = !!bs.checked;
       read('s-auction-ms', (v) => currentSettings.auctionMs = Math.max(1, Math.round(Number(v)) * 1000));
-      read('s-poll-ms', (v) => currentSettings.pollMs = Math.max(1, Math.round(Number(v)) * 1000));
-      { const ae = $('s-armistice'); if (ae) currentSettings.armisticeEnabled = !!ae.checked; }
-    }
+            read('s-poll-ms', (v) => currentSettings.pollMs = Math.max(1, Math.round(Number(v)) * 1000));
+            { const ae = $('s-armistice'); if (ae) currentSettings.armisticeEnabled = !!ae.checked; }
+            // (2k #5) Monopoly-Bauregel-Toggle lesen
+            { const mr = $('s-monopoly-rule'); if (mr) currentSettings.monopolyBuildRule = !!mr.checked; }
+            // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s)
+            { const de = $('s-dice'); if (de && (de.value === '1w6' || de.value === '2w6')) currentSettings.diceConfig = de.value; }
+            { const te = $('s-turnsecs'); if (te) currentSettings.turnSeconds = Math.max(0, Math.round(Number(te.value) || 0)); }
+          }
     // Settings nur senden, wenn sie von den Defaults abweichen (sonst null)
     function settingsPayload() {
       const base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
@@ -396,6 +439,7 @@
       if (cur.auctionMs !== base.auctionMs) out.auctionMs = cur.auctionMs;
       if (cur.pollMs !== base.pollMs) out.pollMs = cur.pollMs;
       if (cur.armisticeEnabled !== base.armisticeEnabled) out.armisticeEnabled = cur.armisticeEnabled;
+      if (cur.monopolyBuildRule !== base.monopolyBuildRule) out.monopolyBuildRule = cur.monopolyBuildRule;
       return Object.keys(out).length ? out : null;
     }
 
@@ -443,7 +487,12 @@
           if (f.type === v) o.selected = true;
           typeSel.appendChild(o);
         });
-        typeSel.addEventListener('change', () => { f.type = typeSel.value; renderFieldEditor(); });
+        typeSel.addEventListener('change', () => {
+          f.type = typeSel.value;
+          // (2k #5) Nicht-kaufbare Felder gehören keiner Farbgruppe an.
+          if (f.type !== 'grundstueck') delete f.group;
+          renderFieldEditor();
+        });
         const nameIn = document.createElement('input');
         nameIn.type = 'text';
         nameIn.value = f.name || '';
@@ -457,6 +506,23 @@
         priceIn.placeholder = 'Preis';
         priceIn.disabled = f.type !== 'grundstueck';
         priceIn.addEventListener('input', () => { f.price = Number(priceIn.value) || 0; });
+        // (2k #5) Farbgruppen-Auswahl NUR für Grundstücke. Nicht-kaufbare Felder
+        // (Los/Ereignis/Gefängnis/Steuer/Frei Parken) haben KEINE Gruppe.
+        let groupSel = null;
+        if (f.type === 'grundstueck') {
+          groupSel = document.createElement('select');
+          groupSel.title = 'Farbgruppe (Monopoly-Bauregel: nur gleichfarbig ausbaubar)';
+          const noneOpt = document.createElement('option');
+          noneOpt.value = ''; noneOpt.textContent = '–';
+          groupSel.appendChild(noneOpt);
+          ['A', 'B', 'C', 'D', 'E', 'F'].forEach((L) => {
+            const oo = document.createElement('option');
+            oo.value = L; oo.textContent = 'Gruppe ' + L;
+            if (String(f.group) === L) oo.selected = true;
+            groupSel.appendChild(oo);
+          });
+          groupSel.addEventListener('change', () => { f.group = groupSel.value; });
+        }
         // Sonder-Werte: Los-Feld = Los-Bonus; Gundo-Feld = Übernahme-Gebühr (negativ = Bonus)
         let bonusIn = null, feeIn = null;
         if (f.type === 'los') {
@@ -489,6 +555,7 @@
         const del = document.createElement('button'); del.type = 'button'; del.className = 'btn btn-xs btn-ghost del'; del.textContent = '✕';
         del.addEventListener('click', () => { editingFields.splice(i, 1); renderFieldEditor(); });
         row.appendChild(idx); row.appendChild(typeSel); row.appendChild(nameIn); row.appendChild(priceIn);
+        if (groupSel) row.appendChild(groupSel);
         if (bonusIn) row.appendChild(bonusIn);
         if (feeIn) row.appendChild(feeIn);
         row.appendChild(up); row.appendChild(dn); row.appendChild(del);
@@ -515,6 +582,7 @@
       if (typeof src.auctionMs === 'number') s.auctionMs = src.auctionMs;
       if (typeof src.pollMs === 'number') s.pollMs = src.pollMs;
       if (typeof src.armisticeEnabled === 'boolean') s.armisticeEnabled = src.armisticeEnabled;
+      if (typeof src.monopolyBuildRule === 'boolean') s.monopolyBuildRule = src.monopolyBuildRule; // (2k #5)
       if (src.rentMult && typeof src.rentMult === 'object') Object.assign(s.rentMult, src.rentMult);
       if (src.buildMult && typeof src.buildMult === 'object') Object.assign(s.buildMult, src.buildMult);
       currentSettings = s;
@@ -526,6 +594,23 @@
       if (data && Array.isArray(data.presets)) {
         presetList = data.presets;
         loadPresetDropdown();
+        // (2j #2) Nach erfolgreichem Speichern: Editor schließen + neues Preset auswählen.
+        if (pendingSelectPreset) {
+          const name = pendingSelectPreset; pendingSelectPreset = null;
+          const m = $('preset-modal'); if (m) m.classList.add('hidden');
+          const sel = $('cfg-preset');
+          if (sel && name) sel.value = name;
+          const saved = presetList.find((p) => p.name === name);
+          if (saved && Array.isArray(saved.fields) && saved.fields.length) {
+            currentPresetName = name; editorSetName(name);
+            editingFields = saved.fields.map((f) => ({ ...f }));
+            currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES, saved.levelNames || {});
+            applyPresetSettings(saved);
+            renderFieldEditor(); syncLevelNameInputs(); syncSettingsInputs();
+            showNotify('Preset "' + name + '" gespeichert und ausgewählt.');
+          }
+          return;
+        }
         const cur = presetList.find((p) => p.name === currentPresetName);
         if (cur && Array.isArray(cur.fields) && cur.fields.length) {
           // Aktuell gewähltes Preset anzeigen (eigen oder eingebaut).
@@ -608,13 +693,23 @@
         // Regeln aus den Eingabefeldern übernehmen (nur Abweichungen von Defaults)
         readSettingsInputs();
         const settings = settingsPayload();
-        // Item-Preise normalisieren
-        const fields = editingFields.map((f) => ({
-          type: f.type || 'los',
-          name: f.name || 'Feld',
-          ...(f.type === 'grundstueck' && typeof f.price === 'number' ? { price: f.price } : {})
-        }));
+        // Item-Preise/Sonderwerte normalisieren — Fee-/Bonus-Werte der
+        // Ereignis/Gefängnis/Steuer/Los-Felder MITSPEICHERN (Bug 2g#6).
+        const fields = editingFields.map((f) => {
+          const out = { type: f.type || 'los', name: f.name || 'Feld' };
+          if (f.type === 'grundstueck' && typeof f.price === 'number') out.price = f.price;
+          // (2k #5) Farbgruppe (nur Grundstücke) explizit speichern.
+          if (f.type === 'grundstueck' && f.group !== undefined && f.group !== null && f.group !== '') out.group = String(f.group);
+          else if (f.type === 'los') { if (typeof f.bonus === 'number') out.bonus = f.bonus; }
+          else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis') {
+            if (typeof f.fee === 'number') out.fee = f.fee;
+          }
+          return out;
+        });
         socket.emit('preset:save', { name, fields, levelNames: Object.keys(levelNames).length ? levelNames : null, settings });
+        // (2i-2j) Nach erfolgreichem Speichern (Ack 'presets' setzt die neue Liste):
+        // Modal automatisch schließen + das neue Preset im Spiel-Dropdown auswählen.
+        pendingSelectPreset = name;
         showNotify('Preset "' + name + '" gespeichert.');
       });
       const delBtn = $('btn-preset-delete');
@@ -698,12 +793,17 @@
       // Sicherstellen, dass genug Einträge da sind (z.B. wenn Liste nicht gerendert).
       while (ships.length < teams) { ships.push(DEFAULT_SHIPS[ships.length % DEFAULT_SHIPS.length]); tasks.push(''); }
       const capital = numVal('cfg-capital', 1000000);
-      const diceConfig = strVal('cfg-dice', '1w6');
-      const preset = strVal('cfg-preset', 'crusader-cluster');
-      // Spielregeln-Settings: übernehmen falls von Default abweichend
-      readSettingsInputs();
-      // Armistice-Wert ausschließlich aus Preset ableiten.
-      const armistice = !!currentSettings.armisticeEnabled;
+      // (2i #3) GM-Anzeigename (default 'GM')
+      const gmName = (($('cfg-gmname') || {}).value || '').trim().slice(0, 40) || 'GM';
+            const preset = strVal('cfg-preset', 'crusader-cluster');
+            // Spielregeln-Settings: übernehmen falls von Default abweichend
+            readSettingsInputs();
+            // (2h#5/#6) Würfelmodus + Zug-Timer kommen aus dem Preset-Editor (Settings-Gruppen),
+            // nicht mehr aus dem Setup-Grundformular. Nur 1W6/2W6 sind gültig.
+            const diceConfig = (currentSettings.diceConfig === '2w6') ? '2w6' : '1w6';
+            const turnSeconds = Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0));
+            // Armistice-Wert ausschließlich aus Preset ableiten.
+            const armistice = !!currentSettings.armisticeEnabled;
       // Beim Start wird der aktuell im Editor bearbeitete Feldstand verwendet.
       const fields = (editingFields || []).map((f) => {
         const out = { type: f.type || 'los', name: f.name || 'Feld' };
@@ -723,10 +823,10 @@
       const levelNames = {};
       LEVEL_KEYS.forEach((k) => { if (currentLevelNames[k]) levelNames[k] = currentLevelNames[k]; });
       const settings = settingsPayload();
-      return { teams, ships, tasks, capital, diceConfig, preset, armistice, fields,
-        levelNames: Object.keys(levelNames).length ? levelNames : null,
-        settings };
-    }
+            return { teams, ships, tasks, capital, diceConfig, preset, armistice, fields,
+              gmName, levelNames: Object.keys(levelNames).length ? levelNames : null,
+              settings, turnSeconds };
+          }
 
     // Beim Ändern der Teamanzahl die Konfigurationsliste neu aufbauen.
     const teamsInput = $('cfg-teams');
@@ -819,6 +919,8 @@
     }
     const leaveLobby = $('btn-leave-lobby');
     if (leaveLobby && client.gameId) leaveLobby.classList.remove('hidden');
+    // (2k #2) Button-Label entsprechend der Rolle setzen (GM → Abbrechen).
+    updateLobbyLeaveBtn();
     showView('lobby');
     showNotify(data && data.resumed ? 'Spiel fortgesetzt — Einladungscodes wieder verfügbar.' : 'Spiel erstellt — Einladungscodes zeigen und an die Spieler verteilen.');
   });
@@ -931,6 +1033,12 @@
   }
 
   function renderLobby(st) {
+    // (2k #1/#2) Codes (GM-Code + Einladungscodes) NUR für den aktiven GM sichtbar.
+    const gmBox = $('gm-code-box');
+    const invBox = $('invite-code-box');
+    if (gmBox) gmBox.classList.toggle('hidden', !(client.isGM));
+    if (invBox) invBox.classList.toggle('hidden', !(client.isGM));
+    if (client.isGM) updateLobbyLeaveBtn(); // GM → "Abbrechen"
     const list = $('lobby-teams-list');
     const teams = st && Array.isArray(st.teams) ? st.teams : [];
     const leaders = leaderMap(st && st.leaders);
@@ -986,6 +1094,7 @@
         if (client.gameId && pid != null && isMyTeam) {
           const btn = document.createElement('button');
           btn.type = 'button';
+          btn.className = 'btn btn-xs';
           btn.textContent = 'Wählen';
           btn.disabled = isLeader; // Leader kann nicht wieder gewählt werden
           btn.addEventListener('click', () => {
@@ -1052,6 +1161,8 @@
       fields: game.fields || (window.STANTONOPOLY_FIELDS ? window.STANTONOPOLY_FIELDS.slice() : []),
       players,
       activeIdx: game.activeIdx,
+      myIdx: myTeamIdx(st),
+      turnDeadline: (typeof game.turnDeadline === 'number') ? game.turnDeadline : 0,
       log: (st && st.log) || [],
       armisticeEnabled: !!game.armisticeEnabled,
       levelNames: game.levelNames || null,
@@ -1062,14 +1173,14 @@
 
   // Fallback, falls board.js (window.initBoard/renderBoard) fehlt
   function renderFallbackBoard() {
-    const board = $('board');
+    const board = $('board-row');
     if (!board) return;
     const data = window.__boardData || { fields: [], players: [] };
     board.innerHTML = '';
     board.className += ' board-fallback';
     data.fields.forEach((f) => {
       const el = document.createElement('div');
-      el.className = 'field-row';
+      el.className = 'kcard';
       const id = f.id != null ? f.id : (f.idx != null ? f.idx : f.name || '');
       const label = f.name || f.label || ('Feld ' + id);
       const here = data.players
@@ -1093,12 +1204,11 @@
       console.warn('[client.js] board.js nicht vorhanden → Fallback-Feldliste.');
       renderFallbackBoard();
     }
-    // Presetname dynamisch anzeigen (Banner unter dem Logo + Header-Subtext).
+    // Presetname dynamisch anzeigen (Banner unter dem Boardbar-Subtext).
     const pn = (st && st.presetName) || 'Eigene Karte';
-    const sub = document.querySelector('#view-game .board-flex-head .bc-sub');
+    const sub = document.querySelector('#bb-sub');
     if (sub) sub.textContent = pn;
-    const hsub = document.querySelector('.header-sub');
-    if (hsub) hsub.textContent = pn + ' · AAWA-Event';
+    if (typeof window.setScaleInfo === 'function') window.setScaleInfo();
     renderCashflow(st);
     renderEconBar(st);
     renderTradePanel(st);
@@ -1212,6 +1322,8 @@
     panel.classList.remove('hidden');
     // Nur Angebote, die MEIN Team betreffen (targetIdx===idx oder fromIdx===idx)
     const mine = offers.filter((o) => o.targetIdx === idx || o.fromIdx === idx);
+    // (2i #11) Hervorhebung: Angebot betrifft mich → ich; Versteigerung → alle Teams.
+    panel.classList.toggle('trade-active', mine.length > 0 || !!auction);
     let html = '';
     // Eingehende Angebote (angedeutet sind mich zur Entscheidung)
     const inbound = mine.filter((o) => o.targetIdx === idx);
@@ -1326,7 +1438,7 @@
               title: 'Hypothek aufnehmen',
               icon: '🔒',
               body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> (' + esc(econName(own.level)) + ')</p>' +
-                '<ul><li>Du erhältst: <strong>' + fmtUAEC(loan) + '</strong> uAEC</li>' +
+                '<ul><li>Du erhältst: <strong>' + fmtUAEC(loan) + '</strong> aUEC</li>' +
                 '<li>Pfand: Feld erzielt keine Miete mehr (bis Entlastung)</li>' +
                 '<li>Entlastung kostet später: <strong>' + fmtUAEC(Math.round(loan * UNMORTGAGE_SHOW)) + '</strong> (Darlehen + Zins)</li></ul>',
               confirmText: 'Hypothek aufnehmen',
@@ -1344,7 +1456,7 @@
               title: 'Hypothek entlasten',
               icon: '🔓',
               body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong></p>' +
-                '<ul><li>Rückzahlung (Darlehen + Zins): <strong>' + fmtUAEC(pay) + '</strong> uAEC</li>' +
+                '<ul><li>Rückzahlung (Darlehen + Zins): <strong>' + fmtUAEC(pay) + '</strong> aUEC</li>' +
                 '<li>Danach kassiert das Feld wieder Miete.</li></ul>',
               confirmText: 'Entlasten (' + fmtUAEC(pay) + ')',
               cancelText: 'Abbrechen',
@@ -1363,8 +1475,8 @@
                 title: 'Ausbau auf ' + econName(nextLvl),
                 icon: '🔨',
                 body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> (' + esc(econName(own.level)) + ' → <strong>' + esc(econName(nextLvl)) + '</strong>)</p>' +
-                  '<ul><li>Baukosten: <strong>' + fmtUAEC(buildCost) + '</strong> uAEC</li>' +
-                  '<li>Neue Miete für Gegner: <strong>' + fmtUAEC(rentForClient(price, nextLvl)) + '</strong> uAEC</li></ul>',
+                  '<ul><li>Baukosten: <strong>' + fmtUAEC(buildCost) + '</strong> aUEC</li>' +
+                  '<li>Neue Miete für Gegner: <strong>' + fmtUAEC(rentForClient(price, nextLvl)) + '</strong> aUEC</li></ul>',
                 confirmText: 'Ausbauen (' + fmtUAEC(buildCost) + ')',
                 cancelText: 'Abbrechen',
                 onConfirm: () => socket.emit('action:build', { gameId: client.gameId, field: fidx })
@@ -1382,7 +1494,7 @@
               title: 'Abbau: ' + econName(curLvl),
               icon: '−',
               body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> zurück auf <strong>' + esc(econName(ECON_LEVELS[curIdx - 1])) + '</strong></p>' +
-                '<ul><li>Rückerstattung: <strong>' + fmtUAEC(refund) + '</strong> uAEC</li></ul>',
+                '<ul><li>Rückerstattung: <strong>' + fmtUAEC(refund) + '</strong> aUEC</li></ul>',
               confirmText: 'Abbauen (+' + fmtUAEC(refund) + ')',
               cancelText: 'Abbrechen',
               onConfirm: () => socket.emit('action:demolish', { gameId: client.gameId, field: fidx })
@@ -1399,7 +1511,7 @@
                 title: 'Feld an die Bank verkaufen',
                 icon: '🏦',
                 body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> (' + esc(econName(own.level)) + ')</p>' +
-                  '<ul><li>Erlös: <strong>' + fmtUAEC(amt) + '</strong> uAEC</li>' +
+                  '<ul><li>Erlös: <strong>' + fmtUAEC(amt) + '</strong> aUEC</li>' +
                   '<li>Dauerhaft — nicht umkehrbar. Aktion nur ausführen, wenn nötig.</li></ul>',
                 confirmText: 'Verkaufen (+' + fmtUAEC(amt) + ')',
                 cancelText: 'Abbrechen',
@@ -1609,24 +1721,46 @@
     }
     items.push('<div class="opt-row" data-opt="leave">↩ Spiel verlassen — dein Slot wird freigegeben, du kannst jederzeit mit dem Einladungscode zurückkehren.</div>');
     if (client.isGM) {
-      items.push('<div class="opt-row" data-opt="pause">⏸ Spiel pausieren — unterbricht das Spiel; alle Teilnehmer sehen die Pausemeldung.</div>');
-      // GM-only: Teamleiter ändern
-      const st2 = client.lastState;
-      const teams2 = st2 && Array.isArray(st2.teams) ? st2.teams : [];
-      if (teams2.length > 1) {
-        const teamOpts = teams2.map((t) => {
-          const tid = t.teamId != null ? t.teamId : t.id;
-          const tname = t.teamName || (t.ship || '') || ('Team ' + tid);
-          return '<option value="' + tid + '">' + tname + '</option>';
-        }).join('');
-        items.push('<div class="opt-row" data-opt="setleader">⚔ Teamleiter ändern — wähle Team und Mitglied, um den Leiter zu wechseln.</div>');
-        items.push('<div class="leader-change-form" data-opt="setleader" style="padding:8px;margin-top:4px">' +
-          '<select id="lc-team" style="width:100%;margin-bottom:6px">' + teamOpts + '</select>' +
-          '<select id="lc-player" style="width:100%;margin-bottom:6px"><option value="">— Team wählen —</option></select>' +
-          '<button type="button" class="btn btn-xs btn-primary" id="lc-confirm">Bestätigen</button>' +
-          '</div>');
-      }
-    }
+          items.push('<div class="opt-row" data-opt="pause">⏸ Spiel pausieren — unterbricht das Spiel; alle Teilnehmer sehen die Pausemeldung.</div>');
+          // (2h#7) GM-Übergabe: Button togglet das Formular darunter (nicht permanent sichtbar).
+          const stP = client.lastState;
+          const teamsP = stP && Array.isArray(stP.teams) ? stP.teams : [];
+          const parts = [];
+          teamsP.forEach((t) => {
+            const tid = t.teamId != null ? t.teamId : t.id;
+            const tname = t.teamName || (t.ship || '') || ('Team ' + tid);
+            (t.players || []).forEach((p) => {
+              const pid = p.playerId != null ? p.playerId : p.id;
+              const pname = p.name || p.playerName || 'Spieler';
+              parts.push('<option value="' + pid + '">' + pname + ' (' + tname + ')</option>');
+            });
+          });
+          if (parts.length) {
+            items.push('<div class="opt-toggle">' +
+              '<div class="opt-row" data-opt="gmtransfer">🎛 GM-Rolle übertragen — ernennt ein anderes Mitglied zum GM.</div>' +
+              '<div class="leader-change-form opt-collapse" data-opt="gmtransfer" style="padding:8px;margin-top:4px">' +
+              '<select id="gt-player" style="width:100%;margin-bottom:6px"><option value="">— Teilnehmer wählen —</option>' + parts.join('') + '</select>' +
+              '<button type="button" class="btn btn-xs btn-primary" id="gt-confirm" disabled>Übertragen</button>' +
+              '</div></div>');
+          }
+          // (2h#7) GM-only: Teamleiter ändern — Button togglet das Formular darunter.
+          const st2 = client.lastState;
+          const teams2 = st2 && Array.isArray(st2.teams) ? st2.teams : [];
+          if (teams2.length > 1) {
+            const teamOpts = teams2.map((t) => {
+              const tid = t.teamId != null ? t.teamId : t.id;
+              const tname = t.teamName || (t.ship || '') || ('Team ' + tid);
+              return '<option value="' + tid + '">' + tname + '</option>';
+            }).join('');
+            items.push('<div class="opt-toggle">' +
+              '<div class="opt-row" data-opt="setleader">⚔ Teamleiter ändern — wähle Team und Mitglied, um den Leiter zu wechseln.</div>' +
+              '<div class="leader-change-form opt-collapse" data-opt="setleader" style="padding:8px;margin-top:4px">' +
+              '<select id="lc-team" style="width:100%;margin-bottom:6px">' + teamOpts + '</select>' +
+              '<select id="lc-player" style="width:100%;margin-bottom:6px"><option value="">— Team wählen —</option></select>' +
+              '<button type="button" class="btn btn-xs btn-primary" id="lc-confirm">Bestätigen</button>' +
+              '</div></div>');
+          }
+        }
     openModal({
       title: 'Optionen',
       icon: '⚙',
@@ -1636,47 +1770,67 @@
       onOpen: () => {
         const wrap = $('stp-modal');
         if (!wrap) return;
+        // (2h#7) Toggle-Formulare (GM-Übergabe / Teamleiter ändern): Klick auf die
+        // opt-row klappt das darunterliegende .opt-collapse-Formular ein/aus.
+        wrap.querySelectorAll('.opt-toggle').forEach((tg) => {
+          const row = tg.querySelector('.opt-row');
+          const form = tg.querySelector('.opt-collapse');
+          if (!row || !form) return;
+          row.addEventListener('click', () => {
+            const open = form.classList.toggle('is-open');
+            row.classList.toggle('is-open', open);
+          });
+        });
+        // Einmalige Verdrahtung der Bestätigen-Buttons (unabhängig vom Toggle).
+        const gtConfirm = $('gt-confirm');
+        if (gtConfirm) {
+          const playerSel = $('gt-player');
+          if (playerSel) playerSel.addEventListener('change', () => { gtConfirm.disabled = !playerSel.value; });
+          gtConfirm.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const pid = playerSel ? playerSel.value : '';
+            if (!pid) { showNotify('Bitte ein Teilnehmer-Mitglied wählen.'); return; }
+            socket.emit('gm:transfer', { gameId: client.gameId, gmCode: client.gmCode, playerId: pid });
+            closeModal({ runCancel: false });
+          });
+        }
+        const lcConfirm = $('lc-confirm');
+        if (lcConfirm) {
+          const teamSel = $('lc-team');
+          const playerSel = $('lc-player');
+          if (teamSel) teamSel.addEventListener('change', () => {
+            if (!playerSel || !lcConfirm) return;
+            const chosenTeamId = teamSel.value;
+            const st3 = client.lastState;
+            const teams3 = st3 && Array.isArray(st3.teams) ? st3.teams : [];
+            const chosenTeam = teams3.find((t) => String(t.teamId != null ? t.teamId : t.id) === chosenTeamId);
+            const players3 = (chosenTeam && Array.isArray(chosenTeam.players)) ? chosenTeam.players : [];
+            playerSel.innerHTML = '<option value="">— Mitglied wählen —</option>' +
+              players3.map((p) => {
+                const pid = p.playerId != null ? p.playerId : p.id;
+                const pname = p.name || p.playerName || 'Spieler';
+                return '<option value="' + pid + '">' + pname + '</option>';
+              }).join('');
+            lcConfirm.disabled = true;
+          });
+          if (playerSel) playerSel.addEventListener('change', () => { lcConfirm.disabled = !playerSel.value; });
+          lcConfirm.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            const tid = teamSel ? teamSel.value : '';
+            const pid = playerSel ? playerSel.value : '';
+            if (!tid || !pid) { showNotify('Bitte Team und Mitglied wählen.'); return; }
+            socket.emit('gm:setleader', { gameId: client.gameId, gmCode: client.gmCode, teamId: tid, playerId: pid });
+            closeModal({ runCancel: false });
+          });
+        }
+        // Direkt-Aktionen (leave/pause/forfeitPoll) bleiben wie gehabt.
         wrap.querySelectorAll('[data-opt]').forEach((row) => {
           const o = row.getAttribute('data-opt');
-          // Nur Klick-Listener binden; Aktionen ausschließlich im Handler ausführen.
+          if (o === 'gmtransfer' || o === 'setleader') return; // via Toggle oben
           row.addEventListener('click', () => {
             if (o === 'leave') { closeModal({ runCancel: false }); onLeaveClick(); }
             else if (o === 'pause') { closeModal({ runCancel: false }); onPauseClick(); }
             else if (o === 'forfeitPoll') { closeModal({ runCancel: false }); onStartForfeitPoll(); }
-            else if (o === 'setleader') {
-              // Teamleiter-Formular: Team-Auswahl → Spieler-Ausfüllen + Bestätigen
-              const form = row;
-              const teamSel = $('lc-team');
-              const playerSel = $('lc-player');
-              const confirmBtn = $('lc-confirm');
-              // Spieler-Options beim Teamwechsel aufbauen
-              if (teamSel) teamSel.addEventListener('change', () => {
-                if (!playerSel || !confirmBtn) return;
-                const chosenTeamId = teamSel.value;
-                const st3 = client.lastState;
-                const teams3 = st3 && Array.isArray(st3.teams) ? st3.teams : [];
-                const chosenTeam = teams3.find((t) => String(t.teamId != null ? t.teamId : t.id) === chosenTeamId);
-                const players3 = (chosenTeam && Array.isArray(chosenTeam.players)) ? chosenTeam.players : [];
-                playerSel.innerHTML = '<option value="">— Mitglied wählen —</option>' +
-                  players3.map((p) => {
-                    const pid = p.playerId != null ? p.playerId : p.id;
-                    const pname = p.name || p.playerName || 'Spieler';
-                    return '<option value="' + pid + '">' + pname + '</option>';
-                  }).join('');
-                confirmBtn.disabled = true;
-              });
-              if (playerSel) playerSel.addEventListener('change', () => {
-                if (confirmBtn) confirmBtn.disabled = !playerSel.value;
-              });
-              if (confirmBtn) confirmBtn.addEventListener('click', (ev) => {
-                ev.stopPropagation();
-                const tid = teamSel ? teamSel.value : '';
-                const pid = playerSel ? playerSel.value : '';
-                if (!tid || !pid) { showNotify('Bitte Team und Mitglied wählen.'); return; }
-                socket.emit('gm:setleader', { gameId: client.gameId, gmCode: client.gmCode, teamId: tid, playerId: pid });
-                closeModal({ runCancel: false });
-              });
-            }
           });
         });
       }
@@ -1738,12 +1892,32 @@
     const el = $('log');
     if (!el) return;
     el.innerHTML = '';
-    (log || []).forEach((entry) => {
-      const line = document.createElement('div');
-      line.textContent = typeof entry === 'string' ? entry : JSON.stringify(entry);
+    const arr = log || [];
+    // Neueste zuerst (Ticker ist row-reverse → neuester rechts, ältere links raus).
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const line = document.createElement('span');
+      line.className = 'tick';
+      line.textContent = typeof arr[i] === 'string' ? arr[i] : JSON.stringify(arr[i]);
       el.appendChild(line);
+    }
+    el.scrollLeft = 0;
+  }
+
+  // Vollständiges Log als Liste im Modal (LOG-Button im Ticker).
+  function openLogModal() {
+    const log = (client.lastState && client.lastState.log) || [];
+    if (!log.length) { showNotify('Noch keine Log-Einträge.'); return; }
+    const rows = log.slice().reverse().map((e) => {
+      const t = typeof e === 'string' ? e : (e && (e.msg || e.message || e.text)) || JSON.stringify(e);
+      return '<div class="log-modal-line">' + esc(t) + '</div>';
+    }).join('');
+    openModal({
+      title: 'Spiel-Log',
+      icon: '📜',
+      body: '<div class="log-modal-list" style="margin-top:4px">' + rows + '</div>',
+      cancelText: 'Schließen',
+      confirmText: null
     });
-    el.scrollTop = el.scrollHeight;
   }
 
   /* ---------------- Flow 6: Beobachter ---------------- */
@@ -1767,6 +1941,18 @@
       } else if (client.role === 'leader' && leaderId != null && String(leaderId) !== String(client.playerId)) {
         client.role = 'member';
       }
+    }
+
+    // (2k #3) Aktives Guthaben in der ACTIONBAR (#ab-field) statt im Header anzeigen.
+    const abField = document.getElementById('ab-field');
+    if (abField) {
+      if (st && st.started && myIdx >= 0 && st.game && st.game.players && st.game.players[myIdx]) {
+        const bal = st.game.players[myIdx].budget;
+        if (typeof bal === 'number') {
+          abField.textContent = bal.toLocaleString('de-DE') + ' aUEC';
+          abField.classList.remove('hidden');
+        } else { abField.textContent = 'Stantonopoly'; }
+      } else { abField.textContent = 'Stantonopoly'; }
     }
 
     if (st.over) {
@@ -1893,7 +2079,7 @@
     openModal({
       title: '🚨 BANKROTT droht',
       icon: '⚠️',
-      body: '<p>Dein Team <strong>' + esc(p.name || 'Team') + '</strong> ist in Zahlungsrückstand (Konto: <strong>' + fmtUAEC(p.budget) + '</strong> uAEC).</p>' +
+      body: '<p>Dein Team <strong>' + esc(p.name || 'Team') + '</strong> ist in Zahlungsrückstand (Konto: <strong>' + fmtUAEC(p.budget) + '</strong> aUEC).</p>' +
         '<ul><li>Baue Stufen ab, nimm eine Hypothek auf oder verkaufe Grundstücke an die Bank, um das Konto auszugleichen.</li>' +
         '<li>Der <strong>„Nächster Zug“</strong>-Button ist gesperrt, bis du saniert hast.</li>' +
         '<li>Schaffst du es nicht, scheidet dein Team am Zugende automatisch aus.</li></ul>',
@@ -1923,7 +2109,7 @@
       title: '🕳️ Du sitzt im Gefängnis',
       icon: '⛓',
       body: '<p>Feld <strong>' + esc((game.fields && game.fields[p.pos] && game.fields[p.pos].name) || ('Feld ' + p.pos)) + '</strong></p>' +
-        '<ul><li>Lösegeld: <strong>' + fmtUAEC(bail) + '</strong> uAEC</li>' +
+        '<ul><li>Lösegeld: <strong>' + fmtUAEC(bail) + '</strong> aUEC</li>' +
         '<li>Freikaufen = sofort weiter; sonst überspringst du die nächsten ' + Math.max(1, p.jailTurns || 1) + ' Zug/Züge.</li></ul>',
       confirmText: 'Freikaufen (' + fmtUAEC(bail) + ')',
       cancelText: 'Absitzen (' + Math.max(1, p.jailTurns || 1) + ' Zug)',
@@ -1934,12 +2120,61 @@
   }
 
   /* ---------------- Fehler-Handler (Server → Client) ---------------- */
+  socket.on('game:cancelled', (data) => {
+    const gid = (data && data.gameId) || client.gameId;
+    if (!gid) return;
+    // GM, der selbst abgebrochen hat, hat schon clearIdentityLocal() aufgerufen — kein doppeltes Fegen.
+    // Alle ANDEREN im Raum (Teams, Spectator, Leiter) haben noch die Identität gesetzt.
+    if (client.gameId === gid) {
+      // Bewusst NUR die Raum-Zuordnung leeren; gespeicherte Identität optional behalten.
+      // (2k #2) Bei removed=1 ist das Spiel gelöscht → Identität verwerfen.
+      if (data && data.removed) {
+        clearIdentityLocal();
+        showView('setup');
+        showNotify(gid + ': Spiel wurde vom GM abgebrochen und entfernt.');
+      } else {
+        // Pausiertes Spiel: Fortsetzen abgebrochen → zurück in die Spieleliste.
+        showView('setup');
+        showNotify(gid + ': Fortsetzen abgebrochen — das Spiel bleibt pausiert.');
+      }
+    }
+  });
+
   socket.on('error', (err) => {
     console.error('[client.js] error vom Server', err && (err.code || '') , err && (err.message || err.error || ''));
     const msg = (err && (err.message || err.error)) || 'Unbekannter Fehler (' + ((err && err.code) || '') + ')';
     showNotify(msg);
     if (window.__notifyEl) window.__notifyEl.classList.add('is-error');
   });
+
+  /* ---------------- (2g#8) GM-Übergabe: Ziel erhält den frischen GM-Code ------------- */
+    socket.on('gm:owner', (data) => {
+      const newCode = data && data.gmCode;
+      if (!newCode) return;
+      client.gameId = (data && data.gameId) || client.gameId;
+      client.gmCode = newCode;
+      client.isGM = true;
+      client.role = 'gm';
+      saveGM();
+      showNotify('Du bist jetzt der GM. Bewahre den GM-Code gut auf.');
+      if (typeof window.setScaleInfo === 'function') window.setScaleInfo();
+    });
+
+    /* ---------------- (2h#8a) GM-Übergabe: der ALTE GM verliert seine GM-Rechte ------------- */
+    socket.on('gm:revoked', (data) => {
+      // GM-Status sauber zurücksetzen: kein GM mehr, GM-Code verwerfen.
+      client.isGM = false;
+      client.gmCode = null;
+      try { localStorage.removeItem(GM_KEY); } catch (e) {}
+      // Rolle: falls der alte GM in einem Team mitspielt, bleibt er Mitglied/Leader;
+      // nur die GM-Sonderrechte fallen weg. Beobachter bleiben Beobachter.
+      if (client.role === 'gm') client.role = (client.teamId != null) ? 'member' : 'spectator';
+      const name = (data && data.newOwnerName) || 'ein anderes Mitglied';
+      showNotify('GM-Rolle an ' + name + ' übertragen — du bist nicht mehr der GM.');
+      // Options-Modal ohne GM-Actions rendern (falls offen) + Action-Bar aktualisieren.
+      if (typeof client.renderGameUI === 'function' && client.lastState) client.renderGameUI(client.lastState);
+      else if (typeof renderActionBar === 'function') renderActionBar(client.lastState);
+    });
 
   /* ---------------- Event-Bindings ---------------- */
   const btnCreate = $('btn-create');
@@ -1962,8 +2197,37 @@
 
   // Preset-Editor initialisieren.
   initPresetEditor();
-  // Paletten-Switcher initialisieren
+  // Paletten-Switcher initialisieren (F-Schale: cargo/ion/uplink)
   initPaletteSwitcher();
+
+  // Drawer (rechte Klapp-Panels) + Aktionsleisten-Wrapping: Klick auf den Kopf
+  // klappt den Drawer auf/zu — Funktion bleibt, nur F-Schale-Interaktion.
+  document.querySelectorAll('.drawer .dw-head').forEach((head) => {
+    head.addEventListener('click', () => {
+      const dr = head.closest('.drawer');
+      if (dr) dr.classList.toggle('is-open');
+    });
+  });
+
+  // LOG-Kasten als Button → öffnet das Log-Modal (komplettes Log, neueste zuerst).
+  const logBtn = $('tick-log-btn');
+  if (logBtn) logBtn.addEventListener('click', openLogModal);
+
+  // Zug-Timer-Anzeige: Boardbar-Restzeit sekündlich aktualisieren (nur in Spielansicht).
+  setInterval(() => {
+    if (!document.body.classList.contains('view-game')) return;
+    const dead = client.lastState && client.lastState.game && client.lastState.game.turnDeadline;
+    const timerEl = document.getElementById('bb-timer');
+    if (!timerEl) return;
+    const stat = timerEl.closest('.bb-stat');
+    if (dead && Number(dead) > Date.now()) {
+      const remain = Math.max(0, Math.ceil((Number(dead) - Date.now()) / 1000));
+      timerEl.textContent = String(remain) + 's';
+      if (stat) stat.classList.remove('hidden');
+    } else if (stat) {
+      stat.classList.add('hidden');
+    }
+  }, 1000);
 
   // Automatischer Rejoin: gespeicherten Join-Stand wiederherstellen.
   const saved = loadJoin();
@@ -2001,28 +2265,81 @@
   })();
 
   /* ---------------- Spiel fortgesetzt (GM) ---------------- */
-  // "Spiel verlassen" aus der Lobby (GM verwirft/verlässt das Lobby-Spiel).
+  // Lobby-Button: Für den AKTIVEN GM ist er "Abbrechen" (Grundkonfektion: neues Spiel
+  // abbrechen+entfernen / Fortsetzen abbrechen). Für Mitspieler bleibt er "Verlassen".
   const leaveLobbyBtn = $('btn-leave-lobby');
+  function updateLobbyLeaveBtn() {
+    if (!leaveLobbyBtn) return;
+    if (client.isGM && client.gameId) {
+      leaveLobbyBtn.textContent = '✕ Abbrechen';
+      leaveLobbyBtn.title = 'GM: dieses Spiel abbrechen bzw. das Fortsetzen abbrechen';
+      leaveLobbyBtn.classList.remove('hidden');
+    } else if (client.gameId) {
+      leaveLobbyBtn.textContent = '↩ Spiel verlassen';
+      leaveLobbyBtn.title = '';
+      leaveLobbyBtn.classList.remove('hidden');
+    } else {
+      leaveLobbyBtn.classList.add('hidden');
+    }
+  }
   if (leaveLobbyBtn) leaveLobbyBtn.addEventListener('click', () => {
     if (!client.gameId) { showView('setup'); return; }
-    socket.emit('game:leave', { gameId: client.gameId });
-    clearIdentityLocal();
-    showView('setup');
+    if (client.isGM) {
+      socket.emit('game:cancel', { gameId: client.gameId, gmCode: client.gmCode || '' });
+      clearIdentityLocal();
+      showView('setup');
+      showNotify('Spiel abgebrochen.');
+      return;
+    }
+    // Nicht-GM: Verlassen nur ausführen, wenn der Server es bestätigt ('left').
+    // Bei Fehler bleibt die Identität erhalten.
+    emitLeaveAndAck('Spiel verlassen.');
+    return;
   });
+  // Beim gameCreated (Lobby) und bei ROLLEN//State-Änderungen den Button korrekt setzen.
+  client.updateLobbyLeaveBtn = updateLobbyLeaveBtn;
 
   function clearIdentityLocal() {
     try { localStorage.removeItem(LS_KEY); localStorage.removeItem(GM_KEY); } catch (e) {}
     client.gameId = null; client.teamId = null; client.playerId = null;
     client.token = null; client.gmCode = null; client.isGM = false; client.role = null;
   }
-  function leaveNow() {
-    // Pause-Banner explizit entfernen, damit er nach dem Verlassen nicht mehr sichtbar bleibt.
+
+  // (2k #4) Verlassen NUR bestätigt ausführen: warte auf das Server-Ack 'left'.
+  // Schlägt der Server fehl (z.B. GM_ACTIVE — aktiver GM muss erst Nachfolge übertragen),
+  // bleibt der Client im Spiel und identifiziert. Kein optimistisches Aufräumen mehr.
+  function emitLeaveAndAck(notifyText) {
     const pb = $('pause-banner');
     if (pb) pb.remove();
+    const tid = setTimeout(() => {
+      socket.off('left', onLeft); socket.off('error', onErr);
+      clearIdentityLocal(); showView('setup');
+      showNotify('Spiel verlassen (keine Bestätigung empfangen).');
+    }, 4000);
+    function onLeft() {
+      clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr);
+      clearIdentityLocal(); showView('setup');
+      showNotify(notifyText || 'Spiel verlassen.');
+    }
+    function onErr(err) {
+      const code = err && (err.code || err);
+      if (String(code).toUpperCase() === 'GM_ACTIVE') {
+        clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr);
+        // GM bleibt: nichts clearen. Fehlermeldung hat error-Handler schon gezeigt.
+        return;
+      }
+      clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr);
+      clearIdentityLocal(); showView('setup');
+    }
+    socket.once('left', onLeft);
+    socket.once('error', onErr);
     socket.emit('game:leave', { gameId: client.gameId });
-    clearIdentityLocal();
-    showView('setup');
-    showNotify('Spiel verlassen — du kannst jederzeit mit dem Einladungscode zurückkehren.');
+  }
+  client.emitLeaveAndAck = emitLeaveAndAck;
+
+  function leaveNow() {
+    // Pause-Banner explizit entfernen, damit er nach dem Verlassen nicht mehr sichtbar bleibt.
+    emitLeaveAndAck('Spiel verlassen — du kannst jederzeit mit dem Einladungscode zurückkehren.');
   }
 
   /* ---------------- Spiele-Übersicht (aktiv/beendet, Zuschauen, Resultat) ---- */

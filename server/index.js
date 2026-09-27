@@ -235,6 +235,19 @@ io.on('connection', (socket) => {
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
 
+  // (2g#8) GM-Übergabe an einen Teilnehmer (Code wird rotiert; neuer GM wird privat benachrichtigt).
+  socket.on('gm:transfer', (data) => {
+    try {
+      const ret = rooms.gmTransfer({
+        gameId: (data && data.gameId) || '',
+        gmCode: (data && data.gmCode) || '',
+        playerId: (data && data.playerId) || '',
+        sock: socket
+      });
+      handleResult(ret);
+    } catch (e) { error('SERVER', String((e && e.message) || e)); }
+  });
+
   // GM setzt ein pausiertes Spiel fort (GM-Code erforderlich → Lobby mit Codes).
   socket.on('gm:resumegame', (data) => {
     try {
@@ -327,6 +340,19 @@ io.on('connection', (socket) => {
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
 
+  // ---------- Spiel abbrechen (GM): neues Spiel entfernen / Fortsetzen abbrechen ----------
+  socket.on('game:cancel', (data) => {
+    try {
+      const ret = rooms.cancelGame({
+        gameId: (data && data.gameId) || '',
+        gmCode: (data && data.gmCode) || '',
+        sock: socket
+      });
+      handleResult(ret);
+      if (ret && ret.ok) emit('cancelled', { gameId: ret.gameId, removed: !!ret.removed, paused: !!ret.paused });
+    } catch (e) { error('SERVER', String((e && e.message) || e)); }
+  });
+
   // ---------- Spieleliste & Endresultate (öffentlich, kein Code) ----------
   socket.on('lobby:list', () => {
     try { emit('lobby:games', { games: rooms.listGames() }); }
@@ -354,9 +380,24 @@ io.on('connection', (socket) => {
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
 
+  // GM setzt seinen Anzeigenamen (Punkt 3).
+  socket.on('gm:setname', (data) => {
+    try {
+      const ret = rooms.setGmName({
+        gameId: (data && data.gameId) || '',
+        gmCode: (data && data.gmCode) || '',
+        gmName: (data && data.gmName) || '',
+        sock: socket
+      });
+      handleResult(ret);
+    } catch (e) { error('SERVER', String((e && e.message) || e)); }
+  });
+
+  // ---------- Disconnect ----------
   socket.on('disconnect', () => {
     // Spieler bleiben im Team registriert (Reconnect mit derselben socketId möglich);
-    // bewusst kein hartes Entfernen während des Spiels.
+    // Punkt 8: nach Ablauf eines Timeouts (Inaktivität) werden sie serverseitig entfernt.
+    try { rooms.playerDisconnected(socket.id); } catch (e) { /* ignore */ }
   });
 });
 

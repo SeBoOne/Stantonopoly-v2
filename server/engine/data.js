@@ -2,7 +2,7 @@
  * Stantonopoly V2 — Quelle der Wahrheit (Single Source of Truth)
  * Portiert von V1 data.js (CommonJS-only für Node-Server).
  * Server-authoritativ: Der Server berechnet, das Frontend zeigt nur an.
- * Alle Beträge sind ganze uAEC (Units of AEC).
+ * Alle Beträge sind ganze aUEC (Units of AEC).
  */
 'use strict';
 
@@ -10,7 +10,7 @@
 // Multiplikatoren
 // ---------------------------------------------------------------------------
 
-// Miete pro Ausbaustufe als Anteil des Kaufpreises (uAEC)
+// Miete pro Ausbaustufe als Anteil des Kaufpreises (aUEC)
 const RENT_MULT = {
   ALONE: 0.10,
   CYCLONE: 0.50,
@@ -19,7 +19,7 @@ const RENT_MULT = {
   ARMISTICE: 3.00
 };
 
-// Baukosten pro Ausbaustufe als Anteil des Kaufpreises (uAEC)
+// Baukosten pro Ausbaustufe als Anteil des Kaufpreises (aUEC)
 // ALONE ist der Ausgangszustand und kostet nichts -> 0
 const BUILD_MULT = {
   CYCLONE: 0.25,
@@ -70,7 +70,9 @@ const DEFAULT_SETTINGS = {
   // Dauer der Aufgeben-Abstimmung (ms)
   pollMs: 15000,
   // Armistice (letzte Ausbaustufe) im Preset aktivieren?
-  armisticeEnabled: false
+  armisticeEnabled: false,
+  // (2k #5) Monopoly-Bauregel (Farbgruppen-Zwang beim Ausbau) abschaltbar.
+  monopolyBuildRule: true
 };
 
 // ---------------------------------------------------------------------------

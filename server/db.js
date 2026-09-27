@@ -36,6 +36,7 @@ db.exec(`
     over       INTEGER NOT NULL DEFAULT 0,
     paused     INTEGER NOT NULL DEFAULT 0,
     name       TEXT,
+    gmName     TEXT NOT NULL DEFAULT 'GM',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -84,21 +85,25 @@ db.exec(`
   if (!cols.includes('name')) { try { db.exec(`ALTER TABLE games ADD COLUMN name TEXT`); } catch (e) {} }
   if (!cols.includes('updated_at')) { try { db.exec(`ALTER TABLE games ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))`); } catch (e) {} }
   if (!cols.includes('paused')) { try { db.exec(`ALTER TABLE games ADD COLUMN paused INTEGER NOT NULL DEFAULT 0`); } catch (e) {} }
+  if (!cols.includes('gm_owner')) { try { db.exec(`ALTER TABLE games ADD COLUMN gm_owner TEXT`); } catch (e) {} }
+  if (!cols.includes('gmName')) { try { db.exec(`ALTER TABLE games ADD COLUMN gmName TEXT NOT NULL DEFAULT 'GM'`); } catch (e) {} }
   const pcols = db.prepare(`SELECT name FROM pragma_table_info('presets')`).all().map((c) => c.name);
   if (!pcols.includes('level_names')) { try { db.exec(`ALTER TABLE presets ADD COLUMN level_names TEXT`); } catch (e) {} }
   if (!pcols.includes('settings')) { try { db.exec(`ALTER TABLE presets ADD COLUMN settings TEXT`); } catch (e) {} }
 })();
 
 const stmts = {
-  insertGame: db.prepare('INSERT INTO games (gameId, gmCode, state, started, over, name) VALUES (?, ?, ?, ?, ?, ?)'),
+  insertGame: db.prepare('INSERT INTO games (gameId, gmCode, state, started, over, name, gmName) VALUES (?, ?, ?, ?, ?, ?, ?)'),
   getGame: db.prepare('SELECT * FROM games WHERE gameId = ?'),
   getGameByGm: db.prepare('SELECT * FROM games WHERE gmCode = ?'),
   listGames: db.prepare('SELECT gameId, gmCode, started, over, paused, name, created_at, updated_at FROM games ORDER BY created_at DESC'),
   setGameName: db.prepare('UPDATE games SET name = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
+  setGmName: db.prepare('UPDATE games SET gmName = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
   touchGame: db.prepare('UPDATE games SET updated_at = datetime(\'now\') WHERE gameId = ?'),
   updateState: db.prepare('UPDATE games SET state = ?, started = ?, over = ? WHERE gameId = ?'),
   setStarted: db.prepare('UPDATE games SET started = ? WHERE gameId = ?'),
   setPaused: db.prepare('UPDATE games SET paused = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
+  setGmOwner: db.prepare('UPDATE games SET gm_owner = ?, updated_at = datetime(\'now\') WHERE gameId = ?'),
   insertTeam: db.prepare('INSERT OR REPLACE INTO teams (gameId, teamId, ship, color, invite_code, leaderId) VALUES (?, ?, ?, ?, ?, ?)'),
   getTeams: db.prepare('SELECT * FROM teams WHERE gameId = ?'),
   getTeam: db.prepare('SELECT * FROM teams WHERE gameId = ? AND teamId = ?'),
@@ -116,6 +121,7 @@ const stmts = {
   getVotes: db.prepare('SELECT * FROM votes WHERE gameId = ? AND teamId = ?'),
   clearVotes: db.prepare('DELETE FROM votes WHERE gameId = ? AND teamId = ?'),
   insertCode: db.prepare('INSERT OR REPLACE INTO codes (code, kind, gameId, teamId) VALUES (?, ?, ?, ?)'),
+  deleteCode: db.prepare('DELETE FROM codes WHERE code = ?'),
   getCode: db.prepare('SELECT * FROM codes WHERE code = ?'),
 
   upsertPreset: db.prepare('INSERT OR REPLACE INTO presets (name, fields, builtin, level_names, settings) VALUES (?, ?, ?, ?, ?)'),
@@ -124,8 +130,8 @@ const stmts = {
   deletePreset: db.prepare('DELETE FROM presets WHERE name = ?')
 };
 
-function createGame({ gameId, gmCode, state, started = 0, over = 0, name = null }) {
-  stmts.insertGame.run(gameId, gmCode, state, started ? 1 : 0, over ? 1 : 0, name);
+function createGame({ gameId, gmCode, state, started = 0, over = 0, name = null, gmName = 'GM' }) {
+  stmts.insertGame.run(gameId, gmCode, state, started ? 1 : 0, over ? 1 : 0, name, gmName);
 }
 
 function listAllGames() {
@@ -134,6 +140,10 @@ function listAllGames() {
 
 function setGameName(gameId, name) {
   stmts.setGameName.run(String(name || '').slice(0, 60), gameId);
+}
+
+function setGmName(gameId, name) {
+  stmts.setGmName.run(String(name || 'GM').slice(0, 40), gameId);
 }
 
 function touchGame(gameId) {
@@ -240,6 +250,14 @@ function getCode(code) {
   return stmts.getCode.get(code) || null;
 }
 
+function deleteCode(code) {
+  stmts.deleteCode.run(code);
+}
+
+function setGmOwner(gameId, sockId) {
+  stmts.setGmOwner.run(sockId, gameId);
+}
+
 // ---------------- Presets ----------------
 function parseLevelNames(raw) {
   try { const v = raw && JSON.parse(raw); return (v && typeof v === 'object') ? v : null; } catch (e) { return null; }
@@ -290,6 +308,7 @@ module.exports = {
   getGameByGmCode,
   listAllGames,
   setGameName,
+  setGmName,
   touchGame,
   updateState,
   setStarted,
@@ -310,6 +329,8 @@ module.exports = {
   clearVotes,
   addCode,
   getCode,
+  deleteCode,
+  setGmOwner,
   upsertPreset,
   listPresets,
   getPreset,

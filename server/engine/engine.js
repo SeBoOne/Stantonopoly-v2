@@ -52,6 +52,10 @@ function normalizeField(f) {
     out.price = Math.round(price);
     out.tabelle = D.tabelleFor(out.price);
   }
+  // (2k #5) Farbgruppe (nur Grundstücke; nicht-kaufbare Felder haben keine Gruppe).
+  if (out.type === 'grundstueck' && f.group !== undefined && f.group !== null && f.group !== '') {
+    out.group = String(f.group).slice(0, 1).toUpperCase();
+  }
   // Individuelle Sonderwerte: Los-Bonus, Ereignis-Gebühr/Bonus, Gefängnis-Lösegeld, Steuer-Betrag
   const bonus = Number(f.bonus);
   if (out.type === 'los' && Number.isFinite(bonus)) out.bonus = Math.round(bonus);
@@ -213,6 +217,8 @@ const StantonopolyGame = {
       offers: [],             // offene Handels-Angebote (Verkauf/Kauf) je Team
       auction: null,          // aktive Versteigerung (ein Besitzer versteigert sein Feld)
       forfeitPoll: null,      // Aufgeben-Abstimmung (Mitglieder-Votes; rooms verwaltet sie)
+      turnSeconds: Math.max(0, Math.round(Number(config.turnSeconds) || 0)), // (2g#17) Zug-Timer in s
+      turnDeadline: Number(config.turnDeadline) || 0,                        // Server-Zeitstempel Ablauf
       log: []
     };
 
@@ -480,6 +486,60 @@ const StantonopolyGame = {
     if (!nextLevel) return false;
     if (nextLevel === 'ARMISTICE' && !game.armisticeEnabled) return false;
 
+    // ---- Monopoly-Bauregel (2g#12): Ausbau nur, wenn die ganze Farbgruppe ----
+    // im selben Besitz UND gleichmäßig (max − min ≤ 1 Stufe) ist.
+    // (2k #5) Abschaltbar über settings.monopolyBuildRule (Standard: an).
+    let buildRule = true;
+    if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') {
+      buildRule = game.settings.monopolyBuildRule;
+    } else if (game.settings && typeof game.settings.monopolyBuildRule === 'number') {
+      buildRule = game.settings.monopolyBuildRule !== 0;
+    }
+    // Farbgruppe: explizites f.group (eigene Karte) ODER Preisband (eingebaute Presets).
+    // Nicht-kaufbare Felder (Los/Ereignis/Gefängnis/Steuer/Frei Parken) haben KEINE Gruppe.
+    const ownGroup = String(f.group != null ? f.group : '');
+    const price = f.price || 0;
+    const band = (price > 400000) ? 1 : 0;
+    // Alle Grundstücke derselben Farbgruppe auflisten (DEFAULT: Preisband).
+    let group = [];
+    if (ownGroup !== '') {
+      for (let gi = 0; gi < game.fields.length; gi++) {
+        const gf = game.fields[gi];
+        if (!gf || gf.type !== 'grundstueck') continue;
+        if (String(gf.group != null ? gf.group : '') === ownGroup) group.push(gi);
+      }
+    } else {
+      for (let gi = 0; gi < game.fields.length; gi++) {
+        const gf = game.fields[gi];
+        if (!gf || gf.type !== 'grundstueck') continue;
+        const gp = gf.price || 0;
+        if (((gp > 400000) ? 1 : 0) === band) group.push(gi);
+      }
+    }
+    // Einzelgänger (Gruppe mit nur diesem Feld) immer bauen lassen.
+    if (group.length <= 1) { group = [fieldIdx]; }
+    if (buildRule && group.length > 1) {
+      // (1) Alle Felder der Gruppe müssen demselben Besitzer gehören (== Ausbaurecht).
+      for (let gi = 0; gi < group.length; gi++) {
+        const gidx = group[gi];
+        const gowner = ownerOf(game, gidx);
+        if (!gowner || gowner.id !== p.id) {
+          log(game, p.name + ' kann auf „' + f.name + '“ nicht ausbauen: Alle Felder der Farbgruppe müssen im selben Besitz sein (Monopoly-Bauregel).');
+          return false;
+        }
+      }
+      // (2) Gleichmäßiger Ausbau: keine Stufe darf mehr als 1 über der schwächsten liegen.
+      const levels = group.map((gi) => LEVEL_ORDER.indexOf(game.players[game.activeIdx].properties[gi].level));
+      const newLevelRow = levels.slice();
+      newLevelRow[group.indexOf(fieldIdx)] = curIdx + 1;
+      const tmin = Math.min.apply(null, newLevelRow);
+      const tmax = Math.max.apply(null, newLevelRow);
+      if (tmax - tmin > 1) {
+        log(game, p.name + ' kann auf „' + f.name + '“ nicht ausbauen: gleichmäßig ausbauen — keine Stufe darf mehr als 1 über der schwächsten der Farbgruppe liegen (Monopoly-Bauregel).');
+        return false;
+      }
+    }
+
     const cost = game.data.buildCost(f.price, nextLevel, game.settings);
     if (p.budget < cost) {
       log(game, p.name + ' kann nicht auf „' + f.name + '“ auf ' + nextLevel + ' ausbauen (Kosten ' + fmt(cost) + ', Budget ' + fmt(p.budget) + ').');
@@ -547,10 +607,43 @@ const StantonopolyGame = {
       }
     }
     game.activeIdx = target;
+    // (2g#15) Zinsen auf ÜBERNOMMENE Hypotheken (Zinsen pro Runde), fällig
+    // beim Zug des Halters. Eigene Hypotheken (nicht übernommen) zinsen erst
+    // bei der Tilgung. Direkt-Ablösung bleibt jederzeit über unmortgage möglich.
+    this._chargeMortgageInterest(game, target);
     // Neuer Zug: Würfel-Sperre aufheben + Kaufentscheidung zurücksetzen.
     game.rolled = false;
     game.canBuy = false;
     log(game, 'Zug wechselt von ' + game.players[from].name + ' zu ' + game.players[game.activeIdx].name + '.');
+  },
+
+  // Zinsen pro Runde auf übernommene (takenOver) Hypotheken des aktiven Spielers.
+  _chargeMortgageInterest: function (game, pi) {
+    const p = game.players[pi];
+    if (!p) return 0;
+    const rate = (game.settings && game.settings.unmortgageRate != null) ? game.settings.unmortgageRate : 1.10;
+    const interestRate = Math.max(0, rate - 1);
+    if (!(interestRate > 0)) return 0;
+    let total = 0;
+    const props = p.properties || {};
+    const names = [];
+    for (const fid in props) {
+      const own = props[fid];
+      if (own && own.mortgaged && own.takenOver) {
+        const interest = Math.round((own.mortgagedValue || 0) * interestRate);
+        if (interest > 0) {
+          total += interest;
+          p.budget -= interest;
+          names.push('„' + fieldName(game, Number(fid)) + '“ (' + fmt(interest) + ')');
+        }
+      }
+    }
+    if (total > 0) {
+      log(game, p.name + ' zahlt Zinsen für übernommene Hypotheken: ' + names.join(', ') + ' (−' + fmt(total) + ').');
+      this.ledgerPush(game, p, -total, 'Hypotheken-Zinsen (übernommene)');
+      if (p.budget < 0) this.resolveInsolvency(game, pi);
+    }
+    return total;
   },
 
   // ------------------------------------------------------------------
@@ -673,7 +766,9 @@ const StantonopolyGame = {
     if (!own) return { ok: false, reason: 'not_owned' };
     // Verkauf an die Bank (Sanierung): buyerIdx = -1 bzw. fehlend → Bank zahlt
     // bankPayout × Basis. Funktionssperre: settings.bankSellEnabled=false blockiert.
+    // (2g#15) Ein belehntes Grundstück kann NICHT an die Bank verkauft werden.
     if (buyerIdx == null || Number(buyerIdx) < 0) {
+      if (own.mortgaged) return { ok: false, reason: 'mortgaged' };
       if (game.settings && game.settings.bankSellEnabled === false) {
         return { ok: false, reason: 'bank_sell_disabled' };
       }
@@ -693,7 +788,10 @@ const StantonopolyGame = {
     if (!(amt >= 0)) return { ok: false, reason: 'bad_price' };
     if (buyer.budget < amt) return { ok: false, reason: 'buyer_no_money' };
     const f = game.fields[fieldIdx];
-    // Eigentum übertragen (Ausbaustufe + Hypothek-Status bleiben)
+    // Eigentum übertragen (Ausbaustufe + Hypothek-Status bleiben).
+    // (2g#15) Übertragene Hypothek: Käufer übernimmt; Flag markiert sie für
+    // die Zinsen-pro-Runde-Abrechnung (kann alternativ sofort getilgt werden).
+    if (own.mortgaged && !own.takenOver) own.takenOver = true;
     delete seller.properties[fieldIdx];
     buyer.properties[fieldIdx] = own;
     buyer.budget -= amt;
@@ -881,6 +979,8 @@ const StantonopolyGame = {
       offers: game.offers || [],
       auction: game.auction || null,
       forfeitPoll: game.forfeitPoll || null,
+      turnSeconds: Math.max(0, Math.round(Number(game.turnSeconds) || 0)),
+      turnDeadline: typeof game.turnDeadline === 'number' ? game.turnDeadline : 0,
       log: game.log
     });
   },
@@ -923,6 +1023,8 @@ const StantonopolyGame = {
       offers: Array.isArray(raw.offers) ? raw.offers : [],
       auction: raw.auction || null,
       forfeitPoll: raw.forfeitPoll || null,
+      turnSeconds: Math.max(0, Math.round(Number(raw.turnSeconds) || 0)),
+      turnDeadline: (typeof raw.turnDeadline === 'number') ? raw.turnDeadline : 0,
       log: Array.isArray(raw.log) ? raw.log.slice() : []
     };
     return attachMethods(game);

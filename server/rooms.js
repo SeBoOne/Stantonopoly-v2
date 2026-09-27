@@ -104,6 +104,7 @@ function buildView({ gameId, game, teams, leaders }) {
     gameId,
     game: gameState,
     presetName,
+    gmName: (gRow && gRow.gmName) ? String(gRow.gmName) : 'GM',
     teams: teamViews,
     leaders: leaders || [],
     started: (game && !game.over && !!game._started) ? true : false,
@@ -117,25 +118,123 @@ function buildView({ gameId, game, teams, leaders }) {
 // Prüft, ob ein Socket innerhalb des Raums als Teamleiter/aktiver angesehen wird.
 // teamIdFromSocket: wird vom Aufrufer (index.js) als Socket-Daten geliefert.
 class Rooms {
-  constructor(broadcast) {
+  constructor(broadcast, opts = {}) {
     // broadcast: { to(room).emit(event, data) } - zentraler io
     this.io = broadcast;
-    // roomKey -> { gameId, state, teams[], game(engine), started }
-    // memory-cache; Persistenz via db.js (state-json).
+    this._turnTimers = {}; // gameId -> setTimeout-Handle (2g#17 Zug-Timer)
+    // GM-Sockets je Spiel (Sockets, die einen gültigen GM-Code präsentiert haben):
+    // sie sind vom Auto-Remove bei Disconnect ausgenommen und können sich während
+    // eines laufenden Spiels nicht selbst entfernen (Punkt 1 + 8).
+    this._gmSockets = Object.create(null); // gameId -> Set(sockId)
+    // Laufende Disconnect-Timeout-Timer je Socket: sockId -> { gameId, timer, name }
+    this._pendingDisconnects = new Map();
+    this._disconnectTimeoutMs = Number(opts.disconnectTimeoutMs) > 0
+      ? Number(opts.disconnectTimeoutMs)
+      : (Number(process.env.STANTONOPOLY_DISCONNECT_TIMEOUT_MS) > 0
+          ? Number(process.env.STANTONOPOLY_DISCONNECT_TIMEOUT_MS)
+          : 5 * 60 * 1000);
+  }
+
+  // Merkt einen Socket als GM eines Spiels (hat gültigen GM-Code vorgelegt).
+  _addGmSocket(gameId, sock) {
+    if (!sock || !sock.id) return;
+    if (!this._gmSockets[gameId]) this._gmSockets[gameId] = new Set();
+    this._gmSockets[gameId].add(sock.id);
+  }
+  _removeGmSocket(gameId, sockId) {
+    if (this._gmSockets[gameId]) {
+      this._gmSockets[gameId].delete(sockId);
+      if (!this._gmSockets[gameId].size) delete this._gmSockets[gameId];
+    }
+  }
+  _isGmSocket(gameId, sockId) {
+    return !!this._gmSockets[gameId] && this._gmSockets[gameId].has(sockId);
+  }
+
+  _gmNameOf(gameId) {
+    const g = dbm.getGame(gameId);
+    return (g && g.gmName) ? String(g.gmName) : 'GM';
   }
 
   _roomOf(gameId) {
-    return 'room:' + gameId;
-  }
+      return 'room:' + gameId;
+    }
+
+    // (2h#8) GM-Rechte-Check: gültiger GM-Code UND — sobald ein gm_owner gesetzt
+        // ist (nach Start/Resume/Transfer) — der anfragende Socket ist der aktive GM.
+        // Da der GM-Code beim GM-Wechsel NICHT rotiert wird, verliert der alte GM seine
+        // Rechte über den gm_owner-Wechsel — nicht über einen neuen Code. Vor dem Start
+        // (gm_owner noch leer) reicht der Code (Legacy-Verhalten für GM-Aktionen in der
+        // Lobby). resumeAsGM/resumeGame setzen gm_owner selbst.
+        _requireGmOwner({ gameId, gmCode, sock, action }) {
+          const gameRow = dbm.getGame(gameId);
+          if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+          const codeRow = dbm.getCode(String(gmCode || '').toUpperCase());
+          if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
+            return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf ' + action + '.' } };
+          }
+          if (gameRow.gm_owner && String(gameRow.gm_owner) !== String(sock.id)) {
+            return { error: { code: 'FORBIDDEN', message: 'Nur der aktive GM darf ' + action + ' — du bist nicht mehr der GM.' } };
+          }
+          return { gameRow, codeRow };
+        }
 
   _emit(room, event, data) {
     if (this.io && this.io.to) this.io.to(room).emit(event, data);
   }
 
+  // Gezielter Emit an EINEN Socket (socket.io: jede Socket-ID ist ein impliziter Raum).
+  _emitTo(sid, event, data) {
+    if (!sid) return;
+    if (this.io && this.io.to) this.io.to(String(sid)).emit(event, data);
+  }
+
+  // ------------------------------------------------------------------
+  // (2g#17) Zug-Timer (Inaktivitäts-Timeout): GM-Ablauf → Auto-Zugende.
+  // Jede Aktion re-armt den Timer (via _persistAndReturn); Pause stoppt ihn.
+  // ------------------------------------------------------------------
+  _armTurnTimer(gameId) {
+    this._clearTurnTimer(gameId);
+    try {
+      const gameRow = dbm.getGame(gameId);
+      if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
+      const engine = G.deserialize(gameRow.state, D);
+      const secs = Math.max(0, Math.round(Number(engine.turnSeconds) || 0));
+      if (!(secs > 0) || engine.over) return;
+      engine.turnDeadline = Date.now() + secs * 1000;
+      this._save(gameId, engine);
+      this._turnTimers[gameId] = setTimeout(() => this._expireTurnTimer(gameId), secs * 1000 + 250);
+    } catch (e) { /* ignorieren */ }
+  }
+
+  _clearTurnTimer(gameId) {
+    if (this._turnTimers[gameId]) {
+      clearTimeout(this._turnTimers[gameId]);
+      delete this._turnTimers[gameId];
+    }
+  }
+
+  _expireTurnTimer(gameId) {
+    delete this._turnTimers[gameId];
+    try {
+      const gameRow = dbm.getGame(gameId);
+      if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
+      const engine = G.deserialize(gameRow.state, D);
+      if (!(Math.round(Number(engine.turnSeconds) || 0) > 0) || engine.over) return;
+      engine.nextTurn();
+      this._save(gameId, engine);
+      this.broadcast(gameId);
+    } catch (e) { /* ignorieren */ }
+  }
+
   _save(gameId, game) {
+    // started bewusst aus der DB übernehmen: engine._started wird von
+    // serialize/deserialize NICHT übertragen (started lebt in der games-Spalte),
+    // sonst würde ein deserialisierter Timersave started=0 zurückschreiben.
+    const cur = dbm.getGame(gameId);
     dbm.updateState(gameId, {
       state: game.serialize(),
-      started: game._started ? 1 : 0,
+      started: cur ? (cur.started ? 1 : 0) : (game._started ? 1 : 0),
       over: game.over ? 1 : 0
     });
   }
@@ -149,10 +248,12 @@ class Rooms {
       ? Math.round(Number(config.capital))
       : D.DEFAULT_CAPITAL;
     const diceKind = (config.diceConfig && (config.diceConfig.kind || config.diceConfig)) || '1w6';
-    if (['1w6', '2w6', 'frei'].indexOf(diceKind) === -1) {
-      return { error: { code: 'BAD_DICE', message: 'Unbekannter Würfelmodus.' } };
-    }
+        // (2h#6) Nur 1W6/2W6 sind gültig — „frei“ wurde entfernt.
+        if (['1w6', '2w6'].indexOf(diceKind) === -1) {
+          return { error: { code: 'BAD_DICE', message: 'Unbekannter Würfelmodus.' } };
+        }
     const armistice = !!config.armistice;
+    const gmName = (config.gmName && String(config.gmName).trim()) ? String(config.gmName).trim().slice(0, 40) : 'GM';
 
     let gameId = genUniqueCode('gm', 6); // gameId
     let gmCode;
@@ -218,16 +319,18 @@ class Rooms {
       diceConfig: { kind: diceKind },
       armisticeEnabled: armistice,
       levelNames,
-      settings: ruleSettings
+      settings: ruleSettings,
+      turnSeconds: Math.max(0, Math.round(Number(config.turnSeconds) || 0))
     });
     engine._started = false;
     // Spielname: gewählter Preset-Name oder Default (für Spieleliste/Fortsetzen).
     const gameName = (config.gameName && String(config.gameName).trim())
       ? String(config.gameName).trim()
       : ((config.preset && (D.PRESETS[config.preset] || dbm.getPreset(config.preset))) ? config.preset : 'Crusader Cluster');
-    dbm.createGame({ gameId, gmCode, state: engine.serialize(), started: 0, over: 0, name: gameName });
+    dbm.createGame({ gameId, gmCode, state: engine.serialize(), started: 0, over: 0, name: gameName, gmName });
 
     sock.join(this._roomOf(gameId));
+    this._addGmSocket(gameId, sock);
 
     return {
       ok: true,
@@ -266,8 +369,17 @@ class Rooms {
     const name = String(playerName || 'Pilot').slice(0, 24) || 'Pilot';
     let token = null;
     const existing = dbm.getPlayer(sock.id);
-    if (existing) {
-      // Schon beigetreten: bestehenden Eintrag behalten (Token falls vorhanden).
+    // Punkt 2 (Auto-Austritt bei Wechsel): wer bereits in einer anderen Lobby/einem
+    // anderen Spiel Mitglied ist und sich per Einladungscode in ein NEUES Spiel
+    // begibt, wird sauber aus der alten Membership entfernt (Leader-Nachfolge,
+    // Votes, Room-Leave, Broadcast an das alte Spiel), bevor er dem neuen beitritt.
+    if (existing && existing.gameId !== resolvedGameId) {
+      this._cleanupMembership(existing.gameId, sock);
+      // Neue Identität im Ziel-Spiel: frischer Token (der alte war ans alte Spiel gebunden).
+      token = genUniqueCode('token', 10);
+      dbm.addPlayer({ id: sock.id, gameId: resolvedGameId, teamId: team.teamId, name, token });
+    } else if (existing) {
+      // Schon beigetreten (gleiches Spiel): bestehenden Eintrag behalten (Token falls vorhanden).
       token = existing.token || genUniqueCode('token', 10);
       dbm.addPlayer({ id: sock.id, gameId: resolvedGameId, teamId: team.teamId, name, token });
     } else {
@@ -298,6 +410,8 @@ class Rooms {
     }
     // Alte Socket-ID (pl.id) auf die neue (sock.id) umsetzen, damit Leader/Votes folgen.
     dbm.remapPlayerSock(sock.id, pl.id);
+    // Punkt 8: Rejoin setzt einen laufenden Disconnect-Timeout zurück.
+    this._cancelPendingDisconnect(pl.id);
     sock.join(this._roomOf(gameId));
     // Rolle korrekt bestimmen: Teamleiter (nach Remap ist leaderId die neue Socket-ID).
     const team = dbm.getTeam(gameId, pl.teamId);
@@ -423,6 +537,7 @@ class Rooms {
     if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
       return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf das Spiel starten.' } };
     }
+    this._addGmSocket(gameId, sock);
     const teams = dbm.getTeams(gameId);
     // jedes Team braucht >=1 Mitglied
     const players = dbm.getPlayers(gameId) || [];
@@ -449,7 +564,14 @@ class Rooms {
       if (aliveIdx.length) engine.activeIdx = aliveIdx[Math.floor(Math.random() * aliveIdx.length)];
     }
     dbm.setStarted(gameId, true);
+    this.logEngine(gameId, engine, this._gmNameOf(gameId) + ' startet das Spiel.');
     dbm.updateState(gameId, { state: engine.serialize(), started: 1, over: engine.over ? 1 : 0 });
+    // (2g#8) Der startende GM ist der aktive GM (für Übergabe-/Verlass-Wächter).
+    dbm.setGmOwner(gameId, sock.id);
+    // (2i #1) Socket als GM registrieren — Grundlage für das harte Verlass-Gate.
+    this._addGmSocket(gameId, sock);
+    // (2g#17) Zug-Timer beim Start armieren.
+    this._armTurnTimer(gameId);
     return { ok: true, gameId, started: true, resumed: alreadyStarted };
   }
 
@@ -457,12 +579,9 @@ class Rooms {
   // GM: Live-Pflege (deploy configPatch) — Gameplay bleibt konsistent
   // ------------------------------------------------------------------
   deploy({ gameId, gmCode, configPatch, sock }) {
-    const gameRow = dbm.getGame(gameId);
-    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
-    const codeRow = dbm.getCode(String(gmCode || '').toUpperCase());
-    if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
-      return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf Änderungen deployen.' } };
-    }
+    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'Änderungen deployen' });
+    if (req.error) return req;
+    const gameRow = req.gameRow;
     const engine = G.deserialize(gameRow.state, D);
     if (configPatch && configPatch.diceConfig) engine.diceConfig = configPatch.diceConfig;
     if (configPatch && typeof configPatch.armistice === 'boolean') engine.armisticeEnabled = configPatch.armistice;
@@ -494,7 +613,13 @@ class Rooms {
   _persistAndReturn(gameId, engine, started) {
     dbm.updateState(gameId, { state: engine.serialize(), started, over: engine.over ? 1 : 0 });
     dbm.touchGame(gameId);
-    return { ok: true, gameId, state: engine.serialize() };
+    // (2g#17) Jede Aktion re-armt den Zug-Timer (Inaktivitäts-Timeout-Modell).
+    this._armTurnTimer(gameId);
+    // Frisch persistierten State (inkl. turnDeadline des soeben armierten Timers) zurückgeben.
+    const fresh = dbm.getGame(gameId);
+    let retState = engine.serialize();
+    if (fresh && fresh.state) retState = fresh.state;
+    return { ok: true, gameId, state: retState };
   }
 
   actionRoll({ gameId, sock }) {
@@ -591,8 +716,9 @@ class Rooms {
     return { engine, team, me };
   }
 
+  // (2g#18) Hypothek nur am EIGENEN Zug (aktiver Teamleiter).
   actionMortgage({ gameId, field, sock }) {
-    const req = this._requireLeaderOfTeam({ gameId, sock });
+    const req = this._requireActiveLeader({ gameId, sock });
     if (req.error) return req;
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
@@ -634,8 +760,12 @@ class Rooms {
   }
 
   // ---------- Handel (Angebote: Verkauf / Kauf, mit Annehmen/Ablehnen) ----------
+  // (2g#18) Kauf-Angebot SENDEN nur am EIGENEN Zug; Verkaufs-Angebote bleiben
+  // zwischendurch erlaubt (Zielteam antwortet dann aufs eigene Tempo).
   offerMake({ gameId, kind, field, targetIdx, price, sock }) {
-    const req = this._requireActiveLeaderForTrade({ gameId, sock });
+    const req = (kind === 'buy')
+      ? this._requireActiveLeader({ gameId, sock })
+      : this._requireActiveLeaderForTrade({ gameId, sock });
     if (req.error) return req;
     const engine = req.engine;
     const targetIdxN = Number(targetIdx);
@@ -673,8 +803,9 @@ class Rooms {
   }
 
   // ---------- Versteigerung eigener Felder ----------
+  // (2g#18) Eigenes Feld versteigern (Auktion starten) nur am EIGENEN Zug.
   auctionStart({ gameId, field, sock }) {
-    const req = this._requireActiveLeaderForTrade({ gameId, sock });
+    const req = this._requireActiveLeader({ gameId, sock });
     if (req.error) return req;
     const engine = req.engine;
     const ownerIdx = this._piOf(engine, req.team.teamId);
@@ -840,10 +971,14 @@ class Rooms {
   }
 
   actionSell({ gameId, field, buyerIdx, price, sock }) {
-    const req = this._requireLeaderOfTeam({ gameId, sock });
+    const bidx = Number(buyerIdx);
+    // (2g#18) Bankverkauf nur am EIGENEN Zug; Verkauf an Mitspieler bleibt
+    // zwischendurch erlaubt (übertragene Hypotheken laufen beim Käufer weiter).
+    const req = (bidx == null || bidx < 0)
+      ? this._requireActiveLeader({ gameId, sock })
+      : this._requireLeaderOfTeam({ gameId, sock });
     if (req.error) return req;
     const fieldIdx = Number(field);
-    const bidx = Number(buyerIdx);
     if (!Number.isInteger(fieldIdx) || !Number.isInteger(bidx)) {
       return { error: { code: 'BAD_FIELD', message: 'Ungültige Parameter.' } };
     }
@@ -882,30 +1017,151 @@ class Rooms {
   spectate({ gameId, sock }) {
     const gameRow = dbm.getGame(gameId);
     if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+    // (2k #1) Ein NOCH NICHT GESTARTETES Spiel (Lobby) kann man nicht zuschauen —
+    // es gibt nichts zu sehen und der Zuschauer würde sonst die Lobby-Codes sehen.
+    // Zuschauen ist nur für gestartete (aktiv/pausiert) oder beendete Spiele erlaubt.
+    if (!gameRow.started) return { error: { code: 'NOT_STARTED', message: 'Dieses Spiel wurde noch nicht gestartet.' } };
     sock.join(this._roomOf(gameId));
     return { ok: true, gameId, role: 'spectator' };
   }
 
-  // Spiel verlassen (jede Rolle): aus dem Raum + aus der Spieler-Tabelle entfernen.
-  leaveGame({ gameId, sock }) {
-    // Prüfen, ob der Verlassende Leader seines Teams ist (VOR removePlayer)
-    const me = dbm.getPlayer(sock.id);
-    let isLeader = false;
-    if (me) {
-      const team = dbm.getTeam(gameId, me.teamId);
-      isLeader = team && team.leaderId && String(team.leaderId) === String(sock.id);
+  // Entfernt eine Membership sauber (Leader-Nachfolge, Votes, Room-Leave, Broadcast).
+  // Wird genutzt für: Verlassen (leaveGame), Wechsel (joinTeam in anderes Spiel),
+  // Disconnect-Timeout. `sock` optional (beim Timeout ist der Socket bereits weg).
+  _cleanupMembership(gameId, sock) {
+    const sockId = sock && sock.id;
+    let wasLeader = false;
+    let me = null;
+    if (sockId != null && sockId !== '') {
+      me = dbm.getPlayer(sockId);
+      if (me) {
+        const team = dbm.getTeam(gameId, me.teamId);
+        wasLeader = team && team.leaderId && String(team.leaderId) === String(sockId);
+      }
+    } else {
+      // Timeout-Pfad: Socket nicht mehr verfügbar — nur der Name steckt im pending-Entry.
     }
-    // Spieler entfernen
-    dbm.removePlayer(gameId, sock.id);
-    // Wenn der Verlassende Leader war: neuen Leader auflösen und State broadcasten
-    if (isLeader && me) {
+    dbm.removePlayer(gameId, sockId);
+    if (wasLeader && me) {
       this.resolveTeamLeader(gameId, me.teamId);
-      // Broadcast an verbleibende Clients — sie sehen sonst keine neue leaderId
-      this.broadcast(gameId);
     }
-    try { sock.leave(this._roomOf(gameId)); } catch (e) {}
+    // Pending-Disconnect für diesen Socket verwerfen (falls vorhanden).
+    if (sockId != null) this._cancelPendingDisconnect(sockId);
+    try { if (sock && sock.leave) sock.leave(this._roomOf(gameId)); } catch (e) {}
+  }
+
+  // GM: Spiel verlassen (jede Rolle): aus dem Raum + aus der Spieler-Tabelle entfernen.
+  leaveGame({ gameId, sock }) {
+    const gameRow = dbm.getGame(gameId);
+    // Punkte 1 (+8): Ein aktiver GM (ohne Nachfolger) kann sich während eines laufenden
+    // Spiels NICHT selbst entfernen — Verlassen wäre für das Spiel fatal (kein GM mehr,
+    // der das Spiel starten/pausieren/fortsetzen kann). HART blockieren.
+    if (gameRow && gameRow.started && !gameRow.over && !gameRow.paused &&
+        (this._isGmSocket(gameId, sock.id) || String(gameRow.gm_owner || '') === String(sock.id))) {
+      return { error: { code: 'GM_ACTIVE', message: 'Du bist der GM dieses laufenden Spiels und kannst es nicht verlassen, solange kein Nachfolge-GM existiert.' } };
+    }
+    this._cleanupMembership(gameId, sock);
+    // GM-Socket bei gestattetem Verlassen (Lobby/Wurf/beendet) als GM abmelden.
+    this._removeGmSocket(gameId, sock.id);
     // Client-State bereinigen (localStorage löscht der Client selbst).
     return { ok: true, gameId, left: true };
+  }
+
+  // (2k #2) Spiel abbrechen (GM): NEU ERSTELLTES Spiel (noch nicht gestartet) wird
+  // komplett entfernt; ein PAUSIERTES Spiel wird nur vom Fortsetzen zurückgeführt
+  // (bleibt pausiert — wird NICHT gelöscht, damit man es später fortsetzen kann).
+  cancelGame({ gameId, gmCode, sock }) {
+    const gameRow = dbm.getGame(gameId);
+    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+    if (gameRow.over) return { error: { code: 'GAME_OVER', message: 'Beendete Spiele können nicht abgebrochen werden.' } };
+    // Nur der aktive GM darf abbrechen.
+    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'das Spiel abbrechen' });
+    if (req.error) return req;
+
+    const beforePaused = !!gameRow.paused;
+    if (!gameRow.started) {
+      // Neue Lobby: komplett entfernen (keine Liste, keine Codes mehr).
+      this._clearTurnTimer(gameId);
+      this._removeGmSocket(gameId, sock.id);
+      // Alle im Raum informieren, dass das Spiel abgebrochen/entfernt wurde.
+      if (this.io && this.io.to) this.io.to(this._roomOf(gameId)).emit('game:cancelled', { gameId, removed: true });
+      dbm.deleteGame(gameId);
+      return { ok: true, gameId, removed: true };
+    }
+    if (beforePaused) {
+      // Pausiertes Spiel: Fortsetzen abbrechen → weiter pausiert lassen. Spieler, die
+      // wieder beigetreten sind, werden entfernt (Wiederaufnahme verworfen).
+      const players = dbm.getPlayers(gameId) || [];
+      players.forEach((p) => {
+        const ps = this.io && this.io.sockets && this.io.sockets.sockets.get(p.id);
+        this._cleanupMembership(gameId, ps || { id: p.id });
+      });
+      // GM-Socket bleibt, aber er ist raus aus der aktiven Teilnahme.
+      dbm.setPaused(gameId, true);
+      if (this.io && this.io.to) this.io.to(this._roomOf(gameId)).emit('game:cancelled', { gameId, removed: false, paused: true });
+      // Gäste des Raums entfernen, damit niemand mehr im Room hängt.
+      try { if (this.io && this.io.in) this.io.in(this._roomOf(gameId)).socketsLeave(this._roomOf(gameId)); } catch (e) {}
+      return { ok: true, gameId, removed: false, paused: true };
+    }
+    return { error: { code: 'NO_CANCEL', message: 'Ein laufendes Spiel kann nur pausiert, nicht abgebrochen werden.' } };
+  }
+
+  // ------------------------------------------------------------------
+  // Punkt 8 — Disconnect-Timeout (Auto-Remove bei Inaktivität)
+  // ------------------------------------------------------------------
+  _cancelPendingDisconnect(sockId) {
+    const pending = this._pendingDisconnects.get(sockId);
+    if (pending) {
+      clearTimeout(pending.timer);
+      this._pendingDisconnects.delete(sockId);
+    }
+  }
+
+  // Wird von index.js beim Socket-Disconnect gerufen. Startet (falls der Socket ein
+  // aktiver Spieler ist) einen Timer; verstreicht er ohne Rejoin, wird der Spieler
+  // entfernt (Broadcast + Log). Der GM ist ausgenommen (Punkt 1).
+  playerDisconnected(sockId) {
+    const me = dbm.getPlayer(sockId);
+    if (!me) return;
+    const gameRow = dbm.getGame(me.gameId);
+    if (!gameRow || gameRow.over) return;
+    if (this._isGmSocket(me.gameId, sockId)) return; // GM nicht automatisch entfernen
+    this._cancelPendingDisconnect(sockId);
+    const timer = setTimeout(() => {
+      this._applyTimeoutRemove(me.gameId, sockId, me.name || 'Spieler');
+    }, this._disconnectTimeoutMs);
+    // unref: ein offener Disconnect-Timer darf den Prozess (Tests/Server-Stop) nicht wach halten,
+    // solange der Socket bereits weg ist. Während das Spiel läuft, hält die IO den Loop am Leben.
+    if (timer && typeof timer.unref === 'function') timer.unref();
+    this._pendingDisconnects.set(sockId, { gameId: me.gameId, timer, name: me.name || 'Spieler' });
+  }
+
+  _applyTimeoutRemove(gameId, sockId, name) {
+    this._pendingDisconnects.delete(sockId);
+    const me = dbm.getPlayer(sockId);
+    // Verlassen/Rejoin inzwischen passiert → nichts zu tun.
+    if (!me || me.gameId !== gameId) return;
+    const wasLeader = (() => {
+      const team = dbm.getTeam(gameId, me.teamId);
+      return team && team.leaderId && String(team.leaderId) === String(sockId);
+    })();
+    dbm.removePlayer(gameId, sockId);
+    if (wasLeader) this.resolveTeamLeader(gameId, me.teamId);
+    // Log-Eintrag + Broadcast für die verbleibenden Spieler.
+    const engine = this._loadEngine(gameId);
+    if (engine) {
+      this.logEngine(gameId, engine, (name || 'Spieler') + ' wurde nach Inaktivität (Disconnect) aus dem Spiel entfernt.');
+      dbm.updateState(gameId, { state: engine.serialize(), started: true, over: engine.over ? 1 : 0 });
+    }
+    this.broadcast(gameId);
+  }
+
+  _loadEngine(gameId) {
+    try {
+      const gameRow = dbm.getGame(gameId);
+      if (!gameRow) return null;
+      return G.deserialize(gameRow.state, D);
+    } catch (e) { return null; }
   }
 
   // ------------------------------------------------------------------
@@ -925,6 +1181,9 @@ class Rooms {
     const gameRow = dbm.getGame(resolvedGameId);
     if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
     sock.join(this._roomOf(resolvedGameId));
+    // (2g#8 + 2i#8) GM-Code-Vorlage = aktiver GM: DB-Owner (Transfer-Gates) UND Socket-Registrierung (Disconnect-Ausnahme).
+    dbm.setGmOwner(resolvedGameId, sock.id);
+    this._addGmSocket(resolvedGameId, sock);
     const teams = dbm.getTeams(resolvedGameId);
     return {
       ok: true,
@@ -970,7 +1229,10 @@ class Rooms {
   // ------------------------------------------------------------------
   listGames() {
     const rows = dbm.listAllGames();
-    return (rows || []).map((g) => ({
+    // (2k #1) Spiele erst in der Liste zeigen, wenn sie GESTARTET wurden. Spiele in der
+    // Lobby (noch nicht gestartet) werden nicht gelistet. Pausierte Spiele bleiben
+    // sichtbar (started bleibt 1) — sonst könnte man sie nicht fortsetzen.
+    return (rows || []).filter((g) => !!g.started).map((g) => ({
       gameId: g.gameId,
       name: g.name || 'Ohne Namen',
       started: !!g.started,
@@ -985,14 +1247,25 @@ class Rooms {
 
   // GM pausiert ein laufendes Spiel (nur GM). Alle Teilnehmer sehen die Meldung.
   pauseGame({ gameId, gmCode, sock }) {
-    const gameRow = dbm.getGame(gameId);
-    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
-    const codeRow = dbm.getCode(String(gmCode || '').toUpperCase());
-    if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
-      return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf das Spiel pausieren.' } };
-    }
+    // (2h#8/2i #1) Nur der AKTIVE GM darf pausieren (gm_owner-Check) — nicht jeder
+    // Socket, der den (unveränderten) GM-Code besitzt.
+    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'das Spiel pausieren' });
+    if (req.error) return req;
+    const gameRow = req.gameRow;
     dbm.setPaused(gameId, true);
+    // (2g#17) Pause stoppt den Zug-Timer + blendet die Restzeit aus.
+    this._clearTurnTimer(gameId);
+    try {
+      const e2 = G.deserialize(dbm.getGame(gameId).state, D);
+      e2.turnDeadline = 0;
+      this._save(gameId, e2);
+    } catch (e) {}
     sock.join(this._roomOf(gameId));
+    const engine = this._loadEngine(gameId);
+    if (engine) {
+      this.logEngine(gameId, engine, this._gmNameOf(gameId) + ' pausiert das Spiel.');
+      dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: engine.over ? 1 : 0 });
+    }
     this.broadcast(gameId);
     return { ok: true, gameId, paused: true, gmCode: (gmCode || '').toUpperCase() };
   }
@@ -1005,11 +1278,20 @@ class Rooms {
     if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
       return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf das Spiel fortsetzen.' } };
     }
+    this._addGmSocket(gameId, sock);
     dbm.setPaused(gameId, false);
     sock.join(this._roomOf(gameId));
+    // (2g#8) Der fortsetzende GM ist der aktive GM; (2g#17) Timer neu armieren.
+    dbm.setGmOwner(gameId, sock.id);
+    this._armTurnTimer(gameId);
     // Teamleiter-Auflösung für jedes Team (behält bestehenden Leader bei, wenn gültig)
     const teams = dbm.getTeams(gameId);
     teams.forEach((t) => this.resolveTeamLeader(gameId, t.teamId));
+    const engine = this._loadEngine(gameId);
+    if (engine) {
+      this.logEngine(gameId, engine, this._gmNameOf(gameId) + ' setzt das Spiel fort.');
+      dbm.updateState(gameId, { state: engine.serialize(), started: 1, over: engine.over ? 1 : 0 });
+    }
     this.broadcast(gameId);
     return {
       ok: true,
@@ -1024,12 +1306,9 @@ class Rooms {
   // GM: Teamleiter manuell ändern (spielweit). Nur der berechtigte GM.
   // ------------------------------------------------------------------
   gmSetLeader({ gameId, gmCode, teamId, playerId, sock }) {
-    const gameRow = dbm.getGame(gameId);
-    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
-    const codeRow = dbm.getCode(String(gmCode || '').toUpperCase());
-    if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
-      return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf Teamleiter ändern.' } };
-    }
+    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'Teamleiter ändern' });
+    if (req.error) return req;
+    const gameRow = req.gameRow;
     const team = dbm.getTeam(gameId, teamId);
     if (!team) return { error: { code: 'TEAM_GONE', message: 'Team nicht gefunden.' } };
     const target = dbm.getPlayer(playerId);
@@ -1037,7 +1316,71 @@ class Rooms {
       return { error: { code: 'BAD_CANDIDATE', message: 'Mitglied nicht in diesem Team.' } };
     }
     dbm.setLeader(gameId, teamId, target.id);
+    const leg = this._loadEngine(gameId);
+    if (leg) {
+      const tname = team.ship || teamId;
+      this.logEngine(gameId, leg, this._gmNameOf(gameId) + ' setzt ' + (target.name || 'Spieler') + ' als Leiter von ' + tname + '.');
+      dbm.updateState(gameId, { state: leg.serialize(), started: gameRow.started ? 1 : 0, over: leg.over ? 1 : 0 });
+    }
     return { ok: true, gameId, teamId, leaderId: target.id };
+  }
+
+  // ------------------------------------------------------------------
+    // (2h#8) GM-Übergabe: aktiver GM überträgt seine Rolle an einen Teilnehmer
+    // (kein Beobachter). Der GM-Code bleibt an das SPIEL gebunden und ändert sich
+    // beim GM-Wechsel NICHT (2h#8b) — nur der neue GM erhält ihn privat. Der alte
+    // GM verliert seine GM-Rechte (gm_owner wechselt). Kein Waisen-Spiel.
+    // ------------------------------------------------------------------
+    gmTransfer({ gameId, gmCode, playerId, sock }) {
+        const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'die GM-Rolle übertragen' });
+        if (req.error) return req;
+        const gameRow = req.gameRow;
+        const target = dbm.getPlayer(String(playerId || ''));
+      if (!target || target.gameId !== gameId) {
+        return { error: { code: 'BAD_TARGET', message: 'Gewähltes Mitglied ist nicht Teilnehmer dieses Spiels.' } };
+      }
+      if (!target.teamId) {
+        return { error: { code: 'BAD_TARGET', message: 'Die GM-Rolle kann nur an einen Teilnehmer (nicht an Beobachter) übergehen.' } };
+      }
+      if (target.id === sock.id && String(gameRow.gm_owner || '') === String(sock.id)) {
+        return { error: { code: 'SAME_GM', message: 'Dieses Mitglied ist bereits der aktive GM.' } };
+      }
+      // (2h#8b) GM-Code bleibt unverändert am Spiel gebunden — NICHT rotieren.
+      const gmCodeValue = String(req.codeRow.code);
+      // Aktiven GM setzen + Ziel privat über den (unveränderten) Code benachrichtigen.
+      dbm.setGmOwner(gameId, target.id);
+      // (2k #4) Alten GM aus dem GM-Socket-Register entfernen — sonst bleibt sein
+      // Verlassen dauerhaft durch GM_ACTIVE blockiert, obwohl er die Rolle abgegeben hat.
+      this._removeGmSocket(gameId, sock.id);
+      this._emitTo(target.id, 'gm:owner', { gameId, gmCode: gmCodeValue });
+      // (2h#8a) Den ALTEN GM informieren, dass er die GM-Rolle abgegeben hat —
+      // er verliert seine GM-Rechte und bekommt eine informative Meldung.
+      this._emitTo(sock.id, 'gm:revoked', { gameId, newOwnerId: target.id, newOwnerName: target.name || 'Spieler' });
+      this.broadcast(gameId);
+      return { ok: true, gameId, transferredTo: target.id, transferredToName: target.name || 'Spieler', gmCode: gmCodeValue };
+    }
+
+  // GM-Name (Punkt 3): GM legt seinen Anzeigenamen fest; erscheint in
+  // Lobby/Log/Broadcasts. Nur der GM (mit gültigem GM-Code) darf ihn ändern.
+  // ------------------------------------------------------------------
+  setGmName({ gameId, gmCode, gmName, sock }) {
+    const gameRow = dbm.getGame(gameId);
+    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+    const codeRow = dbm.getCode(String(gmCode || '').toUpperCase());
+    if (!codeRow || codeRow.kind !== 'gm' || codeRow.gameId !== gameId) {
+      return { error: { code: 'FORBIDDEN', message: 'Nur der GM darf seinen Namen ändern.' } };
+    }
+    this._addGmSocket(gameId, sock);
+    const name = (gmName && String(gmName).trim()) ? String(gmName).trim().slice(0, 40) : 'GM';
+    const old = this._gmNameOf(gameId);
+    dbm.setGmName(gameId, name);
+    const leg = this._loadEngine(gameId);
+    if (leg) {
+      this.logEngine(gameId, leg, 'GM-Name geändert: ' + old + ' → ' + name);
+      dbm.updateState(gameId, { state: leg.serialize(), started: gameRow.started ? 1 : 0, over: leg.over ? 1 : 0 });
+    }
+    this.broadcast(gameId);
+    return { ok: true, gameId, gmName: name };
   }
 
   // ------------------------------------------------------------------
