@@ -1092,7 +1092,12 @@ class Rooms {
     // accept kommt von getAttribute -> String "1"/"0"; streng Zahl, sonst "1"===1 false → fälschlich Ablehnung.
     const acceptVal = (String(accept).trim() === '1') ? 1 : 0;
     const r = engine.respondOffer(offerId, acceptVal);
-    if (!r.ok) return { error: { code: 'TRADE', message: 'Angebot nicht gefunden.' } };
+    if (!r.ok) {
+      // (2o-A P8) sellProperty-Ablehnung (z.B. BUILT_NOT_SELLABLE) durchreichen —
+      // sonst würde das Angebot stumm verschwinden und Task B den Weg nie sehen.
+      const msg = r.notify || ('Angebot nicht möglich (' + r.reason + ').');
+      return { error: { code: 'TRADE', reason: r.reason, message: msg, notify: r.notify } };
+    }
     return this._persistAndReturn(gameId, engine, true);
   }
 
