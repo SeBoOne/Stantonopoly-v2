@@ -133,10 +133,108 @@ class Rooms {
       : (Number(process.env.STANTONOPOLY_DISCONNECT_TIMEOUT_MS) > 0
           ? Number(process.env.STANTONOPOLY_DISCONNECT_TIMEOUT_MS)
           : 5 * 60 * 1000);
+    // (2m-A) Auto-Pause nach Inaktivität / Auto-Beenden nach langer Pause.
+    // Schwellen per env überschreibbar (Tests nutzen kleine Werte).
+    this._inactiveMs = (opts.inactiveMs != null && Number(opts.inactiveMs) > 0)
+      ? Number(opts.inactiveMs)
+      : (Number(process.env.STANTONOPOLY_INACTIVE_MS) > 0
+          ? Number(process.env.STANTONOPOLY_INACTIVE_MS)
+          : 10 * 60 * 1000);          // default 10 min
+    this._pausedEndMs = (opts.pausedEndMs != null && Number(opts.pausedEndMs) > 0)
+      ? Number(opts.pausedEndMs)
+      : (Number(process.env.STANTONOPOLY_PAUSED_END_MS) > 0
+          ? Number(process.env.STANTONOPOLY_PAUSED_END_MS)
+          : 30 * 24 * 60 * 60 * 1000); // default 30 Tage
+    this._autoSweepMs = (opts.sweepMs != null && Number(opts.sweepMs) > 0)
+      ? Number(opts.sweepMs)
+      : (Number(process.env.STANTONOPOLY_SWEEP_MS) > 0
+          ? Number(process.env.STANTONOPOLY_SWEEP_MS)
+          : 60 * 1000);                // default Sweep alle 60 s
+    this._startAutoSweep();
+  }
+
+  // ------------------------------------------------------------------
+  // (2m-A) Auto-Pause / Auto-Beenden — periodischer Sweep über alle Spiele.
+  // ------------------------------------------------------------------
+  _startAutoSweep() {
+    this._stopAutoSweep();
+    const t = setInterval(() => this._autoSweep(), this._autoSweepMs);
+    // unref: der Sweep darf den Prozess (Tests/Server-Stop) nicht wach halten.
+    if (t && typeof t.unref === 'function') t.unref();
+    this._autoSweepTimer = t;
+  }
+
+  _stopAutoSweep() {
+    if (this._autoSweepTimer) { clearInterval(this._autoSweepTimer); this._autoSweepTimer = null; }
+  }
+
+  _autoSweep() {
+    let rows = [];
+    try { rows = dbm.listAllGames() || []; } catch (e) { return; }
+    const now = Date.now();
+    for (const g of rows) {
+      if (!g || !g.started || g.over) continue;
+      if (!g.paused) {
+        // P1: laufendes Spiel ohne Aktivität seit _inactiveMs → Auto-Pause.
+        const last = Number(g.lastActivity) || 0;
+        if (last > 0 && (now - last) >= this._inactiveMs) {
+          this._autoPauseGame(g.gameId);
+        }
+      } else {
+        // P2: durchgehend pausiert seit _pausedEndMs → Auto-Beenden (Vermögenswert-Sieger).
+        const pausedAt = Number(g.lastPausedAt) || 0;
+        if (pausedAt > 0 && (now - pausedAt) >= this._pausedEndMs) {
+          this._autoEndGame(g.gameId);
+        }
+      }
+    }
+  }
+
+  // Interne Pause ohne GM-Code (Auto-Pause). Setzt paused + Broadcast.
+  _autoPauseGame(gameId) {
+    try {
+      const gameRow = dbm.getGame(gameId);
+      if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
+      dbm.setPaused(gameId, true);
+      this._clearTurnTimer(gameId);
+      const e2 = G.deserialize(dbm.getGame(gameId).state, D);
+      e2.turnDeadline = 0;
+      this._save(gameId, e2);
+      const engine = this._loadEngine(gameId);
+      if (engine) {
+        this.logEngine(gameId, engine, 'Spiel wird nach ' + Math.round(this._inactiveMs / 60000) + ' min Inaktivität automatisch pausiert.');
+        dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: engine.over ? 1 : 0 });
+      }
+      this.broadcast(gameId);
+    } catch (e) { /* ignorieren */ }
+  }
+
+  // Interne Beendigung nach langer Pause: Gewinner = reichstes Team (Vermögenswert).
+  _autoEndGame(gameId) {
+    try {
+      const gameRow = dbm.getGame(gameId);
+      if (!gameRow || !gameRow.started || gameRow.over || !gameRow.paused) return;
+      const engine = this._loadEngine(gameId);
+      if (!engine) return;
+      const winnerIdx = engine.richestTeamIdx();
+      if (winnerIdx >= 0) {
+        engine.over = true;
+        engine.winnerInfo = engine.players[winnerIdx];
+        engine.players[winnerIdx].winner = true;
+        this.logEngine(gameId, engine, 'Spiel wird nach ' + Math.round(this._pausedEndMs / (24 * 60 * 60 * 1000)) + ' Tagen Pause automatisch beendet. Sieger: ' + engine.players[winnerIdx].name + ' (höchster Vermögenswert).');
+      } else {
+        engine.over = true;
+        this.logEngine(gameId, engine, 'Spiel wird nach langer Pause automatisch beendet (kein aktives Team).');
+      }
+      this._clearTurnTimer(gameId);
+      dbm.setPaused(gameId, false);
+      dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: 1 });
+      this.broadcast(gameId);
+    } catch (e) { /* ignorieren */ }
   }
 
   // Merkt einen Socket als GM eines Spiels (hat gültigen GM-Code vorgelegt).
-  _addGmSocket(gameId, sock) {
+      _addGmSocket(gameId, sock) {
     if (!sock || !sock.id) return;
     if (!this._gmSockets[gameId]) this._gmSockets[gameId] = new Set();
     this._gmSockets[gameId].add(sock.id);
@@ -237,6 +335,8 @@ class Rooms {
       started: cur ? (cur.started ? 1 : 0) : (game._started ? 1 : 0),
       over: game.over ? 1 : 0
     });
+    // (2m-A) Jede state-ändernde Aktion zählt als Aktivität (verhindert Auto-Pause).
+    dbm.touchActivity(gameId);
   }
 
   // ------------------------------------------------------------------
@@ -566,6 +666,8 @@ class Rooms {
     dbm.setStarted(gameId, true);
     this.logEngine(gameId, engine, this._gmNameOf(gameId) + ' startet das Spiel.');
     dbm.updateState(gameId, { state: engine.serialize(), started: 1, over: engine.over ? 1 : 0 });
+    // (2m-A) Start zählt als Aktivität (verhindert sofortige Auto-Pause).
+    dbm.touchActivity(gameId);
     // (2g#8) Der startende GM ist der aktive GM (für Übergabe-/Verlass-Wächter).
     dbm.setGmOwner(gameId, sock.id);
     // (2i #1) Socket als GM registrieren — Grundlage für das harte Verlass-Gate.
@@ -613,6 +715,8 @@ class Rooms {
   _persistAndReturn(gameId, engine, started) {
     dbm.updateState(gameId, { state: engine.serialize(), started, over: engine.over ? 1 : 0 });
     dbm.touchGame(gameId);
+    // (2m-A) Jede Spieleraktion zählt als Aktivität (verhindert Auto-Pause).
+    dbm.touchActivity(gameId);
     // (2g#17) Jede Aktion re-armt den Zug-Timer (Inaktivitäts-Timeout-Modell).
     this._armTurnTimer(gameId);
     // Frisch persistierten State (inkl. turnDeadline des soeben armierten Timers) zurückgeben.
