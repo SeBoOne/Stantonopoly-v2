@@ -22,7 +22,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const TMPDIR = process.env.TMPDIR || os.tmpdir();
 const DB_PATH = path.join(TMPDIR, 'spiltief-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '.db');
 
-let PORT = 18097;
+let PORT = 8400 + Math.floor(Math.random() * 400);
 process.env.STANTONOPOLY_DB = DB_PATH;
 process.env.PORT = String(PORT);
 process.env.NODE_ENV = 'test';
