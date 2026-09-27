@@ -63,6 +63,35 @@ SQLite-Datei: `data/stantonopoly.db` (wird beim Start automatisch angelegt).
 Enthält Spiele, serialisierte Zustände, Teams, Spieler, Stimmen und Codes
 (GM + Einladungscodes). DB-Pfad via ENV `STANTONOPOLY_DB`.
 
+## Admin-Dashboard (2o-BONUS)
+
+Eigenes Admin-Frontend unter `/admin.html` (REST-API unter `/admin/*`), damit
+Sebo die Seite/Daten **ohne Terminal/Code-Zugriff** verwalten kann. Keine
+Admin-Funktionen im normalen Spiel-GUI.
+
+- **Auth-Gate**: genau ein Admin-Konto. Passwort wird NIE im Klartext gespeichert
+  (scrypt-Hash + Salt in `admin_config`). Nach Login wird ein Session-Token
+  ausgestellt; ALLE `/admin/*`-Endpoints verlangen `Authorization: Bearer <token>`
+  (sonst 401). Token lebt im SessionStorage des Admin-Tabs.
+- **Ersteinrichtung (ohne Terminal)**: Solange kein Admin-Konto existiert, zeigt
+  `/admin.html` ein Setup-Formular (Benutzername + Passwort). Danach ist dieser
+  Weg dauerhaft gesperrt. Alternativ per ENV vorkonfigurierbar:
+  `STANTONOPOLY_ADMIN_USER` (default `admin`) und
+  `STANTONOPOLY_ADMIN_PASS_HASH` im Format `salt:hash`
+  (`crypto.scryptSync(pass, salt, 64).toString('hex')`).
+- **Dashboard**: Anzahl Spiele nach Status (Lobby/Aktiv/Pausiert/Beendet),
+  Preset-Count (eingebaut/eigen).
+- **Spiele-Management**: alle nicht beendeten Spiele (aktiv + pausiert + Lobby)
+  inkl. Game-Code; beendete Spiele im Archiv. Spiele per Admin **löschen**
+  (Hard-Delete aus DB inkl. aller verketteten Daten: Teams, Spieler, Stimmen,
+  Codes). Laufende Timer werden gestoppt, Sockets aus dem Raum geleitet.
+- **Presets**: alle Presets auflisten, neu anlegen, bearbeiten (Feld-Editor +
+  Ausbaustufen-Namen), löschen. Eingebaute Presets sind geschützt (403).
+- **Audit-Log**: Logins, fehlgeschlagene Logins, Preset-Speichern/-Löschen und
+  Spiel-Löschungen werden protokolliert (`/admin/log`).
+
+Admin-Tests: `node --test tests/admin.test.js tests/admin-setup.test.js`
+
 ## E2E-Check (Server läuft)
 
 ```bash
