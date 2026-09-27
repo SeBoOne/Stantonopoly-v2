@@ -651,7 +651,7 @@ test('Spieltieftest 5: Hypothek & Entlastung', async () => {
     assert.ok(propStatus && propStatus.mortgaged, 'property.mortgaged=true');
     assert.strictEqual(mortgagedVal, expectedLoan,
       `Hypothek-Betrag: ${mortgagedVal} === ${expectedLoan}`);
-    console.log(`✓ Hypothek aufgenommen: ${mortgagedVal} uAEC`);
+    console.log(`✓ Hypothek aufgenommen: ${mortgagedVal} aUEC`);
 
     /* Duplikat-Prüfung: nochmal mortgage sollte fehlschlagen */
     try {

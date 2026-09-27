@@ -48,6 +48,15 @@ function grantOwnership(gameId, playerIdx, fieldIdx) {
   dbm.updateState(gameId, { state: JSON.stringify(g) });
 }
 
+/** Aktives Team deterministisch setzen (Phase-2g#18: buy-Angebote nur am eigenen Zug). */
+function setActive(gameId, playerIdx) {
+  const dbm = require(path2());
+  const row = dbm.getGame(gameId);
+  const g = JSON.parse(row.state);
+  g.activeIdx = playerIdx;
+  dbm.updateState(gameId, { state: JSON.stringify(g) });
+}
+
 function path2() { return require('path').join(PROJ, 'server', 'db.js'); }
 
 test('Trade-Bypass-Fix: Ziel-Team-Check blockiert fremde Leader', async () => {
@@ -77,6 +86,8 @@ test('Trade-Bypass-Fix: Ziel-Team-Check blockiert fremde Leader', async () => {
   // Deterministischer Besitz: B (Team1, Zielt­eam) besitzt Feld 1 und 2
   grantOwnership(gameId, 1, 1);
   grantOwnership(gameId, 1, 2);
+  // Phase-2g#18: buy-Angebote nur am eigenen Zug — A (Sender) aktiv setzen.
+  setActive(gameId, 0);
 
   // A startet buy-Angebot an B (targetIdx=1) — Feld 1 gehört B
   let offerState = null;

@@ -144,6 +144,9 @@ test('Bankrott: Team ohne Geld scheidet aus; Spiel endet bei 1 verbleibendem Tea
   assert.strictEqual(g.players[1].properties[15] === undefined, true);
   g.buy();
   assert.ok(g.players[1].properties[15], 'B besitzt Feld 15');
+  // (2g#12) Monopoly-Bauregel: Ausbau erfordert die ganze Farbgruppe im selben
+  // Besitz. B bekommt die übrigen band1-Felder (2,3,5,8,9,10,13,14) zugewiesen.
+  [2, 3, 5, 8, 9, 10, 13, 14].forEach((fid) => { g.players[1].properties[fid] = { level: 'ALLEIN' }; });
   g.build(15);
   assert.strictEqual(g.players[1].properties[15].level, 'CYCLONE');
 
@@ -192,23 +195,36 @@ test('Kaufentscheidung: buy() kauft, skip() lässt offen', () => {
 // ---------------------------------------------------------------------
 // Akzeptanz 5-B: build() erhöht Stufen; Armistice nur wenn aktiviert
 // ---------------------------------------------------------------------
-test('Ausbau: stufenweise, Armistice nur bei Aktivierung', () => {
-  const g = makeGame([{ name: 'A' }], { armistice: false, capital: 5000000 });
+test('Ausbau: stufenweise, gleichmäßig in der Farbgruppe (Monopoly-Bauregel), Armistice nur bei Aktivierung', () => {
+  const g = makeGame([{ name: 'A' }], { armistice: false, capital: 9000000 });
   g.players[0].pos = 1;
   rollExact(g, 0);
   g.buy();
-  assert.strictEqual(g.build(1), true);
-  assert.strictEqual(g.build(1), true);
-  assert.strictEqual(g.build(1), true);
+  // (2g#12) Monopoly-Bauregel: Ausbau nur in der ganzen Farbgruppe im selben
+  // Besitz (band0 = 1,4,7,11,12) und gleichmäßig (max − min ≤ 1 Stufe).
+  const GROUP = [1, 4, 7, 11, 12];
+  [4, 7, 11, 12].forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
+  // Einseitiger Ausbau: nur Feld 1 eine Stufe hoch ist erlaubt (Differenz 1) …
+  assert.strictEqual(g.build(1), true, 'erster Ausbau ok (Farbgruppe im Besitz)');
+  // … aber eine Lücke (>1 über der schwächsten Stufe der Gruppe) wird abgelehnt.
+  assert.strictEqual(g.build(1), false, 'Lücke abgelehnt: keine Stufe >1 über der schwächsten der Farbgruppe');
+  // Gleichmäßig nachziehen: Rest der Gruppe auf CYCLONE, dann alle auf STORM, dann BALLISTA.
+  [4, 7, 11, 12].forEach((fid) => { assert.strictEqual(g.build(fid), true, 'CYCLONE Feld ' + fid); });
+  ['STORM', 'BALLISTA'].forEach((lvl) => {
+    GROUP.forEach((fid) => { assert.strictEqual(g.build(fid), true, lvl + ' Feld ' + fid); });
+  });
   assert.strictEqual(g.players[0].properties[1].level, 'BALLISTA');
   assert.strictEqual(g.build(1), false, 'Armistice deaktiviert → kein weiterer Ausbau');
 
-  const g2 = makeGame([{ name: 'A' }], { armistice: true, capital: 5000000 });
+  const g2 = makeGame([{ name: 'A' }], { armistice: true, capital: 9000000 });
   g2.players[0].pos = 1;
   rollExact(g2, 0);
   g2.buy();
-  g2.build(1); g2.build(1); g2.build(1);
-  assert.strictEqual(g2.build(1), true, 'Armistice aktiviert → Endstufe erreichbar');
+  [4, 7, 11, 12].forEach((fid) => { g2.players[0].properties[fid] = { level: 'ALLEIN' }; });
+  ['CYCLONE', 'STORM', 'BALLISTA'].forEach((lvl) => {
+    GROUP.forEach((fid) => { assert.strictEqual(g2.build(fid), true, lvl + ' Feld ' + fid); });
+  });
+  GROUP.forEach((fid) => { assert.strictEqual(g2.build(fid), true, 'Armistice aktiviert → Endstufe (ARMISTICE) Feld ' + fid); });
   assert.strictEqual(g2.players[0].properties[1].level, 'ARMISTICE');
   assert.strictEqual(g2.build(1), false, 'Cap erreicht');
 });
@@ -218,8 +234,12 @@ test('Ausbau: stufenweise, Armistice nur bei Aktivierung', () => {
 // ---------------------------------------------------------------------
 test('Persistenz: serialize→deserialize erhält Zustand exakt', () => {
   const g = makeGame([{ name: 'A' }, { name: 'B' }]);
-  g.activeIdx = 0; g.players[0].pos = 2; rollExact(g, 0); g.buy(); g.build(2); g.build(2);
-  g.activeIdx = 1; g.players[1].pos = 8; rollExact(g, 0); g.buy();
+  g.activeIdx = 0; g.players[0].pos = 2; rollExact(g, 0); g.buy();
+  // (2g#12) Monopoly-Bauregel: volle band1-Farbgruppe (2,3,5,8,9,10,13,14,15)
+  // muss A gehören UND gleichmäßig sein → Rest auf CYCLONE, dann Feld 2 zweimal.
+  [3, 5, 8, 9, 10, 13, 14, 15].forEach((fid) => { g.players[0].properties[fid] = { level: 'CYCLONE' }; });
+  g.build(2); g.build(2);
+  g.activeIdx = 1; g.players[1].pos = 7; rollExact(g, 0); g.buy(); // B kauft band0-Feld 7
   const stateBefore = g.serialize();
   const g2 = G.deserialize(stateBefore, D);
   assert.strictEqual(JSON.stringify(g2.serialize()), JSON.stringify(g.serialize()), 'Zustand identisch nach Round-Trip');
