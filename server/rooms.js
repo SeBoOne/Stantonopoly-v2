@@ -98,22 +98,48 @@ function buildView({ gameId, game, teams, leaders }) {
   } : null;
 
   let presetName = 'Eigene Karte';
-  const gRow = dbm.getGame(gameId);
-  if (gRow && gRow.name) presetName = gRow.name;
-  return {
-    gameId,
-    game: gameState,
-    presetName,
-    gmName: (gRow && gRow.gmName) ? String(gRow.gmName) : 'GM',
-    teams: teamViews,
-    leaders: leaders || [],
-    started: (game && !game.over && !!game._started) ? true : false,
-    over: !!(game && game.over),
-    paused: !!(gRow && gRow.paused),
-    winnerInfo: (game && game.winnerInfo) || null,
-    log: (game && game.log) || []
-  };
-}
+    const gRow = dbm.getGame(gameId);
+    if (gRow && gRow.name) presetName = gRow.name;
+    // (2m-E) Platzierung vom Sieger bis zum ersten Ausscheider (absteigend).
+    // Der Server ergänzt die Reihenfolge-Liste, da die Engine nur den Sieger
+    // (winnerInfo) liefert. Reihenfolge: 1. Sieger, dann aktive Teams, dann
+    // ausgeschiedene (bankrotte) Teams in Team-Reihenfolge.
+    const ranking = (game && Array.isArray(game.players)) ? (() => {
+      const winnerId = game.winnerInfo ? game.winnerInfo.id : null;
+      const alive = [];
+      const out = [];
+      game.players.forEach((p, i) => {
+        const meta = (teams && teams[i]) || {};
+        const entry = {
+          name: p.name || meta.teamName || ('Team ' + (i + 1)),
+          ship: meta.ship || '',
+          color: meta.color || '',
+          teamName: meta.teamName || p.name || ('Team ' + (i + 1)),
+          bankrupt: !!p.bankrupt,
+          winner: !!p.winner || (winnerId != null && String(p.id) === String(winnerId)),
+          budget: (typeof p.budget === 'number') ? p.budget : 0
+        };
+        if (entry.winner) alive.unshift(entry);   // Sieger immer ganz oben
+        else if (!p.bankrupt) alive.push(entry);  // aktive Teams danach
+        else out.push(entry);                     // ausgeschiedene zuletzt
+      });
+      return alive.concat(out).map((e, i) => Object.assign(e, { place: i + 1 }));
+    })() : [];
+    return {
+      gameId,
+      game: gameState,
+      presetName,
+      gmName: (gRow && gRow.gmName) ? String(gRow.gmName) : 'GM',
+      teams: teamViews,
+      leaders: leaders || [],
+      started: (game && !game.over && !!game._started) ? true : false,
+      over: !!(game && game.over),
+      paused: !!(gRow && gRow.paused),
+      winnerInfo: (game && game.winnerInfo) || null,
+      ranking,
+      log: (game && game.log) || []
+    };
+  }
 
 // Prüft, ob ein Socket innerhalb des Raums als Teamleiter/aktiver angesehen wird.
 // teamIdFromSocket: wird vom Aufrufer (index.js) als Socket-Daten geliefert.
