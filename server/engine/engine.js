@@ -38,6 +38,19 @@ function fieldName(game, idx) {
 }
 
 // Normalisiert ein Feld (aus Preset/Auer config) und berechnet die Miet-/Baukarten.
+// (2m #3) Kanonische Keys der 10 Farbgruppen (+ Legacy-Buchstaben A–F aus Runde 2k).
+// Dient der normalisierten Farbgruppen-Zugehörigkeit in der Engine.
+const STAN_GROUP_KEYS = ['blau', 'gruen', 'rot', 'violett', 'orange', 'tuerkis', 'gold', 'pink', 'schwarz', 'weiss'];
+const STAN_GROUP_LEGACY = { A: 'rot', B: 'orange', C: 'gruen', D: 'blau', E: 'violett', F: 'gold' };
+function normalizeGroupKey(g) {
+  if (!g) return null;
+  const k = String(g);
+  if (STAN_GROUP_KEYS.indexOf(k) !== -1) return k;
+  const up = k.toUpperCase();
+  if (STAN_GROUP_LEGACY[up]) return STAN_GROUP_LEGACY[up];
+  return STAN_GROUP_KEYS[0]; // Fallback (nie fehlerhaft)
+}
+
 function normalizeField(f) {
   if (!f || typeof f !== 'object') return { type: 'los', name: 'Feld', price: 0 };
   // 'gundo' ist der alte Name des Ereignis-Feldtyps (Steuerfeld); beides wird zu 'ereignis'.
@@ -52,9 +65,9 @@ function normalizeField(f) {
     out.price = Math.round(price);
     out.tabelle = D.tabelleFor(out.price);
   }
-  // (2k #5) Farbgruppe (nur Grundstücke; nicht-kaufbare Felder haben keine Gruppe).
-  if (out.type === 'grundstueck' && f.group !== undefined && f.group !== null && f.group !== '') {
-    out.group = String(f.group).slice(0, 1).toUpperCase();
+  // (2m #3) Farbgruppe (nur Grundstücke). Kanonische Keys => gültige STAN_COLORS.
+  if (out.type === 'grundstueck' && f.group !== undefined && f.group !== null && String(f.group) !== '') {
+    out.group = normalizeGroupKey(String(f.group));
   }
   // Individuelle Sonderwerte: Los-Bonus, Ereignis-Gebühr/Bonus, Gefängnis-Lösegeld, Steuer-Betrag
   const bonus = Number(f.bonus);
@@ -486,49 +499,44 @@ const StantonopolyGame = {
     if (!nextLevel) return false;
     if (nextLevel === 'ARMISTICE' && !game.armisticeEnabled) return false;
 
-    // ---- Monopoly-Bauregel (2g#12): Ausbau nur, wenn die ganze Farbgruppe ----
-    // im selben Besitz UND gleichmäßig (max − min ≤ 1 Stufe) ist.
-    // (2k #5) Abschaltbar über settings.monopolyBuildRule (Standard: an).
-    let buildRule = true;
-    if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') {
-      buildRule = game.settings.monopolyBuildRule;
-    } else if (game.settings && typeof game.settings.monopolyBuildRule === 'number') {
-      buildRule = game.settings.monopolyBuildRule !== 0;
-    }
-    // Farbgruppe: explizites f.group (eigene Karte) ODER Preisband (eingebaute Presets).
-    // Nicht-kaufbare Felder (Los/Ereignis/Gefängnis/Steuer/Frei Parken) haben KEINE Gruppe.
-    const ownGroup = String(f.group != null ? f.group : '');
-    const price = f.price || 0;
-    const band = (price > 400000) ? 1 : 0;
-    // Alle Grundstücke derselben Farbgruppe auflisten (DEFAULT: Preisband).
+    // ---- Monopoly-Bauregel(n) (2k #5 → 2m #13): zwei unabhängige Regeln. ----
+    // buildGroupOwnership: Ausbau nur, wenn die ganze Farbgruppe im selben Besitz.
+    // buildGroupEven:      gleichmäßig bauen — keine Stufe >1 über der schwächsten.
+    // buildGroupEven ist nur in Verbindung mit buildGroupOwnership aktivierbar
+    // (Client erzwingt das), buildGroupOwnership kann allein stehen.
+    let ruleOwnership = true;
+    let ruleEven = true;
+    if (game.settings && typeof game.settings.buildGroupOwnership === 'boolean') ruleOwnership = game.settings.buildGroupOwnership;
+    else if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') ruleOwnership = game.settings.monopolyBuildRule;
+    if (game.settings && typeof game.settings.buildGroupEven === 'boolean') ruleEven = game.settings.buildGroupEven;
+    else if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') ruleEven = game.settings.monopolyBuildRule;
+    if (!ruleOwnership) ruleEven = false; // gleichmäßig braucht die Besitz-Regel
+
+    // Farbgruppen-Zugehörigkeit (inkl. Preisband-Default): alle Grundstücke derselben Gruppe.
+    const groupOf = (fid) => {
+      const gf = game.fields[fid];
+      if (!gf || gf.type !== 'grundstueck') return null;
+      if (gf.group != null && String(gf.group) !== '') return normalizeGroupKey(String(gf.group));
+      return (gf.price || 0) > 400000 ? 'BAND1' : 'BAND0';
+    };
+    const grpKey = groupOf(fieldIdx);
     let group = [];
-    if (ownGroup !== '') {
-      for (let gi = 0; gi < game.fields.length; gi++) {
-        const gf = game.fields[gi];
-        if (!gf || gf.type !== 'grundstueck') continue;
-        if (String(gf.group != null ? gf.group : '') === ownGroup) group.push(gi);
-      }
-    } else {
-      for (let gi = 0; gi < game.fields.length; gi++) {
-        const gf = game.fields[gi];
-        if (!gf || gf.type !== 'grundstueck') continue;
-        const gp = gf.price || 0;
-        if (((gp > 400000) ? 1 : 0) === band) group.push(gi);
-      }
+    for (let gi = 0; gi < game.fields.length; gi++) {
+      if (game.fields[gi] && game.fields[gi].type === 'grundstueck' && groupOf(gi) === grpKey) group.push(gi);
     }
-    // Einzelgänger (Gruppe mit nur diesem Feld) immer bauen lassen.
+    // Einzelgänger (Gruppe mit nur diesem Feld): immer bauen lassen.
     if (group.length <= 1) { group = [fieldIdx]; }
-    if (buildRule && group.length > 1) {
-      // (1) Alle Felder der Gruppe müssen demselben Besitzer gehören (== Ausbaurecht).
+
+    if (ruleOwnership && ruleEven && group.length > 1) {
+      // (1) Alle Felder der Gruppe müssen demselben Besitzer gehören.
       for (let gi = 0; gi < group.length; gi++) {
-        const gidx = group[gi];
-        const gowner = ownerOf(game, gidx);
+        const gowner = ownerOf(game, group[gi]);
         if (!gowner || gowner.id !== p.id) {
           log(game, p.name + ' kann auf „' + f.name + '“ nicht ausbauen: Alle Felder der Farbgruppe müssen im selben Besitz sein (Monopoly-Bauregel).');
           return false;
         }
       }
-      // (2) Gleichmäßiger Ausbau: keine Stufe darf mehr als 1 über der schwächsten liegen.
+      // (2) Gleichmäßiger Ausbau: keine Stufe darf >1 über der schwächsten der Gruppe liegen.
       const levels = group.map((gi) => LEVEL_ORDER.indexOf(game.players[game.activeIdx].properties[gi].level));
       const newLevelRow = levels.slice();
       newLevelRow[group.indexOf(fieldIdx)] = curIdx + 1;
@@ -537,6 +545,15 @@ const StantonopolyGame = {
       if (tmax - tmin > 1) {
         log(game, p.name + ' kann auf „' + f.name + '“ nicht ausbauen: gleichmäßig ausbauen — keine Stufe darf mehr als 1 über der schwächsten der Farbgruppe liegen (Monopoly-Bauregel).');
         return false;
+      }
+    } else if (ruleOwnership && group.length > 1) {
+      // NUR Besitz-Regel aktiv (ohne Gleichmäßig): ganzer Gruppen-Besitz genügt.
+      for (let gi = 0; gi < group.length; gi++) {
+        const gowner = ownerOf(game, group[gi]);
+        if (!gowner || gowner.id !== p.id) {
+          log(game, p.name + ' kann auf „' + f.name + '“ nicht ausbauen: Alle Felder der Farbgruppe müssen im selben Besitz sein (Monopoly-Bauregel).');
+          return false;
+        }
       }
     }
 
@@ -714,6 +731,44 @@ const StantonopolyGame = {
     const curIdx = LEVEL_ORDER.indexOf(own.level);
     if (curIdx <= 0) return { ok: false, reason: 'nothing_to_remove' };
     const curLevel = LEVEL_ORDER[curIdx];
+
+    // (2m #14) Gleichmäßige-Regel beim Abbau symmetrisch erzwingen: keine Stufe einer
+    // Farbgruppe darf nach dem Abbau >1 über der schwächsten der Gruppe liegen.
+    let ruleEven = true;
+    if (game.settings && typeof game.settings.buildGroupEven === 'boolean') ruleEven = game.settings.buildGroupEven;
+    else if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') ruleEven = game.settings.monopolyBuildRule;
+    let ruleOwnership = true;
+    if (game.settings && typeof game.settings.buildGroupOwnership === 'boolean') ruleOwnership = game.settings.buildGroupOwnership;
+    else if (game.settings && typeof game.settings.monopolyBuildRule === 'boolean') ruleOwnership = game.settings.monopolyBuildRule;
+    if (!ruleOwnership) ruleEven = false;
+    if (ruleEven) {
+      const groupOf = (fid) => {
+        const gf = game.fields[fid];
+        if (!gf || gf.type !== 'grundstueck') return null;
+        if (gf.group != null && String(gf.group) !== '') return String(gf.group);
+        return (gf.price || 0) > 400000 ? 'BAND1' : 'BAND0';
+      };
+      const grpKey = groupOf(fieldIdx);
+      let group = [];
+      for (let gi = 0; gi < game.fields.length; gi++) {
+        if (game.fields[gi] && game.fields[gi].type === 'grundstueck' && groupOf(gi) === grpKey) group.push(gi);
+      }
+      if (group.length > 1) {
+        const levels = group.map((gi) => {
+          const pr = game.players[game.activeIdx].properties[gi];
+          return { gi, lv: LEVEL_ORDER.indexOf(pr && pr.level ? pr.level : 'ALLEIN') };
+        });
+        // Nach dem Abbau: dieses Feld sinkt um 1 Stufe.
+        const after = levels.map((x) => x.gi === fieldIdx ? x.lv - 1 : x.lv);
+        const tmin = Math.min.apply(null, after);
+        const tmax = Math.max.apply(null, after);
+        if (tmax - tmin > 1) {
+          log(game, p.name + ' kann auf „' + (f ? f.name : 'Feld ' + fieldIdx) + '“ nicht abbauen: gleichmäßig abbauen — keine Stufe darf mehr als 1 über der schwächsten der Farbgruppe liegen (Monopoly-Bauregel).');
+          return { ok: false, reason: 'even_demolish' };
+        }
+      }
+    }
+
     const cost = game.data.buildCost(f ? f.price : 0, curLevel, game.settings);
     const refund = Math.round(cost * (game.settings.demolishRefundRate != null ? game.settings.demolishRefundRate : 0.5));
     own.level = LEVEL_ORDER[curIdx - 1];

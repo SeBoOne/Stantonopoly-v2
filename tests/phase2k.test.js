@@ -224,14 +224,19 @@ test('2k p5: Farbgruppen-Serialisierung (group) übersteht gm:create + normalize
   assert.ok(!(saved.fields || []).find((f) => f.type === 'steuer' && f.group), 'Nicht-kaufbares Feld hat KEINE Gruppe');
 });
 
-test('2k p5b: engine normalizeField überträgt group nur für Grundstücke; data merge hat monopolyBuildRule', async () => {
+test('2k p5b: engine normalizeField überträgt group nur für Grundstücke; data merge hat buildGroup-Flags', async () => {
   const engine = require(path.join(__dirname, '..', 'server', 'engine', 'engine.js'));
   const D = require(path.join(__dirname, '..', 'server', 'engine', 'data.js'));
   // normalizeField-Schicht prüfen (Engine-intern; direkter Test)
   const f1 = { type: 'grundstueck', name: 'X', price: 100000, group: 'B' };
   const f2 = { type: 'steuer', name: 'T', fee: 100, group: 'B' };
-  const m = D.mergeSettings({ monopolyBuildRule: false });
-  assert.equal(m.monopolyBuildRule, false, 'mergeSettings übernimmt monopolyBuildRule');
+  const m = D.mergeSettings({ buildGroupOwnership: true, buildGroupEven: false });
+  assert.equal(m.buildGroupOwnership, true, 'mergeSettings übernimmt buildGroupOwnership');
+  assert.equal(m.buildGroupEven, false, 'mergeSettings übernimmt buildGroupEven');
+  // Rückwärtskompatibel: altes monopolyBuildRule mappt auf beide neuen Flags.
+  const m2 = D.mergeSettings({ monopolyBuildRule: true });
+  assert.equal(m2.buildGroupOwnership, true, 'altes monopolyBuildRule → buildGroupOwnership');
+  assert.equal(m2.buildGroupEven, true, 'altes monopolyBuildRule → buildGroupEven');
   assert.equal(m.armisticeEnabled, false, 'andere Settings-Defaults intakt');
 });
 

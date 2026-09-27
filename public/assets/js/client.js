@@ -364,8 +364,9 @@
           auctionMs: 15000,
           pollMs: 15000,
           armisticeEnabled: false,
-          // (2k #5) Monopoly-Bauregel abschaltbar (Farbgruppen-Zwang für Ausbau).
-          monopolyBuildRule: true,
+          // (2k #5 → 2m #13) Monopoly-Bauregel in zwei unabhängige Regeln.
+          buildGroupOwnership: true,
+          buildGroupEven: true,
           // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s, 0 = aus).
           // Diese Werte sind Game-Pace-Einstellungen und werden beim Start als
           // diceConfig/turnSeconds an den Server übergeben (nicht als Preset-Regel).
@@ -373,6 +374,24 @@
                     turnSeconds: 0
                   };
     let currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
+
+    // (2m #13) Bis jetzt Gleichmäßig-Regel nur in Verbindung mit Besitz-Regel:
+    // Deaktivieren/ausgrauen des Even-Toggles, wenn Ownership aus ist.
+    function syncEvenToggle() {
+      const owned = $('s-build-group-owned');
+      const even = $('s-build-group-even');
+      if (!owned || !even) return;
+      even.disabled = !owned.checked;
+      if (!owned.checked) even.checked = false;
+    }
+    // Bei Electron/UI → Eventlistener werden unten (EDGE) verdrahtet; hier nur Helfer-Exposition.
+    function bindMonopolyToggles() {
+      const owned = $('s-build-group-owned');
+      const even = $('s-build-group-even');
+      if (owned) owned.addEventListener('change', syncEvenToggle);
+      if (even) even.addEventListener('change', () => { if (!$( 's-build-group-owned') || !$('s-build-group-owned').checked) even.checked = false; });
+    }
+
     function syncSettingsInputs() {
       const set = (id, v) => { const el = $(id); if (el && el.value !== undefined) { if (typeof v === 'undefined' || v === null) el.value = ''; else el.value = Math.round(v * 100); } };
       set('s-rent-ALLEIN', currentSettings.rentMult.ALLEIN);
@@ -392,8 +411,9 @@
       { const el = $('s-auction-ms'); if (el) el.value = Math.round(currentSettings.auctionMs / 1000); }
             { const el = $('s-poll-ms'); if (el) el.value = Math.round(currentSettings.pollMs / 1000); }
             { const el = $('s-armistice'); if (el) el.checked = !!currentSettings.armisticeEnabled; }
-            // (2k #5) Monopoly-Bauregel-Toggle
-            { const el = $('s-monopoly-rule'); if (el) el.checked = !!currentSettings.monopolyBuildRule; }
+            // (2m #13) Monopoly-Bauregel-Toggles (Besitz + Gleichmäßig)
+            { const el = $('s-build-group-owned'); if (el) el.checked = !!currentSettings.buildGroupOwnership; }
+            { const el = $('s-build-group-even'); if (el) el.checked = !!(currentSettings.buildGroupEven && currentSettings.buildGroupOwnership); syncEvenToggle(); }
             // (2h#5/#6) Spielablauf: Würfelmodus + Zug-Timer
             { const el = $('s-dice'); if (el) el.value = currentSettings.diceConfig || '1w6'; }
             { const el = $('s-turnsecs'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0))); }
@@ -418,8 +438,9 @@
       read('s-auction-ms', (v) => currentSettings.auctionMs = Math.max(1, Math.round(Number(v)) * 1000));
             read('s-poll-ms', (v) => currentSettings.pollMs = Math.max(1, Math.round(Number(v)) * 1000));
             { const ae = $('s-armistice'); if (ae) currentSettings.armisticeEnabled = !!ae.checked; }
-            // (2k #5) Monopoly-Bauregel-Toggle lesen
-            { const mr = $('s-monopoly-rule'); if (mr) currentSettings.monopolyBuildRule = !!mr.checked; }
+            // (2m #13) Monopoly-Bauregel-Toggles lesen (Besitz + Gleichmäßig)
+            { const mr = $('s-build-group-owned'); if (mr) currentSettings.buildGroupOwnership = !!mr.checked; }
+            { const er = $('s-build-group-even'); if (er && currentSettings.buildGroupOwnership) currentSettings.buildGroupEven = !!er.checked; }
             // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s)
             { const de = $('s-dice'); if (de && (de.value === '1w6' || de.value === '2w6')) currentSettings.diceConfig = de.value; }
             { const te = $('s-turnsecs'); if (te) currentSettings.turnSeconds = Math.max(0, Math.round(Number(te.value) || 0)); }
@@ -439,7 +460,9 @@
       if (cur.auctionMs !== base.auctionMs) out.auctionMs = cur.auctionMs;
       if (cur.pollMs !== base.pollMs) out.pollMs = cur.pollMs;
       if (cur.armisticeEnabled !== base.armisticeEnabled) out.armisticeEnabled = cur.armisticeEnabled;
-      if (cur.monopolyBuildRule !== base.monopolyBuildRule) out.monopolyBuildRule = cur.monopolyBuildRule;
+      if (cur.monopolyBuildRule !== base.monopolyBuildRule) { out.buildGroupOwnership = cur.monopolyBuildRule; out.buildGroupEven = cur.monopolyBuildRule; }
+      if (cur.buildGroupOwnership !== base.buildGroupOwnership) out.buildGroupOwnership = cur.buildGroupOwnership;
+      if (cur.buildGroupEven !== base.buildGroupEven) out.buildGroupEven = cur.buildGroupEven;
       return Object.keys(out).length ? out : null;
     }
 
@@ -515,10 +538,13 @@
           const noneOpt = document.createElement('option');
           noneOpt.value = ''; noneOpt.textContent = '–';
           groupSel.appendChild(noneOpt);
-          ['A', 'B', 'C', 'D', 'E', 'F'].forEach((L) => {
+          // (2m #3) 10 benannte Farbgruppen. Nicht-kaufbare Felder haben keine Gruppe.
+          const COLORS = (window.STAN_COLORS || []);
+          const currentGroupKey = window.stanGroupKey ? window.stanGroupKey(f.group) : (f.group || '');
+          COLORS.forEach((c) => {
             const oo = document.createElement('option');
-            oo.value = L; oo.textContent = 'Gruppe ' + L;
-            if (String(f.group) === L) oo.selected = true;
+            oo.value = c.key; oo.textContent = (c.label || c.key) + ' ▮';
+            if (String(f.group) === c.key || (currentGroupKey && String(currentGroupKey) === c.key)) oo.selected = true;
             groupSel.appendChild(oo);
           });
           groupSel.addEventListener('change', () => { f.group = groupSel.value; });
@@ -582,7 +608,9 @@
       if (typeof src.auctionMs === 'number') s.auctionMs = src.auctionMs;
       if (typeof src.pollMs === 'number') s.pollMs = src.pollMs;
       if (typeof src.armisticeEnabled === 'boolean') s.armisticeEnabled = src.armisticeEnabled;
-      if (typeof src.monopolyBuildRule === 'boolean') s.monopolyBuildRule = src.monopolyBuildRule; // (2k #5)
+      if (typeof src.monopolyBuildRule === 'boolean') { s.buildGroupOwnership = src.monopolyBuildRule; s.buildGroupEven = src.monopolyBuildRule; }
+      if (typeof src.buildGroupOwnership === 'boolean') s.buildGroupOwnership = src.buildGroupOwnership;
+      if (typeof src.buildGroupEven === 'boolean') s.buildGroupEven = src.buildGroupEven; // (2m #13)
       if (src.rentMult && typeof src.rentMult === 'object') Object.assign(s.rentMult, src.rentMult);
       if (src.buildMult && typeof src.buildMult === 'object') Object.assign(s.buildMult, src.buildMult);
       currentSettings = s;
@@ -640,7 +668,7 @@
       socket.emit('preset:list', {});
       // Preset-Editor-Modal öffnen/schließen
       const openBtn = $('btn-open-preset-editor');
-      if (openBtn) openBtn.addEventListener('click', () => { const m = $('preset-modal'); if (m) m.classList.remove('hidden'); });
+      if (openBtn) openBtn.addEventListener('click', () => { const m = $('preset-modal'); if (m) m.classList.remove('hidden'); bindMonopolyToggles(); syncEvenToggle(); });
       const closeBtn = $('btn-preset-close');
       if (closeBtn) closeBtn.addEventListener('click', () => { const m = $('preset-modal'); if (m) m.classList.add('hidden'); });
       // Events

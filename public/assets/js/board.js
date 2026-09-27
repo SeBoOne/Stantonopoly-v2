@@ -9,6 +9,31 @@
    renderBoard(): aktualisiert Token, Marker, aktives Feld, Progress, Log.
    Global: window.initBoard, window.renderBoard
    ========================================================================= */
+/* (2m #3) Farbgruppen: 10 FESTE Farben, palette-invariant (hex-konstant).
+   Key wird als f.group im Preset gespeichert; Farbe via .band-g<key>.
+   Abwärtskompatibel: alte einbuchstabige Gruppen (A..F) → Keys. */
+window.STAN_COLORS = [
+  { key: 'blau',     label: 'Blau',    hex: '#3d7de8' },
+  { key: 'gruen',    label: 'Grün',    hex: '#2ea24f' },
+  { key: 'rot',      label: 'Rot',     hex: '#d84f44' },
+  { key: 'violett',  label: 'Violett', hex: '#8b5cc7' },
+  { key: 'orange',   label: 'Orange',  hex: '#e8892d' },
+  { key: 'tuerkis',  label: 'Türkis',  hex: '#2aa8a0' },
+  { key: 'gold',     label: 'Gold',    hex: '#c9a231' },
+  { key: 'pink',     label: 'Pink',    hex: '#d96ba5' },
+  { key: 'schwarz',  label: 'Schwarz', hex: '#3a3e46' },
+  { key: 'weiss',    label: 'Weiß',    hex: '#dedede' }
+];
+window.STAN_COLOR_LEGACY = { A: 'rot', B: 'orange', C: 'gruen', D: 'blau', E: 'violett', F: 'gold' };
+window.stanGroupKey = function (key) {
+  if (!key) return null;
+  const k = String(key);
+  for (const c of window.STAN_COLORS) if (c.key === k) return c.key;
+  const up = k.toUpperCase();
+  if (window.STAN_COLOR_LEGACY[up]) return window.STAN_COLOR_LEGACY[up];
+  return null;
+};
+
 (function () {
   'use strict';
 
@@ -80,9 +105,10 @@
     if (f.type === 'steuer') return 'is-steuer';
     if (f.type === 'freiparken') return 'is-freiparken';
     var p = (typeof f.price === 'number') ? f.price : 0;
-    // (2k #5) Eigene Farbgruppe (Preset-Editor) → band-g<letter>; sonst Preisband-Fallback.
+    // (2k #5 → 2m #3) Eigene Farbgruppe (Preset-Editor) → band-g<key>; sonst Preisband-Fallback.
     var g = (typeof f.group === 'string' && f.group !== '') ? f.group : '';
-    if (g) return 'band-g' + g.slice(0, 1).toUpperCase();
+    var gk = window.stanGroupKey ? window.stanGroupKey(g) : null;
+    if (gk) return 'band-g' + gk;
     return p <= 400000 ? 'band-400' : 'band-500';
   }
   function typeLabel(f) {

@@ -186,10 +186,14 @@
                     <input id="s-armistice" type="checkbox" title="Aktiviert die letzte Ausbaustufe Armistice, sodass alle Felder auf Stufe 5 (Armistice Zone) ausgebaut werden können" />
                     <span>Armistice (letzte Ausbaustufe) aktivieren</span>
                   </label>
+                  <!-- (2m #13) Monopoly-Bauregel in zwei unabhängige Regeln geteilt -->
                   <label class="settings-row chk">
-                    <!-- (2k #5) Monopoly-Bauregel abschaltbar -->
-                    <input id="s-monopoly-rule" type="checkbox" checked title="Farbgruppen-Zwang beim Ausbauen: Es kann nur auf Feldern der eigenen Farbgruppe ausgebaut werden. Aus — Ausbau auf jedem eigenen Feld einzeln (ohne Gruppen-Regel)." />
-                    <span>Monopoly-Bauregel (Farbgruppen-Zwang)</span>
+                    <input id="s-build-group-owned" type="checkbox" checked title="Ausbau nur, wenn man alle Felder der selben Farbgruppe besitzt (Monopoly-Besitzregel)." />
+                    <span>Monopoly-Besitzregel (nur bei voller Farbgruppe bauen)</span>
+                  </label>
+                  <label class="settings-row chk">
+                    <input id="s-build-group-even" type="checkbox" checked title="Alle Felder einer Farbgruppe gleichmäßig aus- UND abbauen (max. 1 Stufe Unterschied). Setzt die Besitzregel voraus." />
+                    <span>Gleichmäßige Bebauung (Besitzregel erforderlich)</span>
                   </label>
                 </div>
               </div>

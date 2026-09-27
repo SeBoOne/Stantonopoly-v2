@@ -304,14 +304,20 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .kcard.is-mortgaged { opacity: .5; }
 .kcard.band-400 .k-band { background: var(--band-400); }
 .kcard.band-500 .k-band { background: var(--band-500); }
-/* (2k #5) Eigene Farbgruppen (Preset-Editor): A–F. Nicht-kaufbare Felder behalten
-   ihre eigenen Farben (los/ereignis/jail/steuer/freiparken) und gehören keiner Gruppe. */
-.kcard.band-gA .k-band { background: #c0392b; }
-.kcard.band-gB .k-band { background: #e67e22; }
-.kcard.band-gC .k-band { background: #27ae60; }
-.kcard.band-gD .k-band { background: #2980b9; }
-.kcard.band-gE .k-band { background: #8e44ad; }
-.kcard.band-gF .k-band { background: #7f8c8d; }
+/* (2k #5 → 2m #3) Eigene Farbgruppen (Preset-Editor): 10 feste Farben. Nicht-kaufbare
+   Felder behalten ihre eigenen Farben (los/ereignis/jail/steuer/freiparken) und gehören
+   keiner Gruppe. Die Farben sind palette-invariant (hex-konstant) und bewusst so gewählt,
+   dass sie sich von den Sonderfeldern abheben. */
+.kcard.band-gblau     .k-band { background: #3d7de8; }
+.kcard.band-ggruen    .k-band { background: #2ea24f; }
+.kcard.band-grot      .k-band { background: #d84f44; }
+.kcard.band-gviolett  .k-band { background: #8b5cc7; }
+.kcard.band-gorange   .k-band { background: #e8892d; }
+.kcard.band-gtuerkis  .k-band { background: #2aa8a0; }
+.kcard.band-ggold     .k-band { background: #c9a231; }
+.kcard.band-gpink     .k-band { background: #d96ba5; }
+.kcard.band-gschwarz  .k-band { background: #3a3e46; }
+.kcard.band-gweiss    .k-band { background: #dedede; }
 .kcard.is-los .k-band { background: var(--los); }
 .kcard.is-event .k-band { background: var(--ereignis); }
 .kcard.is-jail .k-band { background: var(--alert); }

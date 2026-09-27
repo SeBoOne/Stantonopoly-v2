@@ -71,8 +71,13 @@ const DEFAULT_SETTINGS = {
   pollMs: 15000,
   // Armistice (letzte Ausbaustufe) im Preset aktivieren?
   armisticeEnabled: false,
-  // (2k #5) Monopoly-Bauregel (Farbgruppen-Zwang beim Ausbau) abschaltbar.
-  monopolyBuildRule: true
+  // (2k #5 → 2m #13) Monopoly-Bauregel aufgeteilt in zwei unabhängige Regeln:
+  //  - buildGroupOwnership: nur ausbauen, wenn man die ganze Farbgruppe besitzt.
+  //  - buildGroupEven:      gleichmäßig ausbauen/abbauen (max − min ≤ 1 Stufe).
+  // buildGroupEven ist nur in Verbindung mit buildGroupOwnership aktivierbar;
+  // buildGroupOwnership kann auch allein stehen. Default: beide an.
+  buildGroupOwnership: true,
+  buildGroupEven: true
 };
 
 // ---------------------------------------------------------------------------
@@ -138,12 +143,19 @@ function formatUAEC(n) {
 function mergeSettings(userSettings) {
   const d = DEFAULT_SETTINGS;
   const u = (userSettings && typeof userSettings === 'object') ? userSettings : {};
+  const _u = Object.assign({}, u);
+  // (2m #13) Rückwärtskompatibel: alte Presets setzten nur monopolyBuildRule.
+  // Wenn die neuen Flags nicht explizit gesetzt sind, werden beide daraus abgeleitet.
+  if (typeof _u.monopolyBuildRule === 'boolean') {
+    if (typeof _u.buildGroupOwnership !== 'boolean') _u.buildGroupOwnership = _u.monopolyBuildRule;
+    if (typeof _u.buildGroupEven !== 'boolean') _u.buildGroupEven = _u.monopolyBuildRule;
+  }
   const out = {};
   for (const key of Object.keys(d)) {
     if (typeof d[key] === 'object' && d[key] !== null && !Array.isArray(d[key])) {
-      out[key] = Object.assign({}, d[key], (u[key] && typeof u[key] === 'object') ? u[key] : {});
+      out[key] = Object.assign({}, d[key], (_u[key] && typeof _u[key] === 'object') ? _u[key] : {});
     } else {
-      out[key] = (u[key] !== undefined && u[key] !== '') ? u[key] : d[key];
+      out[key] = (_u[key] !== undefined && _u[key] !== '') ? _u[key] : d[key];
     }
   }
   return out;
