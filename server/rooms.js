@@ -922,8 +922,13 @@ class Rooms {
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
     const built = req.engine.build(fieldIdx);
+    // (2o-A) Strukturierte Ablehnung (z.B. GROUP_MORTGAGED) mit notify-Satz.
+    if (built && typeof built === 'object' && built.ok === false) {
+      const msg = built.notify || ('Ausbau nicht möglich (' + built.reason + ').');
+      return { error: { code: 'ECON', reason: built.reason, message: msg, notify: built.notify } };
+    }
     const ret = this._persistAndReturn(gameId, req.engine, true);
-    ret.built = built;
+    ret.built = !!built;
     return ret;
   }
 
@@ -987,7 +992,11 @@ class Rooms {
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
     const r = req.engine.mortgage(fieldIdx);
-    if (!r.ok) return { error: { code: 'ECON', message: 'Hypothek nicht möglich (' + r.reason + ').' } };
+    if (!r.ok) {
+      // (2o-A) Strukturierte Ablehnung inkl. notify (P5/P6: BUILT_NOT_MORTGAGEABLE, GROUP_NOT_DEMOLISHED).
+      const msg = r.notify || ('Hypothek nicht möglich (' + r.reason + ').');
+      return { error: { code: 'ECON', reason: r.reason, message: msg, notify: r.notify } };
+    }
     const ret = this._persistAndReturn(gameId, req.engine, true);
     ret.mortgaged = r.loan;
     return ret;
@@ -1014,6 +1023,27 @@ class Rooms {
     if (!r.ok) return { error: { code: 'ECON', message: 'Rückbau nicht möglich (' + r.reason + ').' } };
     const ret = this._persistAndReturn(gameId, req.engine, true);
     ret.demolished = r.refund;
+    return ret;
+  }
+
+  // (2o-A P3) Käufer löst die Hypotheken-Übernahme-Wahl (nach Kauf/Ersteigerung
+  // eines beliehenen Feldes): 'keep' = 10 % Zins zahlen und beliehen lassen,
+  // 'clear' = sofort voll entlasten. Nur der Leader des Käufer-Teams.
+  actionMortgageChoice({ gameId, choice, sock }) {
+    const req = this._requireLeaderOfTeam({ gameId, sock });
+    if (req.error) return req;
+    const myIdx = this._piOf(req.engine, req.team.teamId);
+    const mc = req.engine.mortgageChoice;
+    if (!mc || mc.buyerIdx !== myIdx) {
+      return { error: { code: 'TRADE', message: 'Keine offene Hypotheken-Übernahme für dein Team.' } };
+    }
+    const r = req.engine.resolveMortgageChoice(myIdx, choice);
+    if (!r.ok) {
+      const msg = r.notify || ('Wahl nicht möglich (' + r.reason + ').');
+      return { error: { code: 'ECON', reason: r.reason, message: msg, notify: r.notify } };
+    }
+    const ret = this._persistAndReturn(gameId, req.engine, true);
+    ret.mortgageChoiceResolved = r;
     return ret;
   }
 
@@ -1075,7 +1105,11 @@ class Rooms {
     const ownerIdx = this._piOf(engine, req.team.teamId);
     if (ownerIdx < 0) return { error: { code: 'NOT_IN_TEAM', message: 'Dein Team ist nicht im Spiel.' } };
     const r = engine.startAuction({ ownerIdx, fieldIdx: Number(field) });
-    if (!r.ok) return { error: { code: 'AUCTION', message: 'Auktion nicht möglich (' + r.reason + ').' } };
+    if (!r.ok) {
+      // (2o-A) Strukturierte Ablehnung inkl. notify (P8: BUILT_NOT_SELLABLE).
+      const msg = r.notify || ('Auktion nicht möglich (' + r.reason + ').');
+      return { error: { code: 'AUCTION', reason: r.reason, message: msg, notify: r.notify } };
+    }
     const ret = this._persistAndReturn(gameId, engine, true);
     // Nach Ablauf automatisch auflösen (höchstes Gebot gewinnt).
     const durationMs = r.auction ? r.auction.durationMs : 15000;
@@ -1105,6 +1139,11 @@ class Rooms {
     const myIdx = this._piOf(engine, req.team.teamId);
     if (myIdx !== ownerIdx) return { error: { code: 'AUCTION', message: 'Nur der Versteigerer darf die Auktion beenden.' } };
     const r = engine.resolveAuction(accept === 1 ? 1 : 0);
+    // (2o-A) Strukturierte Ablehnung (P8: BUILT_NOT_SELLABLE bei bebautem Feld).
+    if (!r.ok) {
+      const msg = r.notify || ('Auktion nicht möglich (' + r.reason + ').');
+      return { error: { code: 'AUCTION', reason: r.reason, message: msg, notify: r.notify } };
+    }
     return this._persistAndReturn(gameId, engine, true);
   }
 
@@ -1247,9 +1286,14 @@ class Rooms {
       return { error: { code: 'BAD_FIELD', message: 'Ungültige Parameter.' } };
     }
     const r = req.engine.sellProperty(fieldIdx, bidx, price);
-    if (!r.ok) return { error: { code: 'ECON', message: 'Verkauf nicht möglich (' + r.reason + ').' } };
+    if (!r.ok) {
+      // (2o-A) Strukturierte Ablehnung inkl. notify (P8: BANK_BUY_BUILT / BUILT_NOT_SELLABLE).
+      const msg = r.notify || ('Verkauf nicht möglich (' + r.reason + ').');
+      return { error: { code: 'ECON', reason: r.reason, message: msg, notify: r.notify } };
+    }
     const ret = this._persistAndReturn(gameId, req.engine, true);
     ret.sold = r.price;
+    if (r.mortgageChoice) ret.mortgageChoice = r.mortgageChoice;
     return ret;
   }
 
