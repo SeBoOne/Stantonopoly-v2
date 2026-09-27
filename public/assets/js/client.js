@@ -1018,9 +1018,9 @@
     if (data.playerName) client.playerName = data.playerName;
     saveJoin();
     if (data.started && !data.over) {
-      // Bereits laufendes Spiel: direkt zur Spiel-Ansicht (state-Broadcast rendert Panels).
-      showView('game');
-      showNotify(data && data.rejoined ? 'Wiedereingetreten — Spiel läuft weiter.' : 'Eingetreten — das Spiel läuft bereits.');
+          // Bereits laufendes Spiel: direkt zur Spiel-Ansicht (state-Broadcast rendert Panels).
+          showView('game');
+          showNotify(data && data.replaced ? 'Login übernommen — Gerätewechsel erfolgreich.' : (data && data.rejoined ? 'Wiedereingetreten — Spiel läuft weiter.' : 'Eingetreten — das Spiel läuft bereits.'));
       // Der state-Broadcast kann VOR dem joined-Event ankommen (Rejoin-Reihenfolge).
       // Rendere aus dem gecachten Zustand neu, damit teamId gesetzt ist und das
       // Team-Panel nicht fälschlich als „Beobachter" erscheint.
@@ -1042,8 +1042,15 @@
   });
 
   /* ---------------- Flow 3: Lobby ---------------- */
-  function leaderMap(leaders) {
-    // state.leaders sind {playerId, teamId, leaderId} Einträge (ein Eintrag pro Spieler).
+    // (2m P6) Gerätewechsel: Der Server hat diesen Login durch einen neuen Client
+    // (gleicher Name + gleicher Code) ersetzt → aus dem Spiel leiten.
+    socket.on('game:redirected', (data) => {
+      clearIdentityLocal();
+      showView('setup');
+      showNotify((data && data.message) || 'Von einem anderen Standort eingeloggt.');
+    });
+
+    function leaderMap(leaders) {
     // Der Leiter eines Teams = l.leaderId (der gewählte/gewollte Spieler).
     const map = {};
     if (!leaders) return map;
@@ -2337,32 +2344,52 @@
   // Schlägt der Server fehl (z.B. GM_ACTIVE — aktiver GM muss erst Nachfolge übertragen),
   // bleibt der Client im Spiel und identifiziert. Kein optimistisches Aufräumen mehr.
   function emitLeaveAndAck(notifyText) {
-    const pb = $('pause-banner');
-    if (pb) pb.remove();
-    const tid = setTimeout(() => {
-      socket.off('left', onLeft); socket.off('error', onErr);
-      clearIdentityLocal(); showView('setup');
-      showNotify('Spiel verlassen (keine Bestätigung empfangen).');
-    }, 4000);
-    function onLeft() {
-      clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr);
-      clearIdentityLocal(); showView('setup');
-      showNotify(notifyText || 'Spiel verlassen.');
-    }
-    function onErr(err) {
-      const code = err && (err.code || err);
-      if (String(code).toUpperCase() === 'GM_ACTIVE') {
-        clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr);
-        // GM bleibt: nichts clearen. Fehlermeldung hat error-Handler schon gezeigt.
-        return;
+      const pb = $('pause-banner');
+      if (pb) pb.remove();
+      const tid = setTimeout(() => {
+        socket.off('left', onLeft); socket.off('error', onErr); socket.off('leave:confirm', onConfirm);
+        clearIdentityLocal(); showView('setup');
+        showNotify('Spiel verlassen (keine Bestätigung empfangen).');
+      }, 4000);
+      function onLeft() {
+        clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr); socket.off('leave:confirm', onConfirm);
+        clearIdentityLocal(); showView('setup');
+        showNotify(notifyText || 'Spiel verlassen.');
       }
-      clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr);
-      clearIdentityLocal(); showView('setup');
+      function onErr(err) {
+        const code = err && (err.code || err);
+        if (String(code).toUpperCase() === 'GM_ACTIVE') {
+          clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr); socket.off('leave:confirm', onConfirm);
+          // GM bleibt: nichts clearen. Fehlermeldung hat error-Handler schon gezeigt.
+          return;
+        }
+        clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr); socket.off('leave:confirm', onConfirm);
+        clearIdentityLocal(); showView('setup');
+      }
+      // (2m P7) Letzter Spieler seines Teams: Server fragt erst nach Bestätigung.
+      function onConfirm(data) {
+        clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr); socket.off('leave:confirm', onConfirm);
+        openModal({
+          title: 'Team gibt auf',
+          icon: '🚩',
+          body: '<p>' + esc((data && data.message) || 'Wenn du das Spiel verlässt, gibt dein Team auf.') + '</p>',
+          confirmText: 'Verlassen & aufgeben',
+          cancelText: 'Abbrechen',
+          confirmClass: 'btn-danger',
+          onConfirm: () => {
+            // Nach Bestätigung: forfeit + leave ausführen und auf 'left' warten.
+            const tid2 = setTimeout(() => { clearIdentityLocal(); showView('setup'); }, 4000);
+            socket.once('left', () => { clearTimeout(tid2); clearIdentityLocal(); showView('setup'); showNotify('Spiel verlassen — dein Team hat aufgegeben.'); });
+            socket.once('error', () => { clearTimeout(tid2); clearIdentityLocal(); showView('setup'); });
+            socket.emit('game:leave', { gameId: client.gameId, confirm: true });
+          }
+        });
+      }
+      socket.once('left', onLeft);
+      socket.once('error', onErr);
+      socket.once('leave:confirm', onConfirm);
+      socket.emit('game:leave', { gameId: client.gameId });
     }
-    socket.once('left', onLeft);
-    socket.once('error', onErr);
-    socket.emit('game:leave', { gameId: client.gameId });
-  }
   client.emitLeaveAndAck = emitLeaveAndAck;
 
   function leaveNow() {
