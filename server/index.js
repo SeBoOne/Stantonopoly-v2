@@ -46,12 +46,14 @@ if (process.env.NODE_ENV !== 'test') {
 // ---- Socket.io: ein Raum pro Spiel (room:gameId) ----
 io.on('connection', (socket) => {
   const emit = (event, data) => socket.emit(event, data);
-  const error = (code, message) => emit('error', { code, message });
+  const error = (code, message, extra) => emit('error', Object.assign({ code, message }, extra || {}));
 
   const handleResult = (ret) => {
     if (!ret) return;
     if (ret.error) {
-      error(ret.error.code, ret.error.message);
+      // Reiche die volle Fehler-Nutzlast weiter (z.B. emptyTeams für P12-Abfrage).
+      const err = ret.error;
+      error(err.code, err.message, err && typeof err === 'object' ? err : undefined);
       return;
     }
     if (ret.gameId) {
@@ -89,7 +91,7 @@ io.on('connection', (socket) => {
       if (ret.error) { error(ret.error.code, ret.error.message); return; }
       // GM-Codes + Lobby wieder aufbauen
       socket.join('room:' + ret.gameId);
-      socket.emit('gameCreated', { gameId: ret.gameId, gmCode: (data.gmCode || '').toUpperCase(), tokens: ret.tokens, resumed: true, started: !!ret.started, over: !!ret.over });
+      socket.emit('gameCreated', { gameId: ret.gameId, gmCode: (data.gmCode || '').toUpperCase(), tokens: ret.tokens, resumed: true, started: !!ret.started, over: !!ret.over, paused: !!ret.paused });
       // Aktuellen Spielstand an den Raum broadcasten (GM sieht Lobby/Spiel wieder)
       rooms.broadcast(ret.gameId);
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
@@ -161,7 +163,7 @@ io.on('connection', (socket) => {
       handleResult(ret);
       if (ret && ret.ok) {
         const g = dbm.getGame(ret.gameId);
-        emit('joined', { gameId: ret.gameId, teamId: ret.teamId, playerId: ret.playerId, token: ret.token, role: ret.role, replaced: !!ret.replaced, started: !!(g && g.started), over: !!(g && g.over) });
+        emit('joined', { gameId: ret.gameId, teamId: ret.teamId, playerId: ret.playerId, token: ret.token, role: ret.role, replaced: !!ret.replaced, isGM: !!ret.isGM, gmCode: ret.isGM ? (ret.gmCode || '').toUpperCase() : undefined, started: !!(g && g.started), over: !!(g && g.over), paused: !!(g && g.paused) });
       }
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
@@ -203,6 +205,7 @@ io.on('connection', (socket) => {
       const ret = rooms.startGame({
         gameId: (data && data.gameId) || '',
         gmCode: (data && data.gmCode) || '',
+        confirmEmpty: !!(data && data.confirmEmpty),
         sock: socket
       });
       handleResult(ret);

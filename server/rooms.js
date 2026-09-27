@@ -449,7 +449,50 @@ class Rooms {
     // Code selbst auflösen, damit ein Spieler mit NUR dem Code beitreten kann.
     let codeValue = String(code || '').toUpperCase();
     const codeRow = dbm.getCode(codeValue);
-    if (!codeRow || codeRow.kind !== 'invite') {
+    if (!codeRow) {
+      return { error: { code: 'BAD_CODE', message: 'Ungültiger Einladungscode.' } };
+    }
+    const name = String(playerName || 'Pilot').slice(0, 24) || 'Pilot';
+
+    // (2m P11) GM-Code im Beitrittsformular → übernimmt die aktive GM-Sitzung
+    // inklusive Name + Teamzugehörigkeit (falls vorhanden) — analog Rejoin.
+    // Wer den GM-Code eintippt, ist der GM (server-authoritativ).
+    if (codeRow.kind === 'gm') {
+      const resolvedGameId = codeRow.gameId;
+      if (gameId && String(gameId).toUpperCase() !== resolvedGameId) {
+        return { error: { code: 'BAD_CODE', message: 'GM-Code gehört nicht zu diesem Spiel.' } };
+      }
+      const gameRow = dbm.getGame(resolvedGameId);
+      if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+      if (gameRow.over) return { error: { code: 'OVER', message: 'Das Spiel ist bereits beendet.' } };
+      this._addGmSocket(resolvedGameId, sock);
+      dbm.setGmOwner(resolvedGameId, sock.id);
+      sock.join(this._roomOf(resolvedGameId));
+      // Falls der eintippende GM bereits ein Team-Mitglied ist (gleicher Name),
+      // diese Membership übernehmen (Teamzugehörigkeit, Leader, Votes wie Rejoin).
+      let teamId = null; let token = null; let role = 'gm'; let replaced = false;
+      const existingMatches = (dbm.getPlayers(resolvedGameId) || [])
+        .filter((p) => String(p.name).toLowerCase() === name.toLowerCase() && String(p.id) !== String(sock.id));
+      const match = existingMatches[0] || null;
+      if (match) {
+        const team = dbm.getTeam(resolvedGameId, match.teamId);
+        const taken = this._takeoverPlayer({ gameId: resolvedGameId, team, name, oldPlayer: match, sock });
+        teamId = taken.teamId; token = taken.token; role = taken.role === 'leader' ? 'leader' : 'gm'; replaced = true;
+        // Nach _takeoverPlayer ist der Socket zusätzlich als Team-Mitglied registriert.
+      }
+      return {
+        ok: true,
+        gameId: resolvedGameId,
+        teamId,
+        playerId: sock.id,
+        token,
+        role,
+        isGM: true,
+        gmCode: codeValue,
+        replaced
+      };
+    }
+    if (codeRow.kind !== 'invite') {
       return { error: { code: 'BAD_CODE', message: 'Ungültiger Einladungscode.' } };
     }
     // Wenn eine gameId mitgegeben wurde, muss sie zum Code passen; sonst vom Code ableiten.
@@ -465,8 +508,6 @@ class Rooms {
 
     const team = dbm.getTeam(resolvedGameId, codeRow.teamId);
     if (!team) return { error: { code: 'TEAM_GONE', message: 'Team nicht gefunden.' } };
-
-    const name = String(playerName || 'Pilot').slice(0, 24) || 'Pilot';
 
         // (2m P6) Gerätewechsel: Jemand tritt mit demselben Spieler-Namen UND demselben
         // Team-Code bei → er übernimmt den vorhandenen Login (alle Rollen: GM, Team,
@@ -691,7 +732,7 @@ class Rooms {
   // ------------------------------------------------------------------
   // GM: Spiel starten (nur wenn jedes Team >= 1 Mitglied)
   // ------------------------------------------------------------------
-  startGame({ gameId, gmCode, sock }) {
+  startGame({ gameId, gmCode, sock, confirmEmpty }) {
     const gameRow = dbm.getGame(gameId);
     if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
     const codeRow = dbm.getCode(String(gmCode || '').toUpperCase());
@@ -703,8 +744,33 @@ class Rooms {
     // jedes Team braucht >=1 Mitglied
     const players = dbm.getPlayers(gameId) || [];
     const empty = teams.filter((t) => players.filter((p) => p.teamId === t.teamId).length === 0);
+    const alreadyStarted = !!gameRow.started;
+    // (2m P12) Fortsetzen mit leeren Teams: Beim ERSTEN Start blockieren (INCOMPLETE).
+    // Beim Fortsetzen eines pausierten Spiels wird der GM gefragt: (a) warten oder
+    // (b) trotzdem fortsetzen → leere Teams geben automatisch auf (forfeit).
     if (empty.length) {
-      return { error: { code: 'INCOMPLETE', message: 'Noch nicht alle Teams haben mindestens einen Spieler.' } };
+      if (!alreadyStarted) {
+        return { error: { code: 'INCOMPLETE', message: 'Noch nicht alle Teams haben mindestens einen Spieler.' } };
+      }
+      if (!confirmEmpty) {
+        return {
+          error: {
+            code: 'EMPTY_TEAMS',
+            message: 'Nicht alle Teams haben Spieler. Warten oder trotzdem fortsetzen (leere Teams geben auf)?',
+            emptyTeams: empty.map((t) => ({ teamId: t.teamId, ship: t.ship, teamName: t.teamName || ('Team ' + t.ship) }))
+          }
+        };
+      }
+      // GM hat „trotzdem fortsetzen“ gewählt → leere Teams automatisch aufgeben.
+      const forf = G.deserialize(gameRow.state, D);
+      empty.forEach((t) => {
+        const pi = this._piOf(forf, t.teamId);
+        if (pi >= 0 && !forf.players[pi].bankrupt) {
+          forf.forfeitTeam(pi);
+          this.logEngine(gameId, forf, (t.ship || t.teamId) + ' hat keine Spieler mehr — gibt beim Fortsetzen automatisch auf.');
+        }
+      });
+      dbm.updateState(gameId, { state: forf.serialize(), started: 1, over: forf.over ? 1 : 0 });
     }
     // Teamleiter via resolveTeamLeader (stimmbasiert; bei keiner Stimme behält es bestehenden Leader
     // oder wählt zufällig). Danach Votes leeren, damit resumeGame nicht stale Votes auswertet.
@@ -714,9 +780,8 @@ class Rooms {
     });
     teams.forEach((t) => dbm.clearVotes(gameId, t.teamId));
 
-    const engine = G.deserialize(gameRow.state, D);
+    const engine = G.deserialize(dbm.getGame(gameId).state, D);
     engine._started = true;
-    const alreadyStarted = !!gameRow.started;
     // Fortsetzen (bereits gestartetes Spiel): aktiven Spieler NICHT neu würfeln.
     // Nur beim ERSTEN Start den zufälligen Startspieler bestimmen.
     if (!alreadyStarted) {
@@ -725,7 +790,10 @@ class Rooms {
       if (aliveIdx.length) engine.activeIdx = aliveIdx[Math.floor(Math.random() * aliveIdx.length)];
     }
     dbm.setStarted(gameId, true);
-    this.logEngine(gameId, engine, this._gmNameOf(gameId) + ' startet das Spiel.');
+    // (2m P9) Fortsetzen über den „Fortsetzen“-Button beendet die Pause explizit.
+    // Das bloße Öffnen der Lobby (gm:resume) pausiert NICHT fort — nur dieser Button.
+    if (alreadyStarted && dbm.getGame(gameId).paused) dbm.setPaused(gameId, false);
+    this.logEngine(gameId, engine, this._gmNameOf(gameId) + (alreadyStarted ? ' setzt das Spiel fort.' : ' startet das Spiel.'));
     dbm.updateState(gameId, { state: engine.serialize(), started: 1, over: engine.over ? 1 : 0 });
     // (2m-A) Start zählt als Aktivität (verhindert sofortige Auto-Pause).
     dbm.touchActivity(gameId);
@@ -1385,6 +1453,7 @@ class Rooms {
       isGM: true,
       started: !!gameRow.started,
       over: !!gameRow.over,
+      paused: !!gameRow.paused,
       tokens: teams.map((t) => ({ ship: t.ship, teamId: t.teamId, code: t.invite_code }))
     };
   }

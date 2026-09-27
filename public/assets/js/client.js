@@ -1016,11 +1016,20 @@
     if (data.token) client.token = data.token;
     if (data.gameId) client.gameId = data.gameId;
     if (data.playerName) client.playerName = data.playerName;
+    // (2m P11) GM-Code im Beitrittsformular → GM-Sitzung übernehmen.
+    if (data.isGM) {
+      client.isGM = true;
+      if (data.gmCode) client.gmCode = data.gmCode;
+      if (data.role === 'gm' || data.role === 'leader') client.role = data.role;
+      saveGM();
+    }
     saveJoin();
-    if (data.started && !data.over) {
-          // Bereits laufendes Spiel: direkt zur Spiel-Ansicht (state-Broadcast rendert Panels).
-          showView('game');
-          showNotify(data && data.replaced ? 'Login übernommen — Gerätewechsel erfolgreich.' : (data && data.rejoined ? 'Wiedereingetreten — Spiel läuft weiter.' : 'Eingetreten — das Spiel läuft bereits.'));
+    // (2m P9) Ein pausiertes Spiel öffnet NUR die Lobby — das Spiel wird NICHT
+    // fortgesetzt. Erst der „Fortsetzen“-Button (gm:start) lädt die Spieleansicht.
+    if (data.started && !data.over && !data.paused) {
+      // Bereits laufendes Spiel: direkt zur Spiel-Ansicht (state-Broadcast rendert Panels).
+      showView('game');
+      showNotify(data && data.replaced ? 'Login übernommen — Gerätewechsel erfolgreich.' : (data && data.rejoined ? 'Wiedereingetreten — Spiel läuft weiter.' : 'Eingetreten — das Spiel läuft bereits.'));
       // Der state-Broadcast kann VOR dem joined-Event ankommen (Rejoin-Reihenfolge).
       // Rendere aus dem gecachten Zustand neu, damit teamId gesetzt ist und das
       // Team-Panel nicht fälschlich als „Beobachter" erscheint.
@@ -1032,7 +1041,7 @@
       renderActionBar(client.lastState);
     } else {
       showView('lobby');
-      showNotify(data && data.rejoined ? 'Wiedereingetreten — Lobby geladen.' : 'Eingetreten — Lobby geladen.');
+      showNotify(data && data.rejoined ? 'Wiedereingetreten — Lobby geladen.' : (data && data.paused ? 'Pausiertes Spiel — Lobby geöffnet. Das Spiel wird erst mit „Fortsetzen“ fortgesetzt.' : 'Eingetreten — Lobby geladen.'));
       // Lobby sofort rendern, damit teamId/role gesetzt sind und Vote-Buttons sichtbar werden.
       // Analog zum Rejoin-Muster im started-Zweig (Zeile ~864-866).
       if (client.lastState && client.lastState.gameId === client.gameId) {
@@ -1996,7 +2005,9 @@
       showNotify('Spiel beendet. Gewinner: ' + winner);
       return;
     }
-    if (st.started) {
+    // (2m P9) Ein pausiertes Spiel zeigt die LOBBY (Teams sammeln sich) — die
+    // Spieleansicht lädt erst, wenn der GM das Spiel mit „Fortsetzen“ fortsetzt.
+    if (st.started && !st.paused) {
       client.renderGameUI(st);
     } else {
       showView('lobby');
@@ -2177,7 +2188,30 @@
 
   socket.on('error', (err) => {
     console.error('[client.js] error vom Server', err && (err.code || '') , err && (err.message || err.error || ''));
-    const msg = (err && (err.message || err.error)) || 'Unbekannter Fehler (' + ((err && err.code) || '') + ')';
+    const code = err && (err.code || '');
+    // (2m P12) Fortsetzen mit leeren Teams: GM wird gefragt — (a) warten oder
+    // (b) trotzdem fortsetzen (leere Teams geben automatisch auf).
+    if (code === 'EMPTY_TEAMS') {
+      const teams = (err && Array.isArray(err.emptyTeams)) ? err.emptyTeams : [];
+      const names = teams.map((t) => (t && (t.teamName || t.ship)) || 'Team').join(', ');
+      openModal({
+        title: 'Leere Teams beim Fortsetzen',
+        icon: '⚠️',
+        body: '<p>Nicht alle Teams haben Spieler' + (names ? ' (<strong>' + esc(names) + '</strong>)' : '') + '.</p>' +
+          '<ul><li><strong>Warten</strong> — die Lobby bleibt offen, bis alle Teams Spieler haben.</li>' +
+          '<li><strong>Trotzdem fortsetzen</strong> — leere Teams geben automatisch auf (Forfeit).</li></ul>',
+        confirmText: 'Trotzdem fortsetzen',
+        cancelText: 'Warten',
+        confirmClass: 'btn-danger',
+        onConfirm: () => {
+          console.log('[client.js] gm:start mit confirmEmpty (leere Teams geben auf)');
+          socket.emit('gm:start', { gameId: client.gameId, gmCode: client.gmCode, confirmEmpty: true });
+        },
+        onCancel: () => { /* Warten: Lobby bleibt offen */ }
+      });
+      return;
+    }
+    const msg = (err && (err.message || err.error)) || 'Unbekannter Fehler (' + code + ')';
     showNotify(msg);
     if (window.__notifyEl) window.__notifyEl.classList.add('is-error');
   });
@@ -2500,8 +2534,11 @@
         if (!code) { showNotify('GM-Code eingeben.'); return; }
         client.gmCode = code.toUpperCase();
         client.isGM = true; client.role = 'gm';
-        socket.emit('gm:resumegame', { gameId: game.gameId, gmCode: client.gmCode });
-        showNotify('Spiel wird fortgesetzt…');
+        // (2m P9) Öffnen eines pausierten Spiels öffnet NUR die Lobby (gm:resume) —
+        // das Spiel wird NICHT fortgesetzt. Fortsetzen passiert erst über den
+        // „Fortsetzen“-Button in der Lobby (gm:start).
+        socket.emit('gm:resume', { gameId: game.gameId, gmCode: client.gmCode });
+        showNotify('Pausiertes Spiel geöffnet — Lobby geladen. Fortsetzen über den Button in der Lobby.');
       },
       onOpen: () => {
         const body = $('stp-modal');
