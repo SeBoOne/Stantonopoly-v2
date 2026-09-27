@@ -497,6 +497,20 @@ body.view-game .actionbar { display: flex; }
 .modal-body { display: flex; flex-direction: column; gap: 14px; }
 .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 .modal-btns .btn-xs { padding: 10px 18px; font-size: 11px; }
+/* (2m-E) Sieger-Modal: Platzierung (Sieger → erster Ausscheider) */
+.rk-head { font: 600 11px/1 ui-monospace, monospace; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--fg-faint); }
+.rk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.rk-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  background: var(--panel-2); border: 2px solid var(--line); }
+.rk-row.rk-winner { border-color: var(--accent); background: linear-gradient(120deg, var(--panel-2), var(--panel)); }
+.rk-place { font: 700 16px/1 ui-monospace, monospace; color: var(--accent); min-width: 26px; }
+.rk-dot { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+.rk-name { flex: 1 1 auto; color: var(--fg); font-size: 14px; }
+.rk-name small { color: var(--fg-faint); }
+.rk-status { color: var(--fg-dim); font-size: 12px; white-space: nowrap; }
+.rk-row.rk-winner .rk-status { color: var(--accent-hi); }
+.rk-empty { color: var(--fg-faint); font-size: 13px; padding: 8px 0; }
 .join-modal-row { display: flex; flex-direction: column; gap: 7px; }
 .join-modal-row span { color: var(--fg-faint); font: 600 10px/1 ui-monospace, monospace; letter-spacing: .14em;
   text-transform: uppercase; }

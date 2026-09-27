@@ -2008,8 +2008,7 @@
 
     if (st.over) {
       client.renderGameUI(st);
-      const winner = st.winnerInfo ? (st.winnerInfo.name || st.winnerInfo.teamName || st.winnerInfo) : '';
-      showNotify('Spiel beendet. Gewinner: ' + winner);
+      showWinnerModal(st);
       return;
     }
     // (2m P9) Ein pausiertes Spiel zeigt die LOBBY (Teams sammeln sich) — die
@@ -2022,6 +2021,55 @@
       renderLog(st.log);
     }
   });
+
+  // (2m-E) Sieger-Modal mit Platzierung (Sieger → erster Ausscheider).
+  // Blockierend, für Spieler UND Zuschauer. Nutzt die vom Server ergänzte
+  // `ranking`-Liste (st.ranking); Fallback: aus st.game.players ableiten.
+  function showWinnerModal(st) {
+    if ($('stp-modal')) closeModal({ runCancel: false });
+    const winner = st.winnerInfo ? (st.winnerInfo.name || st.winnerInfo.teamName || st.winnerInfo) : '';
+    let ranking = Array.isArray(st.ranking) ? st.ranking : [];
+    if (!ranking.length && st.game && Array.isArray(st.game.players)) {
+      const winnerId = st.winnerInfo ? st.winnerInfo.id : null;
+      const alive = [];
+      const out = [];
+      st.game.players.forEach((p, i) => {
+        const meta = (st.teams && st.teams[i]) || {};
+        const entry = {
+          name: p.name || meta.teamName || ('Team ' + (i + 1)),
+          ship: meta.ship || '',
+          color: meta.color || '',
+          teamName: meta.teamName || p.name || ('Team ' + (i + 1)),
+          bankrupt: !!p.bankrupt,
+          winner: !!p.winner || (winnerId != null && String(p.id) === String(winnerId)),
+          budget: (typeof p.budget === 'number') ? p.budget : 0
+        };
+        if (entry.winner) alive.unshift(entry);
+        else if (!p.bankrupt) alive.push(entry);
+        else out.push(entry);
+      });
+      ranking = alive.concat(out).map((e, i) => Object.assign(e, { place: i + 1 }));
+    }
+    const rows = ranking.map((r) => {
+      const medal = r.place === 1 ? '🏆' : (r.place === 2 ? '🥈' : (r.place === 3 ? '🥉' : ''));
+      const status = r.winner ? 'Sieger' : (r.bankrupt ? 'ausgeschieden' : 'aktiv');
+      const colorDot = r.color ? '<span class="rk-dot" style="background:' + r.color + '"></span>' : '';
+      return '<div class="rk-row' + (r.winner ? ' rk-winner' : '') + '">' +
+        '<span class="rk-place">' + r.place + '.</span>' +
+        colorDot +
+        '<span class="rk-name">' + esc(r.teamName || r.name || '?') + (r.ship ? ' <small>(' + esc(r.ship) + ')</small>' : '') + '</span>' +
+        '<span class="rk-status">' + medal + ' ' + status + '</span>' +
+        '</div>';
+    }).join('');
+    openModal({
+      title: '🏆 Spiel beendet — Sieger: ' + esc(winner || '?'),
+      icon: '🏆',
+      body: '<div class="rk-head">Platzierung (Sieger → erster Ausscheider)</div>' +
+        '<div class="rk-list">' + (rows || '<div class="rk-empty">Keine Platzierung verfügbar.</div>') + '</div>',
+      confirmText: null,
+      cancelText: 'Schließen'
+    });
+  }
 
   // Spielansicht einmal rendern (Brett, Players, Aktionen, Log).
   // Wird bei jedem state und nach joined/rejoin aufgerufen (teamId ist dann gesetzt,

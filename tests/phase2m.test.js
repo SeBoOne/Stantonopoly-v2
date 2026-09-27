@@ -210,5 +210,40 @@ test('2m-A Wire: lange pausiertes Spiel wird automatisch beendet, Sieger = reich
   assert.equal(os.winnerInfo.name, engine.players[0].name, 'Sieger = reichstes Team (Team0)');
 
   const gRow = dbMod.getGame(ev.gameId);
-  assert.equal(gRow.over, 1, 'DB: over=1');
-});
+    assert.equal(gRow.over, 1, 'DB: over=1');
+  });
+
+  // ---------------------------------------------------------------------
+  // (2m-E) Sieger-Modal: Server ergänzt die Platzierung (Sieger → erster
+  // Ausscheider) in buildView.ranking.
+  // ---------------------------------------------------------------------
+  test('2m-E Unit: buildView.ranking listet Sieger zuerst, dann ausgeschiedene Teams', () => {
+    const { buildView } = require(path.join(__dirname, '..', 'server', 'rooms.js'));
+    const g = makeGame([
+      { name: 'Team A', ship: 'Redeemer' },
+      { name: 'Team B', ship: 'Hammerhead' },
+      { name: 'Team C', ship: 'Reclaimer' },
+      { name: 'Team D', ship: 'Caterpillar' }
+    ], { capital: 1000000 });
+    // D gewinnt (letzter Aktiver); A, B, C sind ausgeschieden.
+    g.players[0].bankrupt = true;
+    g.players[1].bankrupt = true;
+    g.players[2].bankrupt = true;
+    g.over = true;
+    g.winnerInfo = g.players[3];
+    g.players[3].winner = true;
+    const teams = g.players.map((p, i) => ({
+      teamId: 'team_' + i, ship: p.ship, color: '#fff', teamName: p.name
+    }));
+    const view = buildView({ gameId: 'G1', game: g, teams, leaders: [] });
+    assert.ok(Array.isArray(view.ranking), 'ranking ist ein Array');
+    assert.equal(view.ranking.length, 4, 'alle 4 Teams gelistet');
+    assert.equal(view.ranking[0].place, 1, 'Platz 1 = Sieger');
+    assert.equal(view.ranking[0].winner, true, 'Platz 1 ist der Sieger');
+    assert.equal(view.ranking[0].name, 'Team D', 'Sieger = Team D');
+    // Ausgeschiedene folgen in Team-Reihenfolge (A, B, C).
+    assert.deepStrictEqual(view.ranking.slice(1).map((r) => r.name), ['Team A', 'Team B', 'Team C'],
+      'Reihenfolge nach dem Sieger: A, B, C');
+    assert.equal(view.ranking[3].bankrupt, true, 'Letzter Platz ist ausgeschieden');
+    assert.equal(view.ranking[3].place, 4, 'Letzter Platz = 4.');
+  });
