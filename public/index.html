@@ -211,6 +211,24 @@
                   </label>
                 </div>
               </div>
+              <!-- (Piratensystem) Piraten-Modus -->
+              <div class="settings-group" id="pirate-settings-group">
+                <div class="settings-group-title">Piraten</div>
+                <div class="settings-grid">
+                  <label class="settings-row chk">
+                    <input id="s-pirates-enabled" type="checkbox" title="Fügt ein zusätzliches (nicht gewinnbares) Team „Piraten“ hinzu, das über das Board zieht und den Teams Schutzgeld/Flucht-Begegnungen aufzwingt." />
+                    <span>Piraten aktivieren (zusätzliches Team)</span>
+                  </label>
+                  <label class="settings-row"><span class="t-lbl">Piraten-Würfel</span>
+                    <select id="s-pirate-dice">
+                      <option value="1w6">1W6</option>
+                      <option value="2w6">2W6</option>
+                    </select>
+                  </label>
+                  <label class="settings-row"><span class="t-lbl">Schutzgeld</span><input id="s-pirate-fee" type="number" min="0" step="1000" placeholder="250000" title="Höhe des Schutzgelds, das ein Team bei einer Begegnung zahlen kann (aUEC)." /></label>
+                  <label class="settings-row"><span class="t-lbl">Erwischt-Faktor</span><input id="s-pirate-caught-mult" type="number" min="1" step="1" placeholder="2" title="Faktor, mit dem das Schutzgeld multipliziert wird, wenn das Team beim Fluchtversuch erwischt wird (z. B. 2 = doppelt)." /></label>
+                </div>
+              </div>
             </div>
           </div>
         </div>

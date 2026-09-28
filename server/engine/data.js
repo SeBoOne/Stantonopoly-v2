@@ -74,13 +74,19 @@ const DEFAULT_SETTINGS = {
   // (2k #5 → 2m #13) Monopoly-Bauregel aufgeteilt in zwei unabhängige Regeln:
   //  - buildGroupOwnership: nur ausbauen, wenn man die ganze Farbgruppe besitzt.
   //  - buildGroupEven:      gleichmäßig ausbauen/abbauen (max − min ≤ 1 Stufe).
-  // buildGroupEven ist nur in Verbindung mit buildGroupOwnership aktivierbar;
+  // (2m #13) / buildGroupEven ist nur in Verbindung mit buildGroupOwnership aktivierbar;
   // buildGroupOwnership kann auch allein stehen. Default: beide an.
   buildGroupOwnership: true,
   buildGroupEven: true,
   // (Aufgabenregel) Nach Kauf/Ausbau muss das Team eine Aufgabe erledigen,
   // bevor sein Zug wieder freigeschaltet wird. Default: aus (Verhalten wie bisher).
-  tasksEnabled: false
+  tasksEnabled: false,
+  // (Piratensystem) Optionale Begegnungs-Mechanik. ALLE Default = aus/inaktiv,
+  // sodass ohne Pirates EXAKT bisheriges Verhalten gilt.
+  piratesEnabled: false,
+  pirateDice: '1w6',      // eigene Würfel der Piraten ('1w6'|'2w6')
+  pirateProtectionFee: 250000, // Schutzgeld-Höhe (aUEC)
+  pirateCaughtMult: 2     // Faktor, wenn das Team erwischt wird (z.B. 2 = doppelt)
 };
 
 // ---------------------------------------------------------------------------

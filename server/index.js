@@ -351,13 +351,18 @@ io.on('connection', (socket) => {
     'trade:respond': 'offerRespond',
     'auction:start': 'auctionStart',
     'auction:bid': 'auctionBid',
-    'auction:resolve': 'auctionResolve'
+    'auction:resolve': 'auctionResolve',
+    'pirate:resolve': 'actionPirateResolve',
+    'pirate:confirm': 'actionPirateConfirm',
+    'pirate:advance': 'actionPirateAdvance'
   };
   Object.keys(ACTION).forEach((eventName) => {
     const method = ACTION[eventName];
     socket.on(eventName, (data) => {
       try {
         const gameId = (data && data.gameId) || '';
+        const gmCode = (data && data.gmCode) || '';
+        const verdict = (data && data.verdict) || '';
         const field = (data && data.field != null && data.field !== '') ? data.field : undefined;
         const playerId = (data && data.playerId) || '';
         const buyerIdx = (data && data.buyerIdx != null && data.buyerIdx !== '') ? data.buyerIdx : undefined;
@@ -369,7 +374,7 @@ io.on('connection', (socket) => {
         const accept = (data && data.accept != null && data.accept !== '') ? data.accept : undefined;
         const agree = (data && data.agree != null && data.agree !== '') ? data.agree : undefined;
         const choice = (data && data.choice != null && data.choice !== '') ? data.choice : undefined;
-        const ret = rooms[method]({ gameId, field, playerId, buyerIdx, price, kind, targetIdx, offerId, amount, accept, agree, choice, sock: socket });
+        const ret = rooms[method]({ gameId, gmCode, verdict, field, playerId, buyerIdx, price, kind, targetIdx, offerId, amount, accept, agree, choice, sock: socket });
         handleResult(ret);
       } catch (e) { error('SERVER', String((e && e.message) || e)); }
     });

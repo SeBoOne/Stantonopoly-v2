@@ -301,6 +301,11 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .bb-v { font: 700 30px/1 ui-monospace, monospace; color: var(--accent-hi); }
 .bb-w { font-size: 14px; color: var(--fg-dim); }
 .bb-stat.is-timer { display: flex; flex-direction: column; gap: 5px; }
+/* (Piratensystem) Weltweites Banner, solange der Piraten-Modus aktiv ist */
+.pirate-banner { display: block; width: 100%; margin-top: 6px; padding: 8px 14px;
+  background: linear-gradient(90deg, rgba(123,47,0,.25), rgba(180,52,22,.18));
+  color: var(--alert); border: 1px solid rgba(255,122,106,.45);
+  font: 600 13px/1.3 ui-monospace, monospace; border-radius: 8px; }
 
 /* Eigene-Zug-Auszeichnung in der Boardbar (Pulse-Rahmen + Hinweis) */
 .bb-myturn { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); animation: bbPulse 1.1s ease-in-out infinite; }
