@@ -110,8 +110,11 @@
           </div>
           <div id="manager-bar" class="manager-bar">
             <span class="t-lbl">Manager</span>
-            <input id="mgr-code-input" type="text" maxlength="12" placeholder="Manager-Code" autocomplete="off" spellcheck="false" />
-            <button type="button" id="btn-mgr-auth" class="btn btn-xs btn-ghost">Aktivieren</button>
+            <div id="mgr-input-row">
+              <input id="mgr-code-input" type="text" maxlength="12" placeholder="Manager-Code" autocomplete="off" spellcheck="false" />
+              <button type="button" id="btn-mgr-auth" class="btn btn-xs btn-ghost">Aktivieren</button>
+            </div>
+            <button type="button" id="btn-mgr-logout" class="btn btn-xs btn-ghost hidden">↩ Abmelden</button>
             <span class="hint" id="mgr-status"></span>
           </div>
           <div id="preset-field-list" class="preset-field-list"></div>

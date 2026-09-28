@@ -336,6 +336,12 @@
         typeSel.appendChild(o);
       });
       typeSel.addEventListener('change', () => { f.type = typeSel.value; if (f.type !== 'grundstueck') delete f.group; renderFields(); });
+      // QA-Fix (Admin-Editor): los/ereignis/gundo/steuer/gefangnis brauchen ein Betrags-
+      // Eingabefeld (Bonus/Fee/Lösegeld) + passendes 8-spaltiges Grid (has-extra).
+      const isBetragFeld = ['los', 'ereignis', 'gundo', 'steuer', 'gefangnis'].indexOf(f.type) !== -1;
+      if (isBetragFeld) row.classList.add('has-extra');
+      // Frei Parken: weder Gruppen-Select (nur Grundstücke) noch Betrag → schmales Grid.
+      if (f.type === 'freiparken') row.classList.add('is-plain');
       const nameIn = document.createElement('input');
       nameIn.type = 'text'; nameIn.value = f.name || ''; nameIn.placeholder = 'Name';
       nameIn.addEventListener('input', () => { f.name = nameIn.value; });
@@ -345,6 +351,35 @@
       priceIn.placeholder = 'Preis';
       priceIn.disabled = f.type !== 'grundstueck';
       priceIn.addEventListener('input', () => { f.price = Number(priceIn.value) || 0; });
+      // Betrags-Eingabe für Sonder-Felder (spiegelt den Spiel-Editor 1:1):
+      // Los = Bonuszahlung, Ereignis/Gundo = Gebühr (negativ = Bonus),
+      // Steuer = fester Betrag, Gefängnis = Lösegeld.
+      let betragIn = null;
+      if (isBetragFeld) {
+        betragIn = document.createElement('input');
+        betragIn.type = 'number'; betragIn.step = '10000';
+        betragIn.min = (f.type === 'ereignis' || f.type === 'gundo') ? '' : 0;
+        betragIn.value = typeof f.fee === 'number' ? f.fee : (typeof f.bonus === 'number' ? f.bonus : '');
+        if (f.type === 'los') {
+          betragIn.placeholder = 'Los-Bonus*';
+          betragIn.title = 'Betrag beim Überqueren/Landen auf Orison (Los)';
+        } else if (f.type === 'ereignis' || f.type === 'gundo') {
+          betragIn.placeholder = 'Gebühr/Bonus*';
+          betragIn.title = 'Ereignis-Effekt bei Landung: Gebühr (positiv) oder Bonus (negativ)';
+        } else if (f.type === 'steuer') {
+          betragIn.placeholder = 'Betrag*';
+          betragIn.title = 'Steuer-Betrag an die Bank bei Landung';
+        } else {
+          betragIn.placeholder = 'Lösegeld*';
+          betragIn.title = 'Gefängnis-Lösegeld: wird bei Landung gezahlt, um frei zu kommen';
+        }
+        betragIn.addEventListener('input', () => {
+          const v = Number(betragIn.value);
+          const n = Number.isFinite(v) ? v : 0;
+          if (f.type === 'los') f.bonus = n;
+          else f.fee = n;
+        });
+      }
       // Farbgruppe (nur Grundstücke)
       let grpSel = null;
       if (f.type === 'grundstueck') {
@@ -367,6 +402,7 @@
       const del = document.createElement('button'); del.type = 'button'; del.className = 'btn btn-xs btn-ghost del'; del.textContent = '✕';
       del.addEventListener('click', () => { editingFields.splice(i, 1); renderFields(); });
       row.appendChild(idx); row.appendChild(typeSel); row.appendChild(nameIn); row.appendChild(priceIn);
+      if (betragIn) row.appendChild(betragIn);
       if (grpSel) row.appendChild(grpSel);
       row.appendChild(up); row.appendChild(dn); row.appendChild(del);
       list.appendChild(row);

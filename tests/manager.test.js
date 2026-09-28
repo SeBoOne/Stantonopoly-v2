@@ -144,6 +144,33 @@ test('P4b: manager:auth → save ok; builtin per Socket NIE überschreibbar; Log
   assert.ok(saved, 'Preset gespeichert');
   assert.strictEqual(saved.fields[1].price, 200000);
 
+  // QA-Fix (Punkt 1): Betrags-Felder (fee/bonus) für Los/Ereignis/Steuer/Gefängnis
+  // werden über preset:save sauber persistiert.
+  const pre2 = once(c, 'presets');
+  c.emit('preset:save', { name: 'mgr-preset-2', fields: [
+    { type: 'los', name: 'Los', bonus: 30000 },
+    { type: 'ereignis', name: 'Ereignis', fee: 50000 },
+    { type: 'steuer', name: 'Steuer', fee: 25000 },
+    { type: 'gefangnis', name: 'Klescher', fee: 75000 }
+  ] });
+  await pre2;
+  const s2 = dbm.getPreset('mgr-preset-2');
+  assert.ok(s2, 'Betrag-Preset gespeichert');
+  assert.strictEqual(s2.fields.find((f) => f.type === 'los').bonus, 30000, 'Los-Bonus persistiert');
+  assert.strictEqual(s2.fields.find((f) => f.type === 'ereignis').fee, 50000, 'Ereignis-Fee persistiert');
+  assert.strictEqual(s2.fields.find((f) => f.type === 'steuer').fee, 25000, 'Steuer-Betrag persistiert');
+  assert.strictEqual(s2.fields.find((f) => f.type === 'gefangnis').fee, 75000, 'Gefängnis-Lösegeld persistiert');
+
+  // QA-Fix (Punkt 2): manager:logout setzt Rechte zurück → save danach wieder FORBIDDEN.
+  const lgP = once(c, 'manager:auth-ok');
+  c.emit('manager:logout', {});
+  const lg = await lgP;
+  assert.strictEqual(lg.name, null, 'Logout bestätigt (name null)');
+  const eOut = once(c, 'error').catch(() => ({}));
+  c.emit('preset:save', { name: 'nach-logout', fields: [{ type: 'los', name: 'X' }] });
+  const eOutR = await eOut;
+  assert.strictEqual(eOutR.code, 'FORBIDDEN', 'nach Logout kein Speichern mehr');
+
   // builtin per Socket NICHT überschreiben (nur Admin)
   const e3 = once(c, 'error').catch(() => ({}));
   c.emit('preset:save', { name: 'Crusader Cluster', fields: [{ type: 'los', name: 'MUTED' }] });
@@ -158,6 +185,8 @@ test('P4b: manager:auth → save ok; builtin per Socket NIE überschreibbar; Log
 
   c.disconnect(true);
   dbm.deletePreset('mgr-preset');
+  dbm.deletePreset('mgr-preset-2');
+  dbm.deletePreset('nach-logout');
   dbm.deleteManagerCode('QA-MGR-8X');
 });
 

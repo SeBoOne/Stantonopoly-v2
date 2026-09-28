@@ -696,31 +696,41 @@
         ['btn-preset-save', 'btn-preset-delete', 'btn-preset-new'].forEach((id) => {
           const b = $(id); if (b) b.classList.toggle('hidden', !mgr);
         });
+        // QA-Fix: Nach erfolgreicher Auth wird die Code-Eingabe ausgeblendet und
+        // durch einen Abmelden-Button ersetzt (der Code-Fokus hätte keinen Sinn mehr).
+        const inputRow = $('mgr-input-row');
+        if (inputRow) inputRow.classList.toggle('hidden', mgr);
+        const logoutBtn = $('btn-mgr-logout');
+        if (logoutBtn) logoutBtn.classList.toggle('hidden', !mgr);
         const st = $('mgr-status');
         if (st) st.textContent = mgr ? ('Aktiv: ' + managerName) : 'Standardmodus — Änderungen gelten nur für dieses Spiel.';
       }
       function bindManager() {
-        const btn = $('btn-mgr-auth');
         const inp = $('mgr-code-input');
-        if (!btn || !inp) return;
-        btn.addEventListener('click', () => {
-          const code = (inp.value || '').trim();
+        const authBtn = $('btn-mgr-auth');
+        const logoutBtn = $('btn-mgr-logout');
+        if (!authBtn) return;
+        authBtn.addEventListener('click', () => {
+          const code = (inp ? inp.value : '').trim();
           if (!code) { showNotify('Bitte Manager-Code eingeben.'); return; }
-          if (isManager()) {
-            // Bereits aktiv → Modus zurücksetzen (deaktivieren)
-            managerName = null; inp.value = '';
-            renderManagerMode();
-            showNotify('Manager-Modus beendet.');
-            return;
-          }
           socket.emit('manager:auth', { code });
         });
-        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+        if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') authBtn.click(); });
+        // Abmelden: Manager-Rechte auf diesem Socket zurücksetzen.
+        if (logoutBtn) logoutBtn.addEventListener('click', () => {
+          managerName = null;
+          if (inp) inp.value = '';
+          socket.emit('manager:logout', {});
+          renderManagerMode();
+          showNotify('Manager-Modus beendet.');
+        });
       }
       socket.on('manager:auth-ok', (d) => {
-        managerName = (d && d.name) ? d.name : 'Manager';
+        // name null/leer = Abmeldung bestätigt; sonst Manager aktiv.
+        managerName = (d && d.name) ? d.name : null;
         renderManagerMode();
-        showNotify('Manager-Modus aktiv: ' + managerName);
+        if (managerName) showNotify('Manager-Modus aktiv: ' + managerName);
+        else showNotify('Manager-Modus beendet.');
       });
       socket.on('error', (err) => {
         // P4: falscher Manager-Code sichtbar melden; andere Fehler stumm (Server verarbeitet diese sowieso).

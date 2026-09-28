@@ -116,6 +116,14 @@ io.on('connection', (socket) => {
     socket.emit('manager:auth-ok', { name: mc.name });
   });
 
+  // Manager auf diesem Socket abmelden (Rechte zurücksetzen + Audit-Log).
+  socket.on('manager:logout', () => {
+    const was = socket.data.managerName;
+    socket.data.managerName = null;
+    if (was) dbm.logAdmin('manager_logout', was, 'Manager abgemeldet (Spiel-Socket)');
+    socket.emit('manager:auth-ok', { name: null });
+  });
+
   function requireManager(errCode, errMsg) {
     const m = socket.data.managerName;
     if (!m) { error(errCode || 'FORBIDDEN', errMsg || 'Nur als Manager möglich — stelle dir per Code eine Manager-Berechtigung.'); return null; }
