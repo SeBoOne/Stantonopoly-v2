@@ -102,24 +102,49 @@ io.on('connection', (socket) => {
   });
 
   // ---------- Preset-Verwaltung (Setup: eigene Karten) ----------
+  // P4b: Ein Spieler kann sich als Manager authentifizieren (Code von Admin vergeben).
+  // Ab dann darf der Socket Presets permanent speichern/löschen (erweiterte Rechte).
+  socket.on('manager:auth', (data) => {
+    const code = String((data && data.code) || '').trim().toUpperCase();
+    const mc = code ? dbm.getManagerCode(code) : null;
+    if (!mc) {
+      error('BAD_MANAGER_CODE', 'Ungültiger Manager-Code.');
+      return;
+    }
+    socket.data.managerName = mc.name;
+    dbm.logAdmin('manager_login', mc.name, 'Manager eingeloggt (Spiel-Socket)');
+    socket.emit('manager:auth-ok', { name: mc.name });
+  });
+
+  function requireManager(errCode, errMsg) {
+    const m = socket.data.managerName;
+    if (!m) { error(errCode || 'FORBIDDEN', errMsg || 'Nur als Manager möglich — stelle dir per Code eine Manager-Berechtigung.'); return null; }
+    return m;
+  }
+
   socket.on('preset:list', () => {
     try {
-      socket.emit('presets', { presets: dbm.listPresets() });
+      // Deaktivierte Presets in der SPIEL-Auswahl ausblenden (nur active).
+      socket.emit('presets', { presets: dbm.listPresets().filter((p) => p.enabled !== false) });
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
 
   socket.on('preset:save', (data) => {
     try {
+      // P4a: permanentes Speichern NICHT für normale Nutzer — nur Manager.
+      const mgr = requireManager();
+      if (!mgr) return;
       if (!data || !data.name || !Array.isArray(data.fields)) {
         error('BAD_PRESET', 'Preset braucht einen Namen und ein Felder-Array.');
         return;
       }
       const name = String(data.name).trim().slice(0, 40);
       if (!name) { error('BAD_PRESET', 'Ungültiger Preset-Name.'); return; }
-      // Eingebaute Presets nicht überschreiben
       const existing = dbm.getPreset(name);
+      // Builtin-Presets sind NUR über die Admin-Oberfläche bearbeitbar (P1),
+      // nie über den Spiel-Setup-Editor — auch nicht als Manager.
       if (existing && existing.builtin) {
-        error('FORBIDDEN', 'Eingebautes Preset kann nicht überschrieben werden.');
+        error('FORBIDDEN', 'Eingebaute Presets werden über die Admin-Oberfläche verwaltet und können hier nicht überschrieben werden.');
         return;
       }
       // levelNames optional: übernommene Stufenbezeichnungen ({ALLEIN, CYCLONE, ...})
@@ -129,7 +154,6 @@ io.on('connection', (socket) => {
       let settings = (data && data.settings && typeof data.settings === 'object')
         ? data.settings : null;
       if (settings && typeof settings === 'object') {
-        // leere Einstellungsobjekte herausfiltern (nur etwas-füllende speichern)
         const hasContent = Object.keys(settings).some((k) => {
           const v = settings[k];
           if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0;
@@ -137,21 +161,38 @@ io.on('connection', (socket) => {
         });
         if (!hasContent) settings = null;
       }
-      dbm.upsertPreset({ name, fields: data.fields, builtin: 0, levelNames, settings });
-      socket.emit('presets', { presets: dbm.listPresets() });
+      dbm.upsertPreset({ name, fields: data.fields, builtin: 0, levelNames, settings, enabled: (existing ? existing.enabled : 1) });
+      dbm.logAdmin('save_preset', name, 'Manager: ' + mgr);
+      socket.emit('presets', { presets: dbm.listPresets().filter((p) => p.enabled !== false) });
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
 
   socket.on('preset:delete', (data) => {
     try {
+      // P4a: kein Löschen für normale Nutzer — nur Manager (builtin eh nicht löschbar).
+      const mgr = requireManager();
+      if (!mgr) return;
       if (!data || !data.name) return;
       const existing = dbm.getPreset(String(data.name));
       if (existing && existing.builtin) {
-        error('FORBIDDEN', 'Eingebaute Presets können nicht gelöscht werden.');
+        error('FORBIDDEN', 'Eingebaute Presets können nicht gelöscht werden — verwende stattdessen Deaktivieren.');
         return;
       }
       dbm.deletePreset(String(data.name));
-      socket.emit('presets', { presets: dbm.listPresets() });
+      dbm.logAdmin('delete_preset', String(data.name), 'Manager: ' + mgr);
+      socket.emit('presets', { presets: dbm.listPresets().filter((p) => p.enabled !== false) });
+    } catch (e) { error('SERVER', String((e && e.message) || e)); }
+  });
+
+  socket.on('preset:set-enabled', (data) => {
+    try {
+      // Aktivieren/Deaktivieren nur für Manager (verändert Auswahlsichtbarkeit).
+      const mgr = requireManager();
+      if (!mgr) return;
+      if (!data || !data.name) return;
+      dbm.setPresetEnabled(String(data.name), !!data.enabled);
+      dbm.logAdmin(data.enabled ? 'enable_preset' : 'disable_preset', String(data.name), 'Manager: ' + mgr);
+      socket.emit('presets', { presets: dbm.listPresets().filter((p) => p.enabled !== false) });
     } catch (e) { error('SERVER', String((e && e.message) || e)); }
   });
 

@@ -329,6 +329,10 @@
 
     let presetList = [];          // [{name, builtin}]
     let currentPresetName = 'Crusader Cluster';
+    // (P4) Manager-Status: null solange nicht als Manager authentifiziert.
+    // Der Server erzwingt permanent-Speichern nur mit gültigem Manager-Code (socket.data.managerName).
+    let managerName = null;
+    function isManager() { return !!managerName; }
     // (2j #2) Nach Speichern einzuwerfendes Preset im cfg-preset-Dropdown (vor Server-Ack gesetzt).
     let pendingSelectPreset = null;
     let editingFields = DEFAULT_FIELDS();
@@ -685,6 +689,45 @@
       syncSettingsInputs();
       editorSetName('Crusader Cluster');
       socket.emit('preset:list', {});
+      // (P4) Manager-Modus: ohne Manager-Code sind Save/New/Delete im Standardmodus
+      // ausgeblendet (nur temporäre Bearbeitung für das aktuelle Spiel möglich).
+      function renderManagerMode() {
+        const mgr = isManager();
+        ['btn-preset-save', 'btn-preset-delete', 'btn-preset-new'].forEach((id) => {
+          const b = $(id); if (b) b.classList.toggle('hidden', !mgr);
+        });
+        const st = $('mgr-status');
+        if (st) st.textContent = mgr ? ('Aktiv: ' + managerName) : 'Standardmodus — Änderungen gelten nur für dieses Spiel.';
+      }
+      function bindManager() {
+        const btn = $('btn-mgr-auth');
+        const inp = $('mgr-code-input');
+        if (!btn || !inp) return;
+        btn.addEventListener('click', () => {
+          const code = (inp.value || '').trim();
+          if (!code) { showNotify('Bitte Manager-Code eingeben.'); return; }
+          if (isManager()) {
+            // Bereits aktiv → Modus zurücksetzen (deaktivieren)
+            managerName = null; inp.value = '';
+            renderManagerMode();
+            showNotify('Manager-Modus beendet.');
+            return;
+          }
+          socket.emit('manager:auth', { code });
+        });
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+      }
+      socket.on('manager:auth-ok', (d) => {
+        managerName = (d && d.name) ? d.name : 'Manager';
+        renderManagerMode();
+        showNotify('Manager-Modus aktiv: ' + managerName);
+      });
+      socket.on('error', (err) => {
+        // P4: falscher Manager-Code sichtbar melden; andere Fehler stumm (Server verarbeitet diese sowieso).
+        if (err && err.code === 'BAD_MANAGER_CODE') showNotify('Ungültiger Manager-Code.', true);
+      });
+      renderManagerMode();
+      bindManager();
       // Preset-Editor-Modal öffnen/schließen
       const openBtn = $('btn-open-preset-editor');
       if (openBtn) openBtn.addEventListener('click', () => { const m = $('preset-modal'); if (m) m.classList.remove('hidden'); bindMonopolyToggles(); syncEvenToggle(); });
@@ -940,10 +983,13 @@
         joinBtn.textContent = 'Mitspielen';
         joinBtn.title = 'Als GM in dieses Team eintreten (als Mitglied/Teamleiter mitspielen)';
         joinBtn.addEventListener('click', () => {
-          client.playerName = 'GM';
+          // (QA-Fix P2) GM-Anzeigename statt hartkodiert 'GM' verwenden, damit
+          // der gesetzte GM-Name in der Team-Spielerliste erscheint.
+          const gmPlayName = (client.gmName && String(client.gmName).trim()) ? String(client.gmName).trim() : 'GM';
+          client.playerName = gmPlayName;
           client.gameId = data.gameId;
           client.isGM = true; // bleibt GM
-          socket.emit('team:join', { gameId: data.gameId, code, playerName: 'GM' });
+          socket.emit('team:join', { gameId: data.gameId, code, playerName: gmPlayName });
           showNotify('Du trittst dem Team bei…');
         });
         row.appendChild(joinBtn);
