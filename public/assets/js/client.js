@@ -1433,7 +1433,7 @@
         const f = st.game.fields[o.fieldIdx];
         const verb = o.kind === 'buy' ? ('will dein Feld kaufen') : ('bietet dir seinen Kauf an');
         html += '<div class="trade-row">' +
-          '<span>' + (o.fromName || '?') + ' ' + verb + ': <strong>' + (f && f.name) + '</strong> · ' + fmtUAEC(o.price) + '</span>' +
+          '<span>' + esc(o.fromName || '?') + ' ' + verb + ': <strong>' + esc(f ? f.name : '') + '</strong> · ' + fmtUAEC(o.price) + '</span>' +
           '<div>' +
           '<button type="button" class="btn btn-xs btn-ok" data-offer="' + o.id + '" data-accept="1">Annehmen</button> ' +
           '<button type="button" class="btn btn-xs btn-danger" data-offer="' + o.id + '" data-accept="0">Ablehnen</button>' +
@@ -1446,7 +1446,7 @@
       html += '<div class="trade-head">⏳ Wartet auf Antwort</div>';
       outbound.forEach((o) => {
         const f = st.game.fields[o.fieldIdx];
-        html += '<div class="trade-row"><span>→ ' + (o.targetName || '?') + ' · ' + (f && f.name) + ' · ' + fmtUAEC(o.price) + '</span></div>';
+        html += '<div class="trade-row"><span>→ ' + esc(o.targetName || '?') + ' · ' + esc(f ? f.name : '') + ' · ' + fmtUAEC(o.price) + '</span></div>';
       });
     }
     // Laufende Versteigerung
@@ -1455,8 +1455,8 @@
       const remaining = Math.max(0, auction.endsAt - Date.now());
       const isOwner = auction.ownerIdx === idx;
       const myHighest = auction.highest && auction.highest.playerIdx === idx;
-      html += '<div class="trade-head">🔨 Auktion: <strong>' + (f && f.name) + '</strong></div>';
-      html += '<div class="trade-row"><span>Höchstgebot: ' + (auction.highest ? (st.game.players[auction.highest.playerIdx].name + ' · ' + fmtUAEC(auction.highest.amount)) : '—') + ' · Rest: ' + Math.round(remaining / 1000) + 's</span></div>';
+      html += '<div class="trade-head">🔨 Auktion: <strong>' + esc(f ? f.name : '') + '</strong></div>';
+      html += '<div class="trade-row"><span>Höchstgebot: ' + (auction.highest ? (esc(st.game.players[auction.highest.playerIdx].name) + ' · ' + fmtUAEC(auction.highest.amount)) : '—') + ' · Rest: ' + Math.round(remaining / 1000) + 's</span></div>';
       if (isOwner) {
         html += '<div class="trade-row">' +
           '<button type="button" class="btn btn-xs btn-ok" id="au-me-accept">Vorzeitig akzeptieren</button> ' +
@@ -1722,8 +1722,8 @@
     const ship = meta.ship || meta.shipName || '';
     const budget = p.budget != null ? p.budget : (p.capital != null ? p.capital : p.money != null ? p.money : '—');
     const lines = [
-      meta.teamName || ('Team ' + (idx + 1)),
-      'Schiff: ' + ship,
+      esc(meta.teamName || ('Team ' + (idx + 1))),
+      'Schiff: ' + esc(ship),
       'Rolle: ' + (client.role || '—'),
       'Budget: ' + budget,
       'Position: ' + (p.pos != null ? p.pos : '—'),
@@ -1744,7 +1744,7 @@
             '<select id="leader-candidate">' +
             myPlayers.map((pl) => {
               const pid = pl.playerId != null ? pl.playerId : pl.id;
-              return '<option value="' + pid + '">' + (pl.name || 'Spieler') + '</option>';
+              return '<option value="' + esc(pid) + '">' + esc(pl.name || 'Spieler') + '</option>';
             }).join('') +
             '</select>' +
             '<button type="button" class="btn btn-xs btn-ghost" id="leader-change-btn">Rolle übertragen</button></div>';
@@ -2566,7 +2566,7 @@
       card.className = 'game-card';
       const head = document.createElement('div');
       head.className = 'game-card-head';
-      head.innerHTML = '<strong>' + (g.name || 'Ohne Namen') + ' <span class="game-id">#' + (g.gameId || '') + '</span></strong>' +
+      head.innerHTML = '<strong>' + esc(g.name || 'Ohne Namen') + ' <span class="game-id">#' + esc(g.gameId || '') + '</span></strong>' +
         '<span class="game-status ' + (g.paused ? 'paused' : (g.started ? 'started' : 'lobby')) + '">' +
         (g.over ? 'beendet' : (g.paused ? '⏸ pausiert' : (g.started ? 'läuft' : 'in Lobby'))) + '</span>';
       card.appendChild(head);
@@ -2670,11 +2670,11 @@
     if (list) list.innerHTML = '';
     resBox.classList.remove('hidden');
     const rows = (r && r.players) ? r.players.slice().sort((a, b) => (b.winner ? 1 : 0) - (a.winner ? 1 : 0)) : [];
-    const winnerLine = r && r.winner ? '<div class="result-winner">🏆 Sieger: <strong>' + (r.winner.name || '?') + '</strong></div>' : '';
-    resBox.innerHTML = '<div class="result-title">Endresultat: ' + (r && r.name || '') + '</div>' + winnerLine +
+    const winnerLine = r && r.winner ? '<div class="result-winner">🏆 Sieger: <strong>' + esc(r.winner.name || '?') + '</strong></div>' : '';
+    resBox.innerHTML = '<div class="result-title">Endresultat: ' + esc(r && r.name || '') + '</div>' + winnerLine +
       '<table class="result-table"><thead><tr><th>Team</th><th>Budget</th><th>Liegenschaften</th><th>Status</th></tr></thead><tbody>' +
       rows.map((p) => '<tr>' +
-        '<td>' + (p.winner ? '👑 ' : '') + (p.name || '') + (p.ship ? ' <small>(' + p.ship + ')</small>' : '') + '</td>' +
+        '<td>' + (p.winner ? '👑 ' : '') + esc(p.name || '') + (p.ship ? ' <small>(' + esc(p.ship) + ')</small>' : '') + '</td>' +
         '<td>' + fmtUAEC(p.budget) + '</td>' +
         '<td>' + fmtUAEC(p.fieldValue) + '</td>' +
         '<td>' + (p.bankrupt ? 'bankrott' : (p.winner ? 'Sieger' : 'aktiv')) + '</td></tr>').join('') +
