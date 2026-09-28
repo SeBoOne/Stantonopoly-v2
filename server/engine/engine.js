@@ -317,7 +317,10 @@ const StantonopolyGame = {
         jailTurns: 0,       // verbleibende Züge im Gefängnis (0 = frei)
         insolvent: false,   // Zahlungsrückstand → muss vor Zugende sanieren
         debt: undefined,    // offene Schuld (Zahlungsrückstand)
-        creditorIdx: undefined // wem geschuldet (null = an die Bank)
+        creditorIdx: undefined, // wem geschuldet (null = an die Bank)
+        // (Aufgabenregel) true = dieses Team muss erst seine Aufgabe erledigen,
+        // bevor es wieder würfeln/kaufen/verkaufen/bauen etc. darf.
+        taskPending: false
       };
     });
 
@@ -357,6 +360,12 @@ const StantonopolyGame = {
       return { err: 'ALREADY_ROLLED' };
     }
     const p = game.players[game.activeIdx];
+    // (Aufgabenregel) Team mit offener Aufgabe kann nicht würfeln — Zug ist
+    // gesperrt, bis die Aufgabe als erledigt bestätigt wird (taskComplete).
+    if (p.taskPending) {
+      log(game, 'Würfeln nicht möglich: ' + p.name + ' muss erst seine Aufgabe erledigen.');
+      return { err: 'TASK_PENDING' };
+    }
     const cfg = game.diceConfig;
 
     let sum;
@@ -548,6 +557,8 @@ const StantonopolyGame = {
   buy: function (game) {
     const p = game.players[game.activeIdx];
     if (game.over || p.bankrupt) return false;
+    // (Aufgabenregel) Team mit offener Aufgabe kann nicht kaufen.
+    if (p.taskPending) { log(game, p.name + ' kann nicht kaufen — Aufgabe noch offen.'); return false; }
     const idx = p.pos;
     const f = game.fields[idx];
     if (!f || f.type !== 'grundstueck') return false;
@@ -562,7 +573,33 @@ const StantonopolyGame = {
     game.canBuy = false;
     log(game, p.name + ' kauft „' + f.name + '“ für ' + fmt(f.price) + '.');
     this.ledgerPush(game, p, -f.price, 'Kauf „' + f.name + '“');
+    // (Aufgabenregel) Nach einem erfolgreichen Kauf bekommt das Team eine
+    // ausstehende Aufgabe, die es erledigen muss, bevor es wieder ziehen darf.
+    this._setTaskPending(game, p);
     return true;
+  },
+
+  // (Aufgabenregel) Markiert ein Team als "Aufgabe ausstehend", wenn die Regel
+  // aktiv ist. Wenn bereits eine Aufgabe aussteht, bleibt sie bestehen (kein Stapeln).
+  _setTaskPending: function (game, player) {
+    if (!(game.settings && game.settings.tasksEnabled)) return;
+    if (!player || player.taskPending) return;
+    player.taskPending = true;
+    log(game, player.name + ' hat jetzt eine ausstehende Aufgabe (' + (player.task || 'Schiffs-Aufgabe') + ') — erst erledigen, dann weiterspielen.');
+  },
+
+  // (Aufgabenregel) Erledigt die ausstehende Aufgabe (allein per activeIdx oder
+  // per Ziel-Spieler-Index). Ein Team darf seine Aufgabe auch während des Zuges
+  // eines anderen Teams erledigen — der Zug des anderen bleibt unberührt.
+  taskComplete: function (game, targetIdx) {
+    const idx = (Number.isInteger(targetIdx) && targetIdx >= 0 && targetIdx < game.players.length) ? targetIdx : game.activeIdx;
+    const p = game.players[idx];
+    if (!p || !p.taskPending) {
+      return { ok: false, reason: 'no_task' };
+    }
+    p.taskPending = false;
+    log(game, p.name + ' hat seine Aufgabe erledigt (' + (p.task || 'Schiffs-Aufgabe') + ').');
+    return { ok: true };
   },
 
   skip: function (game) {
@@ -606,6 +643,8 @@ const StantonopolyGame = {
   build: function (game, fieldIdx) {
     const p = game.players[game.activeIdx];
     if (game.over || p.bankrupt) return false;
+    // (Aufgabenregel) Team mit offener Aufgabe kann nicht ausbauen.
+    if (p.taskPending) { log(game, p.name + ' kann nicht ausbauen — Aufgabe noch offen.'); return false; }
     const own = p.properties[fieldIdx];
     if (!own) return false;
     const f = game.fields[fieldIdx];
@@ -698,6 +737,9 @@ const StantonopolyGame = {
     p.properties[fieldIdx].level = nextLevel;
     log(game, p.name + ' baut „' + f.name + '“ aus: ' + own.level + ' → ' + nextLevel + ' (Kosten ' + fmt(cost) + ').');
     this.ledgerPush(game, p, -cost, 'Ausbau „' + f.name + '“ (' + nextLevel + ')');
+    // (Aufgabenregel) Nach einem erfolgreichen Ausbau bekommt das Team eine
+    // ausstehende Aufgabe, die es erledigen muss, bevor es wieder weiter kann.
+    this._setTaskPending(game, p);
     return true;
   },
 
@@ -1299,7 +1341,9 @@ const StantonopolyGame = {
           jailBail: (typeof p.jailBail === 'number') ? Math.round(p.jailBail) : undefined,
           insolvent: !!p.insolvent,
           debt: (typeof p.debt === 'number') ? Math.round(p.debt) : undefined,
-          creditorIdx: (typeof p.creditorIdx === 'number') ? p.creditorIdx : undefined
+          creditorIdx: (typeof p.creditorIdx === 'number') ? p.creditorIdx : undefined,
+          // (Aufgabenregel) offene Aufgabe bleibt über Reloads erhalten
+          taskPending: !!p.taskPending
         };
       }),
       activeIdx: raw.activeIdx || 0,

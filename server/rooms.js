@@ -872,6 +872,21 @@ class Rooms {
     return { engine, team, me };
   }
 
+  // (Aufgabenregel) Stoppt Wirtschafts-Aktionen des anfragenden Teams, wenn es eine
+  // offene Aufgabe hat (würfeln ist serverseitig schon in der Engine gesperrt).
+  // Prüft das Team des Sockets (req.team), nicht nur das aktive — ein Team darf
+  // auch dann nichts kaufen/verkaufen/versteigern/bauen, wenn es gerade nicht dran ist,
+  // solange seine Aufgabe offen ist.
+  _taskGuard(req) {
+    if (!req || !req.engine || !req.team) return null;
+    const tid = req.team.teamId;
+    const player = req.engine.players.find((p) => String(p.id) === String(tid));
+    if (player && player.taskPending) {
+      return { error: { code: 'TASK_PENDING', message: 'Team hat noch eine offene Aufgabe — erst bestätigen, dass sie erledigt ist.' } };
+    }
+    return null;
+  }
+
   _persistAndReturn(gameId, engine, started) {
     dbm.updateState(gameId, { state: engine.serialize(), started, over: engine.over ? 1 : 0 });
     dbm.touchGame(gameId);
@@ -891,7 +906,11 @@ class Rooms {
     if (req.error) return req;
     const res = req.engine.roll();
     if (res && res.err) {
-      return { error: { code: res.err, message: 'Es wurde in diesem Zug bereits gewürfelt.' } };
+      const msgs = {
+        ALREADY_ROLLED: 'Es wurde in diesem Zug bereits gewürfelt.',
+        TASK_PENDING: 'Team hat noch eine offene Aufgabe — erst „Aufgabe erledigt“ bestätigen.'
+      };
+      return { error: { code: res.err, message: msgs[res.err] || 'Würfeln nicht möglich.' } };
     }
     const ret = this._persistAndReturn(gameId, req.engine, true);
     ret.roll = res;
@@ -932,12 +951,23 @@ class Rooms {
     return ret;
   }
 
-  // Aufgabe erledigt — Confirmation-Step nach Würfeln (Leader/GM darf bestätigen)
+  // Aufgabe erledigt — (Aufgabenregel) Die eigene ausstehende Aufgabe bestätigen.
+  // Jedes Mitglied des betroffenen Teams darf das tun, auch wenn gerade ein anderes
+  // Team am Zug ist (das Team könnte die SC-Aufgabe mitten im Zug eines anderen fertig haben).
   taskComplete({ gameId, sock }) {
-    const req = this._requireActiveLeader({ gameId, sock });
-    if (req.error) return req;
-    const ret = this._persistAndReturn(gameId, req.engine, true);
+    const gameRow = dbm.getGame(gameId);
+    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+    const me = dbm.getPlayer(sock.id);
+    if (!me || me.gameId !== gameId) return { error: { code: 'NOT_IN_TEAM', message: 'Kein Mitglied.' } };
+    const team = dbm.getTeam(gameId, me.teamId);
+    if (!team) return { error: { code: 'TEAM_GONE', message: 'Team nicht gefunden.' } };
+    const engine = G.deserialize(gameRow.state, D);
+    const player = engine.players.find((p) => String(p.id) === String(team.teamId));
+    if (!player || !player.taskPending) return { error: { code: 'NO_TASK', message: 'Kein Team mit offener Aufgabe.' } };
+    player.taskPending = false;
+    const ret = this._persistAndReturn(gameId, engine, true);
     ret.taskDone = true;
+    ret.teamId = team.teamId;
     return ret;
   }
 
@@ -954,6 +984,8 @@ class Rooms {
   actionBail({ gameId, sock }) {
     const req = this._requireActiveLeader({ gameId, sock });
     if (req.error) return req;
+    // (Aufgabenregel) Gefängnis-Freikauf ist erlaubt — eigene Aufgabe ist unabhängig
+    // (ein Team kann im Gefängnis sitzen UND eine Aufgabe offen haben). Kein Task-Guard hier.
     const r = req.engine.bail();
     if (!r.ok) return { error: { code: 'JAIL', message: 'Freikauf nicht möglich (' + r.reason + ').' } };
     return this._persistAndReturn(gameId, req.engine, true);
@@ -989,6 +1021,8 @@ class Rooms {
   actionMortgage({ gameId, field, sock }) {
     const req = this._requireActiveLeader({ gameId, sock });
     if (req.error) return req;
+    const tg = this._taskGuard(req);
+    if (tg) return tg;
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
     const r = req.engine.mortgage(fieldIdx);
@@ -1005,6 +1039,8 @@ class Rooms {
   actionUnmortgage({ gameId, field, sock }) {
     const req = this._requireLeaderOfTeam({ gameId, sock });
     if (req.error) return req;
+    const tg = this._taskGuard(req);
+    if (tg) return tg;
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
     const r = req.engine.unmortgage(fieldIdx);
@@ -1017,6 +1053,8 @@ class Rooms {
   actionDemolish({ gameId, field, sock }) {
     const req = this._requireLeaderOfTeam({ gameId, sock });
     if (req.error) return req;
+    const tg = this._taskGuard(req);
+    if (tg) return tg;
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
     const r = req.engine.demolish(fieldIdx);
@@ -1286,6 +1324,8 @@ class Rooms {
       ? this._requireActiveLeader({ gameId, sock })
       : this._requireLeaderOfTeam({ gameId, sock });
     if (req.error) return req;
+    const tg = this._taskGuard(req);
+    if (tg) return tg;
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx) || !Number.isInteger(bidx)) {
       return { error: { code: 'BAD_FIELD', message: 'Ungültige Parameter.' } };
@@ -1307,6 +1347,8 @@ class Rooms {
     // (Monopoly: Feld, das beim Landen nicht gekauft wurde, geht in die Auktion).
     const req = this._requireLeaderOfTeam({ gameId, sock });
     if (req.error) return req;
+    const tga = this._taskGuard(req);
+    if (tga) return tga;
     const fieldIdx = Number(field);
     if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
     const f = req.engine.fields[fieldIdx];

@@ -372,6 +372,8 @@
           // (2k #5 → 2m #13) Monopoly-Bauregel in zwei unabhängige Regeln.
           buildGroupOwnership: true,
           buildGroupEven: true,
+          // (Aufgabenregel) Nach Kauf/Ausbau muss das Team seine Aufgabe erledigen.
+          tasksEnabled: false,
           // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s, 0 = aus).
           // Diese Werte sind Game-Pace-Einstellungen und werden beim Start als
           // diceConfig/turnSeconds an den Server übergeben (nicht als Preset-Regel).
@@ -419,6 +421,8 @@
             // (2m #13) Monopoly-Bauregel-Toggles (Besitz + Gleichmäßig)
             { const el = $('s-build-group-owned'); if (el) el.checked = !!currentSettings.buildGroupOwnership; }
             { const el = $('s-build-group-even'); if (el) el.checked = !!(currentSettings.buildGroupEven && currentSettings.buildGroupOwnership); syncEvenToggle(); }
+            // (Aufgabenregel) Kauf/Ausbau setzt eine ausstehende Team-Aufgabe.
+            { const el = $('s-tasks-enabled'); if (el) el.checked = !!currentSettings.tasksEnabled; }
             // (2h#5/#6) Spielablauf: Würfelmodus + Zug-Timer
             { const el = $('s-dice'); if (el) el.value = currentSettings.diceConfig || '1w6'; }
             { const el = $('s-turnsecs'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0))); }
@@ -446,6 +450,8 @@
             // (2m #13) Monopoly-Bauregel-Toggles lesen (Besitz + Gleichmäßig)
             { const mr = $('s-build-group-owned'); if (mr) currentSettings.buildGroupOwnership = !!mr.checked; }
             { const er = $('s-build-group-even'); if (er && currentSettings.buildGroupOwnership) currentSettings.buildGroupEven = !!er.checked; }
+            // (Aufgabenregel) Toggle lesen
+            { const te_ = $('s-tasks-enabled'); if (te_) currentSettings.tasksEnabled = !!te_.checked; }
             // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s)
             { const de = $('s-dice'); if (de && (de.value === '1w6' || de.value === '2w6')) currentSettings.diceConfig = de.value; }
             { const te = $('s-turnsecs'); if (te) currentSettings.turnSeconds = Math.max(0, Math.round(Number(te.value) || 0)); }
@@ -468,6 +474,7 @@
       if (cur.monopolyBuildRule !== base.monopolyBuildRule) { out.buildGroupOwnership = cur.monopolyBuildRule; out.buildGroupEven = cur.monopolyBuildRule; }
       if (cur.buildGroupOwnership !== base.buildGroupOwnership) out.buildGroupOwnership = cur.buildGroupOwnership;
       if (cur.buildGroupEven !== base.buildGroupEven) out.buildGroupEven = cur.buildGroupEven;
+      if (cur.tasksEnabled !== base.tasksEnabled) out.tasksEnabled = cur.tasksEnabled;
       return Object.keys(out).length ? out : null;
     }
 
@@ -631,6 +638,7 @@
       if (typeof src.auctionMs === 'number') s.auctionMs = src.auctionMs;
       if (typeof src.pollMs === 'number') s.pollMs = src.pollMs;
       if (typeof src.armisticeEnabled === 'boolean') s.armisticeEnabled = src.armisticeEnabled;
+      if (typeof src.tasksEnabled === 'boolean') s.tasksEnabled = src.tasksEnabled;
       if (typeof src.monopolyBuildRule === 'boolean') { s.buildGroupOwnership = src.monopolyBuildRule; s.buildGroupEven = src.monopolyBuildRule; }
       if (typeof src.buildGroupOwnership === 'boolean') s.buildGroupOwnership = src.buildGroupOwnership;
       if (typeof src.buildGroupEven === 'boolean') s.buildGroupEven = src.buildGroupEven; // (2m #13)
@@ -1883,14 +1891,18 @@
     // Nur für den Teamleiter des aktiven Teams sind Aktions-Buttons sichtbar.
     // Alle anderen (Mitglieder, Beobachter, andere Teams) sehen keine Aktions-Buttons.
     const showActions = isLeaderOfActive;
+    const activeP = game.players && game.players[idx];
 
     setBtn('btn-roll', showActions && !rolled && !canBuy, showActions && !rolled && !canBuy);
     setBtn('btn-buy', showActions && canBuy, showActions && canBuy);
     setBtn('btn-skip', showActions && canBuy, showActions && canBuy);
-    setBtn('btn-task', showActions, showActions);
+    // (Aufgabenregel) Team mit offener Aufgabe: Würfeln gesperrt, nur "Aufgabe
+    // erledigt" anzeigen. Post dem aktiven Spieler-Zustand.
+    const taskBlock = showActions && activeP && activeP.taskPending === true;
+    if (taskBlock) setBtn('btn-task', true, true);
+    else setBtn('btn-task', showActions, showActions);
     // "Nächster Zug": ausgegraut, solange das aktive Team in Zahlungsrückstand ist
     // (insolvent) — es muss zuerst sanieren, sonst scheidet es am Zugende aus.
-    const activeP = game.players && game.players[idx];
     const insolventBlock = showActions && activeP && activeP.insolvent;
     setBtn('btn-next', showActions && !insolventBlock, showActions && rolled && !insolventBlock);
 
@@ -2227,7 +2239,23 @@
     maybeShowJailChoice(st);
     maybeShowInsolvencyWarning(st);
     renderForfeitPollUI(st);
+    renderTaskBanner(st);
   };
+
+  // (Aufgabenregel) Persistentes, NICHT-blockierendes Banner: zeigt eine offene
+  // Aufgabe des EIGENEN Teams (auch wenn gerade ein anderes Team am Zug ist) mit
+  // einem "Aufgabe erledigt"-Button. Jedes Mitglied kann bestätigen.
+  function renderTaskBanner(st) {
+    const banner = $('task-banner');
+    if (!banner) return;
+    const myIdx = myTeamIdx(st);
+    const me = (myIdx >= 0 && st.game && st.game.players && st.game.players[myIdx]) ? st.game.players[myIdx] : null;
+    const pending = !!(me && me.taskPending);
+    if (!pending) { banner.classList.add('hidden'); return; }
+    banner.classList.remove('hidden');
+    const label = banner.querySelector('.task-label');
+    if (label) label.textContent = me.task || 'Schiffs-Aufgabe';
+  }
 
   // (2m P9/P10) Kein renderPauseBanner mehr: pausierte Spiele werden clientseitig IMMER
   // in die Lobby geroutet (state-Handler/joined), nie in die Spielansicht — das Banner
@@ -2419,6 +2447,10 @@
   actionBtn('btn-buy', 'Kaufen', onBuyClick);
   actionBtn('btn-skip', 'Überspringen', onSkipClick);
   actionBtn('btn-task', 'Aufgabe erledigt', onTaskClick);
+
+  // (Aufgabenregel) Banner-Button: eigene offene Aufgabe bestätigen.
+  const taskBannerBtn = $('btn-task-banner-done');
+  if (taskBannerBtn) taskBannerBtn.addEventListener('click', onTaskClick);
   actionBtn('btn-next', 'Nächster Zug', onNextClick);
 
   // Team-Konfigurationsliste initial rendern.

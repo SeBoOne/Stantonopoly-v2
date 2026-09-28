@@ -77,7 +77,10 @@ const DEFAULT_SETTINGS = {
   // buildGroupEven ist nur in Verbindung mit buildGroupOwnership aktivierbar;
   // buildGroupOwnership kann auch allein stehen. Default: beide an.
   buildGroupOwnership: true,
-  buildGroupEven: true
+  buildGroupEven: true,
+  // (Aufgabenregel) Nach Kauf/Ausbau muss das Team eine Aufgabe erledigen,
+  // bevor sein Zug wieder freigeschaltet wird. Default: aus (Verhalten wie bisher).
+  tasksEnabled: false
 };
 
 // ---------------------------------------------------------------------------

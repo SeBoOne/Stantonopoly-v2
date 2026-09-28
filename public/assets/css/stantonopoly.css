@@ -212,6 +212,14 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
   padding: 8px 10px; border: 1px dashed var(--line-bright); background: var(--panel-2); }
 .manager-bar input { max-width: 150px; font: 600 12px/1 ui-monospace, monospace; letter-spacing: .08em; }
 .manager-bar .hint { font-size: 10.5px; }
+/* (Aufgabenregel) Persistentes NICHT-blockierendes Banner über der Actionbar.
+   Dezent, blockiert kein Klick-Interface — das Team kann jederzeit bestätigen. */
+.task-banner { position: absolute; left: 50%; transform: translateX(-50%); bottom: 120px; z-index: 40;
+  display: flex; align-items: center; gap: 12px; padding: 10px 16px; max-width: 90%;
+  background: var(--panel-2); border: 2px solid var(--accent); box-shadow: 0 4px 18px rgba(0,0,0,.5);
+  font-size: 12.5px; }
+.task-banner .t-lbl { color: var(--accent-hi); }
+.task-banner .task-label { font: 600 13px/1.2 ui-monospace, monospace; }
 .preset-field-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 150px 40px 40px 38px; gap: 8px;
   align-items: center; border: 2px solid var(--line); background: var(--panel-2); padding: 7px 10px; }

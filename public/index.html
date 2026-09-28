@@ -204,6 +204,11 @@
                     <input id="s-build-group-even" type="checkbox" checked title="Alle Felder einer Farbgruppe gleichmäßig aus- UND abbauen (max. 1 Stufe Unterschied). Setzt die Besitzregel voraus." />
                     <span>Gleichmäßige Bebauung (Besitzregel erforderlich)</span>
                   </label>
+                  <!-- (Aufgabenregel) Nach Kauf/Ausbau muss das Team seine Aufgabe erledigen -->
+                  <label class="settings-row chk">
+                    <input id="s-tasks-enabled" type="checkbox" title="Nach jedem Kauf und jedem Ausbau erhält das Team eine ausstehende Aufgabe, die es in Star Citizen erledigen und per Button bestätigen muss, bevor es wieder würfeln/kaufen/bauen darf." />
+                    <span>Aufgabenregel (Kauf/Ausbau → Aufgabe erledigen)</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -271,6 +276,12 @@
     </main>
 
     <!-- Aktionsleiste + Ticker (fixiert unten) -->
+    <!-- (Aufgabenregel) Persistentes NICHT-blockierendes Banner für offene Team-Aufgabe -->
+    <div id="task-banner" class="task-banner hidden" role="status">
+      <span class="t-lbl">AUFGABE</span>
+      <span class="task-label"></span>
+      <button type="button" id="btn-task-banner-done" class="btn btn-xs btn-ghost">Aufgabe erledigt</button>
+    </div>
     <div id="actionbar" class="actionbar">
       <span class="ab-field" id="ab-field" title="Aktuelles Guthaben des eigenen Teams">Stantonopoly</span>
       <div class="ab-btns" id="action-bar" role="toolbar" aria-label="Aktionen"></div>
