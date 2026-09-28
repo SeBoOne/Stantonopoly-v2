@@ -376,7 +376,12 @@
           // Diese Werte sind Game-Pace-Einstellungen und werden beim Start als
           // diceConfig/turnSeconds an den Server übergeben (nicht als Preset-Regel).
           diceConfig: '1w6',
-                    turnSeconds: 0
+                    turnSeconds: 0,
+                    // (Piratensystem) Piraten-Modus (default aus → exakt altes Verhalten)
+                    piratesEnabled: false,
+                    pirateDice: '1w6',
+                    pirateProtectionFee: 250000,
+                    pirateCaughtMult: 2
                   };
     let currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
 
@@ -422,6 +427,11 @@
             // (2h#5/#6) Spielablauf: Würfelmodus + Zug-Timer
             { const el = $('s-dice'); if (el) el.value = currentSettings.diceConfig || '1w6'; }
             { const el = $('s-turnsecs'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0))); }
+            // (Piratensystem)
+            { const el = $('s-pirates-enabled'); if (el) el.checked = !!currentSettings.piratesEnabled; }
+            { const el = $('s-pirate-dice'); if (el) el.value = currentSettings.pirateDice || '1w6'; }
+            { const el = $('s-pirate-fee'); if (el) el.value = String(currentSettings.pirateProtectionFee != null ? currentSettings.pirateProtectionFee : 250000); }
+            { const el = $('s-pirate-caught-mult'); if (el) el.value = String(currentSettings.pirateCaughtMult != null ? currentSettings.pirateCaughtMult : 2); }
           }
     function readSettingsInputs() {
       const p = (v, d) => { if (v == null) return d; const x = Number(v); return Number.isFinite(x) && x >= 0 ? x : d; };
@@ -449,6 +459,11 @@
             // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s)
             { const de = $('s-dice'); if (de && (de.value === '1w6' || de.value === '2w6')) currentSettings.diceConfig = de.value; }
             { const te = $('s-turnsecs'); if (te) currentSettings.turnSeconds = Math.max(0, Math.round(Number(te.value) || 0)); }
+            // (Piratensystem)
+            { const pe = $('s-pirates-enabled'); if (pe) currentSettings.piratesEnabled = !!pe.checked; }
+            { const pd = $('s-pirate-dice'); if (pd && (pd.value === '1w6' || pd.value === '2w6')) currentSettings.pirateDice = pd.value; }
+            { const pf = $('s-pirate-fee'); if (pf) currentSettings.pirateProtectionFee = Math.max(0, Math.round(Number(pf.value) || 0)); }
+            { const pm = $('s-pirate-caught-mult'); if (pm) currentSettings.pirateCaughtMult = Math.max(1, Math.round(Number(pm.value) || 1)); }
           }
     // Settings nur senden, wenn sie von den Defaults abweichen (sonst null)
     function settingsPayload() {
@@ -468,6 +483,11 @@
       if (cur.monopolyBuildRule !== base.monopolyBuildRule) { out.buildGroupOwnership = cur.monopolyBuildRule; out.buildGroupEven = cur.monopolyBuildRule; }
       if (cur.buildGroupOwnership !== base.buildGroupOwnership) out.buildGroupOwnership = cur.buildGroupOwnership;
       if (cur.buildGroupEven !== base.buildGroupEven) out.buildGroupEven = cur.buildGroupEven;
+      // (Piratensystem)
+      if (cur.piratesEnabled !== base.piratesEnabled) out.piratesEnabled = cur.piratesEnabled;
+      if (cur.pirateDice !== base.pirateDice) out.pirateDice = cur.pirateDice;
+      if (cur.pirateProtectionFee !== base.pirateProtectionFee) out.pirateProtectionFee = cur.pirateProtectionFee;
+      if (cur.pirateCaughtMult !== base.pirateCaughtMult) out.pirateCaughtMult = cur.pirateCaughtMult;
       return Object.keys(out).length ? out : null;
     }
 
@@ -634,6 +654,11 @@
       if (typeof src.monopolyBuildRule === 'boolean') { s.buildGroupOwnership = src.monopolyBuildRule; s.buildGroupEven = src.monopolyBuildRule; }
       if (typeof src.buildGroupOwnership === 'boolean') s.buildGroupOwnership = src.buildGroupOwnership;
       if (typeof src.buildGroupEven === 'boolean') s.buildGroupEven = src.buildGroupEven; // (2m #13)
+      // (Piratensystem)
+      if (typeof src.piratesEnabled === 'boolean') s.piratesEnabled = src.piratesEnabled;
+      if (src.pirateDice === '1w6' || src.pirateDice === '2w6') s.pirateDice = src.pirateDice;
+      if (typeof src.pirateProtectionFee === 'number') s.pirateProtectionFee = src.pirateProtectionFee;
+      if (typeof src.pirateCaughtMult === 'number') s.pirateCaughtMult = src.pirateCaughtMult;
       if (src.rentMult && typeof src.rentMult === 'object') Object.assign(s.rentMult, src.rentMult);
       if (src.buildMult && typeof src.buildMult === 'object') Object.assign(s.buildMult, src.buildMult);
       currentSettings = s;
@@ -1305,11 +1330,13 @@
     const players = (game.players || []).map((p, i) => {
       const meta = teams[i] || {};
       const ship = meta.ship || meta.shipName || '';
+      const isPirate = !!(p.role === 'pirate' || p.isPirate);
       return {
-        teamName: meta.teamName || (ship ? 'Team ' + ship : 'Team ' + (i + 1)),
+        teamName: isPirate ? '🏴‍☠️ PIRATEN' : (meta.teamName || (ship ? 'Team ' + ship : 'Team ' + (i + 1))),
         ship,
+        isPirate,
         pos: p.pos,
-        color: meta.color || TEAM_COLORS[i % TEAM_COLORS.length],
+        color: isPirate ? '#7b2f00' : (meta.color || TEAM_COLORS[i % TEAM_COLORS.length]),
         properties: p.properties || {},
       };
     });
@@ -2227,7 +2254,79 @@
     maybeShowJailChoice(st);
     maybeShowInsolvencyWarning(st);
     renderForfeitPollUI(st);
+    renderPirateBanner(st);
+    maybeShowPirateEncounter(st);
+    maybeShowPirateVerdict(st);
   };
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Piraten-Modus-UI: Banner + Begegnungs-/Urteils-Modals.
+  // ------------------------------------------------------------------
+  let seenPirateEnc = '';
+  let seenPirateVerdict = '';
+
+  // Weltweites Banner, solange der Piraten-Modus in diesem Spiel aktiv ist.
+  function renderPirateBanner(st) {
+    let el = $('pirate-banner');
+    const on = !!(st.game && st.game.settings && st.game.settings.piratesEnabled);
+    if (!on) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'pirate-banner';
+      el.className = 'pirate-banner';
+      el.textContent = '🏴‍☠️ Piraten aktiv! Es zieht ein zusätzliches Piraten-Team über das Board — Schutzzahlung oder Flucht bei Begegnung.';
+      const bar = $('boardbar');
+      (bar || document.body).appendChild(el);
+    }
+  }
+
+  // Begegnung: nur das betroffene Team (Leader) entscheidet zahl/fliehen.
+  function maybeShowPirateEncounter(st) {
+    const enc = st.game && st.game.pirateEncounter;
+    if (!enc) { seenPirateEnc = ''; return; }
+    if (client.role !== 'leader') return;
+    const myIdx = myTeamIdx(st);
+    if (enc.teamIdx !== myIdx) return;
+    const key = String(enc.teamIdx) + ':' + String(enc.fieldIdx);
+    if (seenPirateEnc === key) return;
+    seenPirateEnc = key;
+    const fieldName = (st.game.fields && st.game.fields[enc.fieldIdx] && st.game.fields[enc.fieldIdx].name) || ('Feld ' + enc.fieldIdx);
+    openModal({
+      title: '🏴‍☠️ Piraten-Begegnung',
+      icon: '🏴‍☠️',
+      body: '<p>Dein Team steht auf <strong>' + esc(fieldName) + '</strong> — und die Piraten auch!</p>' +
+        '<ul><li><strong>Schutzgeld zahlen:</strong> ' + fmtUAEC(enc.fee) + ' aUEC — du setzt die Runde normal fort.</li>' +
+        '<li><strong>Flucht versuchen:</strong> deine Runde endet, du hast bis zu deinem nächsten Zug Zeit zu fliehen. Wirst du erwischt, fällst du <strong>' + fmtUAEC(enc.caughtFee) + ' aUEC</strong> Strafgeld.</li></ul>',
+      confirmText: 'Zahlen (' + fmtUAEC(enc.fee) + ')',
+      cancelText: 'Fliehen',
+      confirmClass: 'btn-ok',
+      onConfirm: () => socket.emit('pirate:resolve', { gameId: client.gameId, choice: 'pay' }),
+      onCancel: () => socket.emit('pirate:resolve', { gameId: client.gameId, choice: 'flee' })
+    });
+  }
+
+  // Urteil: NUR der GM (Host) übernimmt die Piraten-Rolle und bestätigt,
+  // ob das fliehende Team erwischt wurde oder entwischt ist (trust-based).
+  function maybeShowPirateVerdict(st) {
+    const vd = st.game && st.game.pirateVerdict;
+    if (!vd) { seenPirateVerdict = ''; return; }
+    if (!client.isGM) return;
+    const key = String(vd.teamIdx);
+    if (seenPirateVerdict === key) return;
+    seenPirateVerdict = key;
+    const teamName = (st.game.players && st.game.players[vd.teamIdx] && st.game.players[vd.teamIdx].name) || ('Team ' + (vd.teamIdx + 1));
+    openModal({
+      title: '🏴‍☠️ Flucht — Urteil der Piraten',
+      icon: '🏴‍☠️',
+      body: '<p><strong>' + esc(teamName) + '</strong> versucht zu fliehen. Hat das Team entwischt oder wurde es erwischt?</p>' +
+        (vd.caughtFee ? '<ul><li>Erwischt → Strafgeld: <strong>' + fmtUAEC(vd.caughtFee) + ' aUEC</strong>.</li></ul>' : ''),
+      confirmText: 'Erwischt',
+      cancelText: 'Entwischt',
+      confirmClass: 'btn-danger',
+      onConfirm: () => socket.emit('pirate:confirm', { gameId: client.gameId, gmCode: client.gmCode, verdict: 'caught' }),
+      onCancel: () => socket.emit('pirate:confirm', { gameId: client.gameId, gmCode: client.gmCode, verdict: 'escaped' })
+    });
+  }
 
   // (2m P9/P10) Kein renderPauseBanner mehr: pausierte Spiele werden clientseitig IMMER
   // in die Lobby geroutet (state-Handler/joined), nie in die Spielansicht — das Banner

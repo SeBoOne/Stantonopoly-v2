@@ -817,7 +817,11 @@ class Rooms {
     // Nur beim ERSTEN Start den zufälligen Startspieler bestimmen.
     if (!alreadyStarted) {
       const aliveIdx = [];
-      for (let i = 0; i < engine.players.length; i++) if (!engine.players[i].bankrupt) aliveIdx.push(i);
+      for (let i = 0; i < engine.players.length; i++) {
+        // (Piratensystem) Piraten-Team ist nie aktiver Zug (kein Sieger/Verlierer).
+        const cand = engine.players[i];
+        if (!cand.bankrupt && !(cand.role === 'pirate' || cand.isPirate)) aliveIdx.push(i);
+      }
       if (aliveIdx.length) engine.activeIdx = aliveIdx[Math.floor(Math.random() * aliveIdx.length)];
     }
     dbm.setStarted(gameId, true);
@@ -965,6 +969,58 @@ class Rooms {
     const r = req.engine.jailStay();
     if (!r.ok) return { error: { code: 'JAIL', message: 'Nicht möglich (' + r.reason + ').' } };
     return this._persistAndReturn(gameId, req.engine, true);
+  }
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Begegnung auflösen: das AKTIVE Team (das auf dem
+  // Piraten-Feld gelandet ist) wählt 'pay' (Schutzgeld) oder 'flee'.
+  // ------------------------------------------------------------------
+  actionPirateResolve({ gameId, choice, sock }) {
+    const req = this._requireActiveLeader({ gameId, sock });
+    if (req.error) return req;
+    const c = String(choice || '').toLowerCase();
+    if (c !== 'pay' && c !== 'flee') return { error: { code: 'BAD_CHOICE', message: 'Ungültige Begegnungs-Wahl.' } };
+    const r = req.engine.resolvePirateEncounter(c);
+    if (!r.ok) return { error: { code: 'PIRATE', message: 'Begegnung nicht auflösbar (' + r.reason + ').' } };
+    const ret = this._persistAndReturn(gameId, req.engine, true);
+    ret.pirate = r;
+    return ret;
+  }
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Piraten-Urteil nach einer Flucht: 'caught' oder
+  // 'escaped'. Der GM (Host) bestätigt als Pirat — das Piraten-Team
+  // hat kein eigenes Spieler-Socket.
+  // ------------------------------------------------------------------
+  actionPirateConfirm({ gameId, gmCode, verdict, sock }) {
+    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'das Piraten-Urteil fällen' });
+    if (req.error) return req;
+    const v = String(verdict || '').toLowerCase();
+    if (v !== 'caught' && v !== 'escaped') return { error: { code: 'BAD_VERDICT', message: 'Ungültiges Urteil.' } };
+    const engine = G.deserialize(req.gameRow.state, D);
+    const r = engine.pirateEventConfirm(v);
+    if (!r.ok) return { error: { code: 'PIRATE', message: 'Urteil nicht möglich (' + r.reason + ').' } };
+    const ret = this._persistAndReturn(gameId, engine, true);
+    ret.pirate = r;
+    return ret;
+  }
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Piraten ziehen sofort weiter (eigener Dice) — vom
+  // GM anstoßbar, falls die automatische Ziehung nach Bezahlung manuell
+  // angeregt werden soll. Meist automatisch im nextTurn; diese Aktion
+  // erlaubt zusätzlich direktes Vorrücken (z. B. nach Schutzgeld-Zahlung
+  // ohne Rundenwechsel).
+  // ------------------------------------------------------------------
+  actionPirateAdvance({ gameId, gmCode, sock }) {
+    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'die Piraten ziehen zu lassen' });
+    if (req.error) return req;
+    const engine = G.deserialize(req.gameRow.state, D);
+    const r = engine.advancePirate();
+    if (!r.moved) return { error: { code: 'NO_PIRATES', message: 'Kein Piraten-Team aktiv.' } };
+    const ret = this._persistAndReturn(gameId, engine, true);
+    ret.pirate = r;
+    return ret;
   }
 
   // ------------------------------------------------------------------
