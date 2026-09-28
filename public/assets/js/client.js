@@ -329,6 +329,10 @@
 
     let presetList = [];          // [{name, builtin}]
     let currentPresetName = 'Crusader Cluster';
+    // (P4) Manager-Status: null solange nicht als Manager authentifiziert.
+    // Der Server erzwingt permanent-Speichern nur mit gültigem Manager-Code (socket.data.managerName).
+    let managerName = null;
+    function isManager() { return !!managerName; }
     // (2j #2) Nach Speichern einzuwerfendes Preset im cfg-preset-Dropdown (vor Server-Ack gesetzt).
     let pendingSelectPreset = null;
     let editingFields = DEFAULT_FIELDS();
@@ -940,10 +944,13 @@
         joinBtn.textContent = 'Mitspielen';
         joinBtn.title = 'Als GM in dieses Team eintreten (als Mitglied/Teamleiter mitspielen)';
         joinBtn.addEventListener('click', () => {
-          client.playerName = 'GM';
+          // (QA-Fix P2) GM-Anzeigename statt hartkodiert 'GM' verwenden, damit
+          // der gesetzte GM-Name in der Team-Spielerliste erscheint.
+          const gmPlayName = (client.gmName && String(client.gmName).trim()) ? String(client.gmName).trim() : 'GM';
+          client.playerName = gmPlayName;
           client.gameId = data.gameId;
           client.isGM = true; // bleibt GM
-          socket.emit('team:join', { gameId: data.gameId, code, playerName: 'GM' });
+          socket.emit('team:join', { gameId: data.gameId, code, playerName: gmPlayName });
           showNotify('Du trittst dem Team bei…');
         });
         row.appendChild(joinBtn);

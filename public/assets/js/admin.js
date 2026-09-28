@@ -272,10 +272,17 @@
       [...presetList].forEach((p) => {
         const o = document.createElement('option');
         o.value = p.name;
-        o.textContent = p.name + (p.builtin ? ' (Standard)' : ' (eigen)');
+        o.textContent = p.name + (p.builtin ? ' (Standard)' : ' (eigen)') + (p.enabled === false ? ' — deaktiviert' : '');
         sel.appendChild(o);
       });
-      if (currentPresetName && Array.from(sel.options).some((o) => o.value === currentPresetName)) sel.value = currentPresetName;
+      // QA-Fix P1: Wenn bereits ein Preset gewählt oder nur genau eines vorhanden
+      // ist, currentPresetName sicherstellen (Browser <select> wählt den 1. Eintrag
+      // automatisch OHNE change-Event → sonst blockiert \"Bearbeiten\").
+      const hasCurrent = currentPresetName && Array.from(sel.options).some((o) => o.value === currentPresetName);
+      if (hasCurrent) sel.value = currentPresetName;
+      else if (sel.options.length) {
+        currentPresetName = sel.value = sel.options[0].value;
+      } else currentPresetName = '';
       updatePresetMeta();
     } catch (e) {}
   }
@@ -283,7 +290,17 @@
   function updatePresetMeta() {
     const p = presetList.find((x) => x.name === currentPresetName);
     const meta = $('ad-preset-meta');
-    if (meta) meta.textContent = p ? (p.builtin ? 'Eingebautes Preset — kann umbenannt/kopiert, nicht überschrieben oder gelöscht werden.' : ('Eigenes Preset · ' + (p.fields ? p.fields.length : 0) + ' Felder · zuletzt ' + (p.updated_at || '—'))) : '';
+    if (meta) {
+      if (!p) meta.textContent = currentPresetName ? '' : 'Preset auswählen oder neu anlegen.';
+      else {
+        const kind = p.builtin ? 'Eingebautes Preset — bearbeitbar, nicht löschbar' : ('Eigenes Preset · ' + (p.fields ? p.fields.length : 0) + ' Felder · zuletzt ' + (p.updated_at || '—'));
+        meta.textContent = kind + (p.enabled === false ? ' · DEAKTIVIERT' : '');
+      }
+    }
+    const tg = $('btn-ad-preset-toggle');
+    if (tg) {
+      tg.textContent = (p && p.enabled === false) ? 'Aktivieren' : 'Deaktivieren';
+    }
   }
 
   // Admin-Preset-Editor (spiegelt den Spiel-Preset-Editor für die Kernfunktionen).
@@ -434,6 +451,17 @@
       editingFields = (p && Array.isArray(p.fields) && p.fields.length) ? p.fields.map((f) => ({ ...f })) : DEFAULT_FIELDS();
       currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES, (p && p.levelNames) || {});
       openEditor();
+    });
+    const tg = $('btn-ad-preset-toggle');
+    if (tg) tg.addEventListener('click', async () => {
+      if (!currentPresetName) { showNotify('Bitte ein Preset auswählen.', true); return; }
+      const p = presetList.find((x) => x.name === currentPresetName);
+      const next = !(p && p.enabled === false);
+      try {
+        await api('POST', '/presets/' + encodeURIComponent(currentPresetName) + '/set-enabled', { enabled: next });
+        showNotify('Preset "' + currentPresetName + '" ' + (next ? 'aktiviert' : 'deaktiviert') + '.');
+        await reloadPresets();
+      } catch (e) { showNotify('Umschalten fehlgeschlagen: ' + e.message, true); }
     });
     const dl = $('btn-ad-preset-delete');
     if (dl) dl.addEventListener('click', deletePreset);

@@ -75,6 +75,7 @@ db.exec(`
     name    TEXT PRIMARY KEY,
     fields  TEXT NOT NULL,            -- JSON-Array der Felder
     builtin INTEGER NOT NULL DEFAULT 0, -- 1 = eingebaute Presets (nicht löschbar)
+    enabled INTEGER NOT NULL DEFAULT 1, -- 0 = in Spiel-Auswahl ausgeblendet (deaktiviert)
     level_names TEXT,                 -- JSON-Objekt: Stufe -> anzeigename (Standard/Cyclone/...)
     settings TEXT,                    -- JSON-Objekt: Spielregeln (Miet-Mult/Cost/Hypothek/Bank/Timer)
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -88,6 +89,11 @@ db.exec(`
     action     TEXT NOT NULL,          -- z.B. 'delete_game' | 'delete_preset' | 'save_preset'
     target     TEXT,                   -- z.B. gameId | preset-Name
     detail     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS manager_codes (
+    code       TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,           -- internes Label (Zuordnung, wer der Manager ist)
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);
@@ -105,6 +111,7 @@ db.exec(`
   const pcols = db.prepare(`SELECT name FROM pragma_table_info('presets')`).all().map((c) => c.name);
   if (!pcols.includes('level_names')) { try { db.exec(`ALTER TABLE presets ADD COLUMN level_names TEXT`); } catch (e) {} }
   if (!pcols.includes('settings')) { try { db.exec(`ALTER TABLE presets ADD COLUMN settings TEXT`); } catch (e) {} }
+  if (!pcols.includes('enabled')) { try { db.exec(`ALTER TABLE presets ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1`); } catch (e) {} }
 })();
 
 const stmts = {
@@ -140,8 +147,16 @@ const stmts = {
   deleteCode: db.prepare('DELETE FROM codes WHERE code = ?'),
   getCode: db.prepare('SELECT * FROM codes WHERE code = ?'),
 
-  upsertPreset: db.prepare('INSERT OR REPLACE INTO presets (name, fields, builtin, level_names, settings) VALUES (?, ?, ?, ?, ?)'),
-  getPresets: db.prepare('SELECT name, fields, builtin, updated_at, level_names, settings FROM presets ORDER BY builtin DESC, name ASC'),
+  upsertPreset: db.prepare(`INSERT INTO presets (name, fields, builtin, level_names, settings, enabled)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET
+      fields = excluded.fields,
+      level_names = excluded.level_names,
+      settings = excluded.settings,
+      builtin = presets.builtin,     -- eingebaute Markierung nie überschreiben
+      updated_at = datetime('now')`),
+  setPresetEnabled: db.prepare('UPDATE presets SET enabled = ?, updated_at = datetime(\'now\') WHERE name = ?'),
+  getPresets: db.prepare('SELECT name, fields, builtin, enabled, updated_at, level_names, settings FROM presets ORDER BY builtin DESC, name ASC'),
   getPreset: db.prepare('SELECT * FROM presets WHERE name = ?'),
   deletePreset: db.prepare('DELETE FROM presets WHERE name = ?')
 };
@@ -291,17 +306,20 @@ function parseLevelNames(raw) {
 function parseSettings(raw) {
   try { const v = raw && JSON.parse(raw); return (v && typeof v === 'object') ? v : null; } catch (e) { return null; }
 }
-function upsertPreset({ name, fields, builtin = 0, levelNames = null, settings = null }) {
-  stmts.upsertPreset.run(name, JSON.stringify(fields), builtin ? 1 : 0, levelNames ? JSON.stringify(levelNames) : null, settings ? JSON.stringify(settings) : null);
+function upsertPreset({ name, fields, builtin = 0, levelNames = null, settings = null, enabled = 1 }) {
+  stmts.upsertPreset.run(name, JSON.stringify(fields), builtin ? 1 : 0, levelNames ? JSON.stringify(levelNames) : null, settings ? JSON.stringify(settings) : null, enabled ? 1 : 0);
+}
+function setPresetEnabled(name, enabled) {
+  stmts.setPresetEnabled.run(enabled ? 1 : 0, name);
 }
 function listPresets() {
   const rows = stmts.getPresets.all();
-  return rows.map((r) => ({ name: r.name, builtin: !!r.builtin, updated_at: r.updated_at, fields: JSON.parse(r.fields || '[]'), levelNames: parseLevelNames(r.level_names), settings: parseSettings(r.settings) }));
+  return rows.map((r) => ({ name: r.name, builtin: !!r.builtin, enabled: r.enabled !== 0, updated_at: r.updated_at, fields: JSON.parse(r.fields || '[]'), levelNames: parseLevelNames(r.level_names), settings: parseSettings(r.settings) }));
 }
 function getPreset(name) {
   const row = stmts.getPreset.get(name);
   if (!row) return null;
-  return { name: row.name, builtin: !!row.builtin, fields: JSON.parse(row.fields || '[]'), levelNames: parseLevelNames(row.level_names), settings: parseSettings(row.settings) };
+  return { name: row.name, builtin: !!row.builtin, enabled: row.enabled !== 0, fields: JSON.parse(row.fields || '[]'), levelNames: parseLevelNames(row.level_names), settings: parseSettings(row.settings) };
 }
 function deletePreset(name) {
   stmts.deletePreset.run(name);
@@ -314,7 +332,7 @@ function seedBuiltinPresets() {
     const has = stmts.getPreset.get(name);
     if (!has) stmts.upsertPreset.run(name, JSON.stringify(D.PRESETS[name].fields), 1,
       (D.PRESETS[name].levelNames ? JSON.stringify(D.PRESETS[name].levelNames) : null),
-      (D.PRESETS[name].settings ? JSON.stringify(D.PRESETS[name].settings) : null));
+      (D.PRESETS[name].settings ? JSON.stringify(D.PRESETS[name].settings) : null), 1);
   });
 }
 
@@ -324,6 +342,32 @@ function deleteGame(gameId) {
   db.prepare('DELETE FROM players WHERE gameId = ?').run(gameId);
   db.prepare('DELETE FROM teams WHERE gameId = ?').run(gameId);
   db.prepare('DELETE FROM games WHERE gameId = ?').run(gameId);
+}
+
+// ---------------- Manager-Codes ---------------- 
+function listManagerCodes() {
+  return db.prepare('SELECT code, name, created_at FROM manager_codes ORDER BY created_at DESC, name ASC').all() || [];
+}
+function getManagerCode(code) {
+  return db.prepare('SELECT * FROM manager_codes WHERE code = ?').get(code) || null;
+}
+function addManagerCode(code, name) {
+  return db.prepare('INSERT INTO manager_codes (code, name) VALUES (?, ?)').run(code, String(name || '').trim().slice(0, 60));
+}
+function deleteManagerCode(code) {
+  db.prepare('DELETE FROM manager_codes WHERE code = ?').run(code);
+}
+function renameManagerCode(code, name) {
+  db.prepare('UPDATE manager_codes SET name = ? WHERE code = ?').run(String(name || '').trim().slice(0, 60), code);
+  return getManagerCode(code);
+}
+function generateManagerCode(len = 8) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // ohne I,O,0,1 zur Klarheit
+  let code = '';
+  for (let i = 0; i < len; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  // Kollision unwahrscheinlich, aber sicherheitshalber prüfen
+  const existing = db.prepare('SELECT code FROM manager_codes WHERE code = ?').get(code);
+  return existing ? generateManagerCode(len) : code;
 }
 
 // ---------------- Admin (Konfiguration + Audit-Log) ----------------
@@ -375,6 +419,7 @@ module.exports = {
   deleteCode,
   setGmOwner,
   upsertPreset,
+  setPresetEnabled,
   listPresets,
   getPreset,
   deletePreset,
@@ -383,5 +428,11 @@ module.exports = {
   getAdminConfig,
   setAdminConfig,
   logAdmin,
-  listAdminLog
+  listAdminLog,
+  listManagerCodes,
+  getManagerCode,
+  addManagerCode,
+  deleteManagerCode,
+  renameManagerCode,
+  generateManagerCode
 };

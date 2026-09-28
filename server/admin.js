@@ -238,9 +238,6 @@ function registerAdmin(app, rooms) {
     const name = String(data.name).trim().slice(0, 40);
     if (!name) return res.status(400).json({ ok: false, error: 'BAD_PRESET', message: 'Ungültiger Preset-Name.' });
     const existing = dbm.getPreset(name);
-    if (existing && existing.builtin) {
-      return res.status(403).json({ ok: false, error: 'FORBIDDEN', message: 'Eingebautes Preset kann nicht überschrieben werden.' });
-    }
     const levelNames = (data.levelNames && typeof data.levelNames === 'object') ? data.levelNames : null;
     let settings = (data.settings && typeof data.settings === 'object') ? data.settings : null;
     if (settings) {
@@ -251,9 +248,23 @@ function registerAdmin(app, rooms) {
       });
       if (!hasContent) settings = null;
     }
-    dbm.upsertPreset({ name, fields: data.fields, builtin: 0, levelNames, settings });
+    // Eingebaute Presets duerfen ueberschrieben werden (builtin-Flag bleibt) —
+    // so laesst sich der Standard anpassen. Geloescht koennen sie nicht.
+    dbm.upsertPreset({ name, fields: data.fields, builtin: (existing && existing.builtin) ? 1 : 0, levelNames, settings, enabled: (existing ? existing.enabled : 1) });
     dbm.logAdmin('save_preset', name, 'Gespeichert / geändert');
     return res.json({ ok: true, preset: dbm.getPreset(name) });
+  });
+
+  // ---- Preset aktivieren / deaktivieren (statt nur löschen; builtin freundlich) ----
+  router.post('/presets/:name/set-enabled', requireAuth, (req, res) => {
+    const name = String(req.params.name || '').trim();
+    if (!name) return res.status(400).json({ ok: false, error: 'BAD_NAME', message: 'Name fehlt.' });
+    const existing = dbm.getPreset(name);
+    if (!existing) return res.status(404).json({ ok: false, error: 'NO_PRESET', message: 'Preset nicht gefunden.' });
+    const enabled = !!(req.body && req.body.enabled);
+    dbm.setPresetEnabled(name, enabled);
+    dbm.logAdmin(enabled ? 'enable_preset' : 'disable_preset', name, enabled ? 'Aktiviert' : 'Deaktiviert');
+    return res.json({ ok: true, name, enabled, preset: dbm.getPreset(name) });
   });
 
   // ---- Preset löschen (builtin geschützt) ----
@@ -271,6 +282,45 @@ function registerAdmin(app, rooms) {
   // ---- Audit-Log (Löschaktionen, Logins) ----
   router.get('/log', requireAuth, (req, res) => {
     return res.json({ ok: true, log: dbm.listAdminLog(Number(req.query.limit) || 100) });
+  });
+
+  // ---- Manager-Codes (Admin erzeugt Codes + internes Namenslabel) ----
+  router.get('/manager-codes', requireAuth, (req, res) => {
+    return res.json({ ok: true, codes: dbm.listManagerCodes() });
+  });
+
+  // Neuen Manager-Code erzeugen ({ name } = internes Label, z.B. Personen-Name/Rolle).
+  router.post('/manager-codes', requireAuth, (req, res) => {
+    const name = String((req.body && req.body.name) || '').trim().slice(0, 60);
+    if (!name) return res.status(400).json({ ok: false, error: 'BAD_NAME', message: 'Bitte ein internes Namenslabel angeben (z. B. wer der Manager ist).' });
+    const code = dbm.generateManagerCode();
+    dbm.addManagerCode(code, name);
+    // Code nur bei Erzeugung einmalig sichtbar; im Log nur das Label (kein Geheimnis).
+    dbm.logAdmin('create_manager_code', name, 'Manager-Code erzeugt');
+    return res.json({ ok: true, code, name });
+  });
+
+  // Manager-Code entfernen (Zugang entziehen).
+  router.delete('/manager-codes/:code', requireAuth, (req, res) => {
+    const raw = String(req.params.code || '').trim().toUpperCase();
+    if (!raw) return res.status(400).json({ ok: false, error: 'BAD_CODE', message: 'Code fehlt.' });
+    const existing = dbm.getManagerCode(raw);
+    if (!existing) return res.status(404).json({ ok: false, error: 'NO_CODE', message: 'Code nicht gefunden.' });
+    dbm.deleteManagerCode(raw);
+    dbm.logAdmin('delete_manager_code', existing.name, 'Manager-Code entfernt');
+    return res.json({ ok: true, deleted: raw });
+  });
+
+  // Manager-Code umbenennen (Label pflegen, Code bleibt stabil).
+  router.post('/manager-codes/:code/rename', requireAuth, (req, res) => {
+    const raw = String(req.params.code || '').trim().toUpperCase();
+    const name = String((req.body && req.body.name) || '').trim().slice(0, 60);
+    const existing = dbm.getManagerCode(raw);
+    if (!existing) return res.status(404).json({ ok: false, error: 'NO_CODE', message: 'Code nicht gefunden.' });
+    if (!name) return res.status(400).json({ ok: false, error: 'BAD_NAME', message: 'Label darf nicht leer sein.' });
+    dbm.renameManagerCode(raw, name);
+    dbm.logAdmin('rename_manager_code', name, 'Manager-Code umbenannt');
+    return res.json({ ok: true, code: raw, name });
   });
 
   app.use('/admin', router);

@@ -474,7 +474,7 @@ body.view-game .ticker { display: flex; }
 .tick-lbl { display: grid; place-items: center; padding: 0 16px; background: var(--accent); color: #14100a;
   font: 700 11px/1 ui-monospace, monospace; letter-spacing: .24em; flex: none; border: 0; cursor: pointer; }
 .tick-lbl:hover { background: var(--accent-hi); }
-.tick-scroll { display: flex; flex-direction: row-reverse; gap: 0; overflow-x: hidden; align-items: center; flex: 1;
+.tick-scroll { display: flex; flex-direction: row; gap: 0; overflow-x: hidden; align-items: center; flex: 1;
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 96%, transparent 96%);
   mask-image: linear-gradient(90deg, #000 0, #000 96%, transparent 96%); }
 .tick { display: inline-flex; align-items: center; gap: 10px; padding: 0 18px; height: 53px;
@@ -692,11 +692,14 @@ body.view-setup #palette-switcher { visibility: visible; }
 
 /* ============================ Admin-Dashboard (2o-BONUS) ============================
    Nutzt die F-Schale-Design-Tokens (Dark-Only, Scanlines via Kerben, MFD-Typografie).
-   Läuft auf eigenem /admin.html — KEINE Admin-Funktionen im Spiel-GUI. */
-body.view-login .hd-nav, body.view-dashboard .hd-nav,
-body.view-games .hd-nav, body.view-presets .hd-nav, body.view-log .hd-nav { display: none; }
-body.view-login .hd-r, body.view-dashboard .hd-r,
-body.view-games .hd-r, body.view-presets .hd-r, body.view-log .hd-r { margin-left: auto; }
+   Läuft auf eigenem /admin.html — KEINE Admin-Funktionen im Spiel-GUI.
+   WICHTIG (QA-Fix): fruehere Regel `body.view-games .hd-nav {display:none}` blendete die
+   EIGENE Admin-Navigation (admin.js renderNav -> #admin-nav, Klasse .hd-nav) aus, weil
+   showView() genau diese body.view-*-Klassen setzt — nur die Stat-Karten blieben. Sie
+   blendete im Spiel-Frontend ausserdem die Navigation auf der Spiele-Landing
+   (#view-games -> body.view-games) aus. Die Nav wird daher NUR im Login-Gate versteckt. */
+body.view-login .hd-nav { display: none; }
+body.view-login .hd-r { margin-left: auto; }
 .login-frame { animation: rise .28s ease; }
 .ad-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
 .ad-stat { position: relative; border: 2px solid var(--line); background: var(--panel-2);
