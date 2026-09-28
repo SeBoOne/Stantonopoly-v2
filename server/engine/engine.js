@@ -145,8 +145,22 @@ function ownerOf(game, fieldIdx) {
 
 function aliveCount(game) {
   let n = 0;
-  for (let i = 0; i < game.players.length; i++) if (!game.players[i].bankrupt) n++;
+  for (let i = 0; i < game.players.length; i++) if (!game.players[i].bankrupt && !isPirate(game.players[i])) n++;
   return n;
+}
+
+// Piraten-Team-Detektor. Pirates sind ein Sonder-Team in players[] mit
+// role:'pirate' — sie gewinnen/verlieren nie, nehmen nicht am Zug-Rotation
+// teil und treffen keine Wirtschaft.
+function isPirate(p) {
+  return !!(p && (p.role === 'pirate' || p.isPirate));
+}
+
+// Das (einzige) aktive Piraten-Team des Spiels, sonst null.
+function pirateOf(game) {
+  if (!game || !game.players) return null;
+  for (const p of game.players) if (isPirate(p) && !p.bankrupt) return p;
+  return null;
 }
 
 // ---------------------------------------------------------------------
@@ -235,7 +249,8 @@ function creditEarnings(game, p, amount, why) {
 
 function checkWin(game) {
   if (game.over) return;
-  const alive = game.players.filter((p) => !p.bankrupt);
+  // Pirates gewinnen/verlieren nie — zählen nicht für den Sieg.
+  const alive = game.players.filter((p) => !p.bankrupt && !isPirate(p));
   if (alive.length === 1) {
     game.over = true;
     game.winnerInfo = alive[0];
@@ -248,9 +263,138 @@ function nextIdx(game, from) {
   const n = game.players.length;
   for (let step = 1; step <= n; step++) {
     const idx = (from + step) % n;
-    if (!game.players[idx].bankrupt) return idx;
+    if (!game.players[idx].bankrupt && !isPirate(game.players[idx])) return idx;
   }
   return from;
+}
+
+// ---------------------------------------------------------------------
+// (Piratensystem) Feld-Landungs-Effekte (Miete/Kauf/Steuer/Gefängnis etc.).
+// Aus roll() extrahiert, damit sie BESONDERS nach einer bezahlten Piraten-
+// Begegnung im selben Zug noch angewandt werden kann (Design-Entscheidung:
+// Begegnung zuerst, danach normale Feld-Logik). Liefert { turnPassed, canBuy }.
+// ---------------------------------------------------------------------
+function landingEffects(game, p, landing, events) {
+  const to = landing.idx;
+  const landingField = game.fields[to];
+  let canBuy = false;
+  let turnPassed = false; // true = Aufrufer kann direkt nextTurn()
+
+  if (landingField.type === 'grundstueck') {
+    const owner = ownerOf(game, to);
+    if (owner === null) {
+      if (p.budget >= landingField.price) {
+        canBuy = true;
+        log(game, p.name + ' landet auf freiem Grundstück „' + landingField.name + '“ (Kauf möglich – ' + fmt(landingField.price) + ') → Kaufentscheidung erforderlich.');
+        events.push('Kauf möglich auf „' + landingField.name + '“ (' + fmt(landingField.price) + ')');
+      } else {
+        log(game, p.name + ' landet auf freiem Grundstück „' + landingField.name + '“ kann es aber nicht kaufen (Budget ' + fmt(p.budget) + ' < ' + fmt(landingField.price) + ') → Zug weiter.');
+        turnPassed = true;
+      }
+    } else if (owner === p) {
+      log(game, p.name + ' landet auf eigenem Grundstück „' + landingField.name + '“ → nichts zu tun, weiter.');
+      turnPassed = true;
+    } else {
+      const level = owner.properties[to].level;
+      // (2o-A P4) Ein beliehenes (mortgaged) Feld kassiert KEINE Miete.
+      if (owner.properties[to].mortgaged) {
+        log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', beliehen) → keine Miete fällig.');
+        events.push('Keine Miete an ' + owner.name + ' (Feld ist beliehen)');
+        turnPassed = true;
+      } else {
+        const rent = game.data.rentFor(landingField.price, level, game.settings);
+        log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', Stufe ' + level + ') → Miete ' + fmt(rent) + '.');
+        const ok = pay(game, p, owner, rent, 'Miete für „' + landingField.name + '“');
+        events.push('Miete ' + fmt(rent) + ' an ' + owner.name);
+        turnPassed = true;
+        if (!ok) { /* insolvent → Ende des Zuges */ }
+      }
+    }
+  } else if (landingField.type === 'los') {
+    log(game, p.name + ' landet auf „' + landingField.name + '“ (LOS) → nichts zu tun, weiter.');
+    turnPassed = true;
+  } else if (landingField.type === 'freiparken') {
+    log(game, p.name + ' landet auf „' + landingField.name + '“ (Frei Parken) → nichts zu tun.');
+    events.push('Frei Parken');
+    turnPassed = true;
+  } else if (landingField.type === 'gefangnis') {
+    const bail = (typeof landingField.fee === 'number') ? landingField.fee : 0;
+    const jailTurnsF = (typeof landingField.turns === 'number') ? landingField.turns : 1;
+    if (p.jailed) {
+      log(game, p.name + ' ist bereits im Gefängnis („' + landingField.name + '“).');
+      events.push('Bereits im Gefängnis');
+      turnPassed = true;
+    } else {
+      p.jailed = true;
+      p.jailTurns = Math.max(1, jailTurnsF);
+      if (bail > 0) {
+        p.jailBail = bail;
+        landing.jailChoice = { bail, turns: p.jailTurns };
+        log(game, p.name + ' landet im Gefängnis („' + landingField.name + '“). Lösegeld ' + fmt(bail) + ' — freikaufen oder absitzen?');
+        events.push({ text: '⚠️ Gefängnis · Lösegeld ' + fmt(bail) + ' zahlen oder absitzen?', playerId: p.id, kind: 'jail-choice' });
+        events.push({ text: 'JailChoice', playerId: p.id, kind: 'jail-choice' });
+        turnPassed = false;
+      } else {
+        log(game, p.name + ' landet im Gefängnis („' + landingField.name + '“) — überspringt die nächsten ' + p.jailTurns + ' Zug/Züge.');
+        events.push('Gefängnis · ' + p.jailTurns + ' Zug/Züge aussetzen');
+        turnPassed = true;
+      }
+    }
+  } else if (landingField.type === 'steuer') {
+    const tax = (typeof landingField.fee === 'number') ? landingField.fee : 0;
+    if (tax > 0) {
+      const ok = pay(game, p, null, tax, 'Steuer „' + landingField.name + '“');
+      log(game, p.name + ' landet auf „' + landingField.name + '“ (Steuer) → ' + fmt(tax) + ' an die Bank.');
+      events.push('Steuer ' + fmt(tax));
+      turnPassed = true;
+    } else {
+      log(game, p.name + ' landet auf „' + landingField.name + '“ (Steuer) → kein Betrag, weiter.');
+      turnPassed = true;
+    }
+  } else if (landingField.type === 'ereignis') {
+    const eFee = (typeof landingField.fee === 'number') ? landingField.fee : 0;
+    if (eFee > 0) {
+      const ok = pay(game, p, null, eFee, 'Ereignis-Gebühr „' + landingField.name + '“');
+      log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → Gebühr ' + fmt(eFee) + '.');
+      events.push('Ereignis-Gebühr ' + fmt(eFee));
+      turnPassed = true;
+    } else if (eFee < 0) {
+      const bonus = Math.abs(eFee);
+      p.budget += bonus;
+      StantonopolyGame.ledgerPush(game, p, bonus, 'Ereignis-Bonus „' + landingField.name + '“');
+      log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → Bonus ' + fmt(bonus) + '.');
+      events.push('Ereignis-Bonus +' + fmt(bonus));
+      turnPassed = true;
+    } else {
+      log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → kein Effekt, weiter.');
+      turnPassed = true;
+    }
+  } else {
+    log(game, p.name + ' landet auf Feld „' + landingField.name + '“ (unbekannter Typ ' + landingField.type + ') → weiter.');
+    turnPassed = true;
+  }
+  return { turnPassed, canBuy };
+}
+
+// ---------------------------------------------------------------------
+// (Piratensystem) Begegnung starten: setzt game.pirateEncounter und liefert
+// die Daten, die der Client fürs Modal braucht (nur an das betroffene Team).
+// ---------------------------------------------------------------------
+function beginPirateEncounter(game, teamIdx, fieldIdx) {
+  const f = game.fields[fieldIdx];
+  const fee = Math.max(1, Math.round(Number((game.settings && game.settings.pirateProtectionFee != null) ? game.settings.pirateProtectionFee : 250000)));
+  const mult = Math.max(1, Number((game.settings && game.settings.pirateCaughtMult != null) ? game.settings.pirateCaughtMult : 2));
+  const caughtFee = Math.round(fee * mult);
+  game.pirateEncounter = {
+    teamIdx,
+    fieldIdx,
+    fieldType: f ? f.type : 'los',
+    fee,
+    caughtFee,
+    mode: 'choice'
+  };
+  const p = game.players[teamIdx];
+  return { teamIdx, playerId: p ? p.id : null, fee, caughtFee };
 }
 
 function attachMethods(game) {
@@ -277,6 +421,10 @@ function attachMethods(game) {
   game.resolveInsolvency = function (playerIdx) { return StantonopolyGame.resolveInsolvency(game, playerIdx); };
   game.nextTurn = function () { return StantonopolyGame.nextTurn(game); };
   game.serialize = function () { return StantonopolyGame.serialize(game); };
+  // (Piratensystem)
+  game.advancePirate = function () { return StantonopolyGame.advancePirate(game); };
+  game.resolvePirateEncounter = function (choice) { return StantonopolyGame.resolvePirateEncounter(game, choice); };
+  game.pirateEventConfirm = function (verdict) { return StantonopolyGame.pirateEventConfirm(game, verdict); };
   // (2m-A) Vermögenswert-Helper (Server-Auto-Beenden)
   game.teamWealth = function (playerIdx) { return teamWealth(game, playerIdx); };
   game.richestTeamIdx = function () { return richestTeamIdx(game); };
@@ -320,6 +468,38 @@ const StantonopolyGame = {
         creditorIdx: undefined // wem geschuldet (null = an die Bank)
       };
     });
+
+    // (Piratensystem) Settings zuerst mergen, damit wir oben entscheiden können,
+    // ob ein Piraten-Team angelegt wird.
+    const mergedSettings = D.mergeSettings(config.settings);
+    // Piraten-Team (nur 1x) hängt hinten an, WENN piratesEnabled. Kein Kapital
+    // (kaufunfähig), role:'pirate' — gewinnt/verliert nie, keine Wirtschaft.
+    if (mergedSettings.piratesEnabled) {
+      const fieldsLen = (Array.isArray(config.fields) && config.fields.length)
+        ? config.fields.length
+        : (D.PRESETS['Crusader Cluster'] ? D.PRESETS['Crusader Cluster'].fields.length : 16);
+      const startPos = Math.min(players.length, Math.max(0, Math.floor(fieldsLen / 2)));
+      players.push({
+          id: 'PIRATES',
+          name: 'Piraten',
+          ship: null,
+          task: null,
+          budget: 0,
+          pos: startPos,
+          properties: {},
+          ledger: [],
+          bankrupt: false,
+          winner: false,
+          jailed: false,
+          jailTurns: 0,
+          insolvent: false,
+          debt: undefined,
+          creditorIdx: undefined,
+          role: 'pirate',
+          isPirate: true,
+          loot: 0
+        });
+    }
 
     const game = {
       data: data,
@@ -415,117 +595,33 @@ const StantonopolyGame = {
     let canBuy = false;
     let turnPassed = false; // true = Aufrufer kann direkt nextTurn()
 
+    // (Piratensystem) Schutz: Während eine Begegnung für den aktiven Spieler
+    // offen ist, darf NICHT gewürfelt werden (Direkt-NextTurn/Skip erledigt die
+    // Auflösung). Nur am aktiven Spieler relevant.
+    if (game.pirateEncounter && game.pirateEncounter.teamIdx === game.activeIdx) {
+      return { err: 'PIRATE_PENDING', pirateEncounter: game.pirateEncounter };
+    }
+
+    const pir = pirateOf(game);
+    const pirateHere = !!(pir && pir.pos === to);
+
     if (game.over) {
       turnPassed = true;
     } else if (p.bankrupt) {
       turnPassed = true;
-    } else if (landingField.type === 'grundstueck') {
-      const owner = ownerOf(game, to);
-      if (owner === null) {
-        if (p.budget >= landingField.price) {
-          canBuy = true;
-          log(game, p.name + ' landet auf freiem Grundstück „' + landingField.name + '“ (Kauf möglich – ' + fmt(landingField.price) + ') → Kaufentscheidung erforderlich.');
-          events.push('Kauf möglich auf „' + landingField.name + '“ (' + fmt(landingField.price) + ')');
-        } else {
-          log(game, p.name + ' landet auf freiem Grundstück „' + landingField.name + '“ kann es aber nicht kaufen (Budget ' + fmt(p.budget) + ' < ' + fmt(landingField.price) + ') → Zug weiter.');
-          turnPassed = true;
-        }
-      } else if (owner === p) {
-        log(game, p.name + ' landet auf eigenem Grundstück „' + landingField.name + '“ → nichts zu tun, weiter.');
-        turnPassed = true;
-      } else {
-        const level = owner.properties[to].level;
-        // (2o-A P4) Ein beliehenes (mortgaged) Feld kassiert KEINE Miete.
-        if (owner.properties[to].mortgaged) {
-          log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', beliehen) → keine Miete fällig.');
-          events.push('Keine Miete an ' + owner.name + ' (Feld ist beliehen)');
-          turnPassed = true;
-        } else {
-          const rent = game.data.rentFor(landingField.price, level, game.settings);
-          log(game, p.name + ' landet auf fremdem Grundstück „' + landingField.name + '“ (Besitzer: ' + owner.name + ', Stufe ' + level + ') → Miete ' + fmt(rent) + '.');
-          const ok = pay(game, p, owner, rent, 'Miete für „' + landingField.name + '“');
-          events.push('Miete ' + fmt(rent) + ' an ' + owner.name);
-          if (!ok) {
-            turnPassed = true;
-          } else {
-            log(game, owner.name + ' erhält ' + fmt(rent) + ' Miete.');
-            turnPassed = true;
-          }
-        }
-      }
-    } else if (landingField.type === 'los') {
-      log(game, p.name + ' landet auf „' + landingField.name + '“ (LOS) → nichts zu tun, weiter.');
-      turnPassed = true;
-    } else if (landingField.type === 'freiparken') {
-      // Frei Parken: neutrales Feld — nichts passiert.
-      log(game, p.name + ' landet auf „' + landingField.name + '“ (Frei Parken) → nichts zu tun.');
-      events.push('Frei Parken');
-      turnPassed = true;
-    } else if (landingField.type === 'gefangnis') {
-      // Gefängnis: Landung setzt den Spieler ins Gefängnis. Überspringt danach
-      // jailTurns Züge (Standard 1). Wenn ein Lösegeld (fee) definiert ist, wird
-      // dem Spieler die WAHL angeboten (Client-Modal): freikaufen oder absitzen.
-      const bail = (typeof landingField.fee === 'number') ? landingField.fee : 0;
-      const jailTurnsF = (typeof landingField.turns === 'number') ? landingField.turns : 1;
-      if (p.jailed) {
-        log(game, p.name + ' ist bereits im Gefängnis („' + landingField.name + '“).');
-        events.push('Bereits im Gefängnis');
-        turnPassed = true;
-      } else {
-        p.jailed = true;
-        p.jailTurns = Math.max(1, jailTurnsF);
-        if (bail > 0) {
-          // Wahl anbieten: Freikauf vs. Züge aussetzen. Zug wartet auf Entscheidung.
-          p.jailBail = bail;
-          landing.jailChoice = { bail, turns: p.jailTurns };
-          log(game, p.name + ' landet im Gefängnis („' + landingField.name + '“). Lösegeld ' + fmt(bail) + ' — freikaufen oder absitzen?');
-          // (2o-A P2) Wahl-Abfrage ist an den LANDENDEN (p.id als Team-/Player-Id)
-          // gerichtet — Mitspieler/Zuschauer sollen nur den Log-Eintrag sehen,
-          // kein Modal. Der Client (Task B) zeigt das Modal nur, wenn er dieser
-          // Spieler ist. turnPassed bleibt false → Zug pausiert auf Entscheidung.
-          events.push({ text: '⚠️ Gefängnis · Lösegeld ' + fmt(bail) + ' zahlen oder absitzen?', playerId: p.id, kind: 'jail-choice' });
-          events.push({ text: 'JailChoice', playerId: p.id, kind: 'jail-choice' });
-        } else {
-          log(game, p.name + ' landet im Gefängnis („' + landingField.name + '“) — überspringt die nächsten ' + p.jailTurns + ' Zug/Züge.');
-          events.push('Gefängnis · ' + p.jailTurns + ' Zug/Züge aussetzen');
-          turnPassed = true;
-        }
-      }
-    } else if (landingField.type === 'steuer') {
-      // Steuer/Pflichtfeld: fester Betrag an die Bank (nur bei Landung).
-      const tax = (typeof landingField.fee === 'number') ? landingField.fee : 0;
-      if (tax > 0) {
-        const ok = pay(game, p, null, tax, 'Steuer „' + landingField.name + '“');
-        log(game, p.name + ' landet auf „' + landingField.name + '“ (Steuer) → ' + fmt(tax) + ' an die Bank.');
-        events.push('Steuer ' + fmt(tax));
-        turnPassed = true;
-      } else {
-        log(game, p.name + ' landet auf „' + landingField.name + '“ (Steuer) → kein Betrag, weiter.');
-        turnPassed = true;
-      }
-    } else if (landingField.type === 'ereignis') {
-      // Ereignis-Feld (wie ein Monopoly-Steuerfeld): wirkt NUR bei Landung.
-      // fee > 0 = Gebühr an die Bank, fee < 0 = Bonus, 0/kein = nichts.
-      const eFee = (typeof landingField.fee === 'number') ? landingField.fee : 0;
-      if (eFee > 0) {
-        const ok = pay(game, p, null, eFee, 'Ereignis-Gebühr „' + landingField.name + '“');
-        log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → Gebühr ' + fmt(eFee) + '.');
-        events.push('Ereignis-Gebühr ' + fmt(eFee));
-        turnPassed = true;
-      } else if (eFee < 0) {
-        const bonus = Math.abs(eFee);
-        p.budget += bonus;
-        this.ledgerPush(game, p, bonus, 'Ereignis-Bonus „' + landingField.name + '“');
-        log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → Bonus ' + fmt(bonus) + '.');
-        events.push('Ereignis-Bonus +' + fmt(bonus));
-        turnPassed = true;
-      } else {
-        log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → kein Effekt, weiter.');
-        turnPassed = true;
-      }
+    } else if (pirateHere) {
+      // (Piratensystem) Begegnung: Zug pausiert auf Entscheidung (zahlen/fliehen).
+      // Die normale Feld-Logik wird NACH der Auflösung im selben Zug angewandt
+      // (resolvePirateEncounter → landingEffects), damit die Runde „normal weiter“
+      // geht (Design-Entscheidung: Begegnung zuerst, dann Feld-Effekte).
+      const b = beginPirateEncounter(game, game.activeIdx, to);
+      events.push({ text: '🏴‍☠️ Piraten! Schutzgeld ' + fmt(b.fee) + ' zahlen oder fliehen?', playerId: b.playerId, kind: 'pirate-encounter', encounter: { fee: b.fee, caughtFee: b.caughtFee } });
+      log(game, p.name + ' landet auf dem Piraten-Feld → Begegnung: Schutzgeld ' + fmt(b.fee) + ' zahlen oder fliehen.');
+      turnPassed = false;
     } else {
-      log(game, p.name + ' landet auf Feld „' + landingField.name + '“ (unbekannter Typ ' + landingField.type + ') → weiter.');
-      turnPassed = true;
+      const eff = landingEffects(game, p, landing, events);
+      turnPassed = eff.turnPassed;
+      canBuy = eff.canBuy;
     }
 
     // Nach erfolgreichem Wurf ist die Würfel-Aktion in diesem Zug gesperrt.
@@ -541,8 +637,130 @@ const StantonopolyGame = {
       landing: landing,
       canBuy: canBuy,
       turnPassed: turnPassed,
+      pirateEncounter: game.pirateEncounter || null,
       events: events
     };
+  },
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Piraten bewegen sich mit IHRER eigenen Würfelregel
+  // (settings.pirateDice) vor. Genau EIN Zug pro Rundenwechsel (nextTurn).
+  // Keine Feld-Logik (keine Miete/Kauf), kein Los-Bonus.
+  // ------------------------------------------------------------------
+  advancePirate: function (game) {
+    const pir = pirateOf(game);
+    if (!pir) return { moved: false };
+    const kind = (game.settings && game.settings.pirateDice) || '1w6';
+    let sum;
+    if (kind === '2w6') {
+      sum = (1 + Math.floor(Math.random() * 6)) + (1 + Math.floor(Math.random() * 6));
+    } else {
+      sum = 1 + Math.floor(Math.random() * 6);
+    }
+    const from = pir.pos;
+    const to = (from + sum) % game.fields.length;
+    pir.pos = to;
+    log(game, 'Piraten würfeln (' + kind + ' → ' + sum + ') und ziehen von ' + from + ' nach ' + to + ' (' + fieldName(game, to) + ').');
+    return { moved: true, sum, from, to };
+  },
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Begegnung auflösen: 'pay' (Schutzgeld) oder 'flee'
+  // (Flucht versuchen — Runde endet, Piraten bestätigen Erwischt/Entwischt).
+  // Bei 'pay' wird danach die NORMALE Feld-Logik des Zielfelds angewandt,
+  // sodass die Runde normal weitergeht (Kauf/Miete wie üblich).
+  // ------------------------------------------------------------------
+  resolvePirateEncounter: function (game, choice) {
+    const enc = game.pirateEncounter;
+    if (!enc) return { ok: false, reason: 'no_encounter' };
+    const p = game.players[enc.teamIdx];
+    if (game.over || !p || p.bankrupt) return { ok: false, reason: 'inactive' };
+    const c = String(choice || '').toLowerCase();
+    if (c === 'pay') {
+      const fee = enc.fee;
+      const paid = pay(game, p, null, fee, 'Piraten-Schutzgeld');
+      const pir = pirateOf(game);
+      if (pir) pir.loot = (pir.loot || 0) + fee;
+      game.pirateEncounter = null;
+      log(game, p.name + ' zahlt Schutzgeld (' + fmt(fee) + ') an die Piraten und setzt die Runde fort.');
+      const f = game.fields[enc.fieldIdx];
+      const landing = {
+        idx: enc.fieldIdx,
+        type: enc.fieldType || (f ? f.type : 'los'),
+        name: f ? f.name : ('Feld ' + enc.fieldIdx),
+        price: (f && typeof f.price === 'number') ? f.price : undefined
+      };
+      const events = [];
+      const eff = landingEffects(game, p, landing, events);
+      game.canBuy = eff.canBuy;
+      return { ok: true, action: 'pay', payedFull: paid, canBuy: eff.canBuy, turnPassed: eff.turnPassed, events };
+    }
+    if (c === 'flee') {
+      p.fleeing = true;
+      p.pirateCaughtFee = enc.caughtFee;
+      game.pirateEncounter = null;
+      game.pirateVerdict = { teamIdx: enc.teamIdx, fee: enc.fee, caughtFee: enc.caughtFee };
+      log(game, p.name + ' versucht zu fliehen — die Piraten warten auf das Urteil (Erwischt/Entwischt). Die Runde endet.');
+      return { ok: true, action: 'flee', caughtFee: enc.caughtFee };
+    }
+    return { ok: false, reason: 'bad_choice' };
+  },
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Piraten-Bestätigung nach einer Flucht: 'escaped'
+  // (Team entwischt, ab nächster Runde normal) oder 'caught' (erhöhtes
+  // Strafgeld fällig). Trust-based — keine SC-Verifikation möglich.
+  // ------------------------------------------------------------------
+  pirateEventConfirm: function (game, verdict) {
+    const vd = game.pirateVerdict;
+    if (!vd) return { ok: false, reason: 'no_verdict' };
+    const p = game.players[vd.teamIdx];
+    if (!p || p.bankrupt) { game.pirateVerdict = null; return { ok: false, reason: 'inactive' }; }
+    game.pirateVerdict = null;
+    const v = String(verdict || '').toLowerCase();
+    if (v === 'escaped') {
+      p.fleeing = false;
+      p.pirateCaughtFee = undefined;
+      log(game, p.name + ' ist den Piraten entwischt und darf ab der nächsten Runde normal weiterspielen.');
+      return { ok: true, verdict: 'escaped' };
+    }
+    if (v === 'caught') {
+      const fee = (typeof p.pirateCaughtFee === 'number') ? p.pirateCaughtFee : vd.caughtFee;
+      const paid = pay(game, p, null, fee, 'Piraten-Strafgeld (erwischt)');
+      const pir = pirateOf(game);
+      if (pir) pir.loot = (pir.loot || 0) + fee;
+      p.fleeing = false;
+      p.pirateCaughtFee = undefined;
+      log(game, p.name + ' wurde von den Piraten erwischt und muss das erhöhte Strafgeld zahlen (' + fmt(fee) + ').');
+      this.resolveInsolvency(game, vd.teamIdx);
+      return { ok: true, verdict: 'caught', payedFull: paid, fee };
+    }
+    return { ok: false, reason: 'bad_verdict' };
+  },
+
+  // ------------------------------------------------------------------
+  // (Piratensystem) Automatisch erwischt: Das fliehende Team erreicht seine
+  // nächste Runde, ohne dass „Entwischt“ bestätigt wurde → zahlungsfällig.
+  // (Wie bei einem erwischt-Bestätigen, nur automatisiert in nextTurn.)
+  // ------------------------------------------------------------------
+  _applyPirateCaught: function (game, teamIdx) {
+    const p = game.players[teamIdx];
+    if (!p || p.bankrupt || !p.fleeing) return { ok: false, reason: 'not_fleeing' };
+    const fee = (typeof p.pirateCaughtFee === 'number')
+      ? p.pirateCaughtFee
+      : Math.round(
+          Math.max(1, Number((game.settings && game.settings.pirateProtectionFee != null) ? game.settings.pirateProtectionFee : 250000)) *
+          Math.max(1, Number((game.settings && game.settings.pirateCaughtMult != null) ? game.settings.pirateCaughtMult : 2))
+        );
+    const paid = pay(game, p, null, fee, 'Piraten-Strafgeld (automatisch erwischt)');
+    const pir = pirateOf(game);
+    if (pir) pir.loot = (pir.loot || 0) + fee;
+    if (game.pirateVerdict && game.pirateVerdict.teamIdx === teamIdx) game.pirateVerdict = null;
+    p.fleeing = false;
+    p.pirateCaughtFee = undefined;
+    log(game, p.name + ' konnte bis zur nächsten Runde nicht entwischen → automatisch erwischt, zahlt ' + fmt(fee) + ' Strafgeld.');
+    this.resolveInsolvency(game, teamIdx);
+    return { ok: true, payedFull: paid, fee };
   },
 
   buy: function (game) {
@@ -756,13 +974,45 @@ const StantonopolyGame = {
       }
     }
     game.activeIdx = target;
+    // (Piratensystem) Fliehendes Team erreicht seine nächste Runde ohne
+    // „Entwischt“-Bestätigung → automatisch erwischt (höheres Strafgeld).
+    // Wird es dabei bankrott, fällt der Zug sofort an das nächste aktive Team.
+    {
+      let guard2 = 0;
+      while (guard2 < game.players.length + 2) {
+        const cand = game.players[game.activeIdx];
+        if (cand && cand.fleeing) {
+          this._applyPirateCaught(game, game.activeIdx);
+          if (game.over) return;
+          if (!cand.bankrupt) break;
+          game.activeIdx = nextIdx(game, game.activeIdx);
+        } else {
+          break;
+        }
+        guard2++;
+      }
+    }
     // (2g#15) Zinsen auf ÜBERNOMMENE Hypotheken (Zinsen pro Runde), fällig
     // beim Zug des Halters. Eigene Hypotheken (nicht übernommen) zinsen erst
     // bei der Tilgung. Direkt-Ablösung bleibt jederzeit über unmortgage möglich.
-    this._chargeMortgageInterest(game, target);
+    this._chargeMortgageInterest(game, game.activeIdx);
     // Neuer Zug: Würfel-Sperre aufheben + Kaufentscheidung zurücksetzen.
     game.rolled = false;
     game.canBuy = false;
+    // (Piratensystem) Piraten rücken weiter vor (auch wenn ein Team flieht) —
+    // genau EIN Zug pro Rundenwechsel. Steht das neue aktive Team danach
+    // bereits auf dem Piraten-Feld, folgt sofort eine Begegnung.
+    if (game.settings && game.settings.piratesEnabled) {
+      this.advancePirate(game);
+      const nxt = game.players[game.activeIdx];
+      if (!game.pirateEncounter && nxt && !nxt.bankrupt && !nxt.fleeing) {
+        const apir = pirateOf(game);
+        if (apir && apir.pos === nxt.pos) {
+          beginPirateEncounter(game, game.activeIdx, nxt.pos);
+          log(game, nxt.name + ' steht auf dem Piraten-Feld → Begegnung: Schutzgeld zahlen oder fliehen.');
+        }
+      }
+    }
     log(game, 'Zug wechselt von ' + game.players[from].name + ' zu ' + game.players[game.activeIdx].name + '.');
   },
 
@@ -1270,6 +1520,8 @@ const StantonopolyGame = {
       auction: game.auction || null,
       forfeitPoll: game.forfeitPoll || null,
       mortgageChoice: game.mortgageChoice || null,
+      pirateEncounter: game.pirateEncounter || null,
+      pirateVerdict: game.pirateVerdict || null,
       turnSeconds: Math.max(0, Math.round(Number(game.turnSeconds) || 0)),
       turnDeadline: typeof game.turnDeadline === 'number' ? game.turnDeadline : 0,
       log: game.log
@@ -1283,7 +1535,8 @@ const StantonopolyGame = {
       fields: Array.isArray(raw.fields) ? raw.fields.map(normalizeField)
         : (D.PRESETS['Crusader Cluster'] ? D.PRESETS['Crusader Cluster'].fields.map(normalizeField) : []),
       players: raw.players.map(function (p) {
-        return {
+        const pirFlag = !!(p.isPirate || p.role === 'pirate');
+        const o = {
           id: p.id,
           name: p.name,
           ship: p.ship,
@@ -1299,8 +1552,20 @@ const StantonopolyGame = {
           jailBail: (typeof p.jailBail === 'number') ? Math.round(p.jailBail) : undefined,
           insolvent: !!p.insolvent,
           debt: (typeof p.debt === 'number') ? Math.round(p.debt) : undefined,
-          creditorIdx: (typeof p.creditorIdx === 'number') ? p.creditorIdx : undefined
+          creditorIdx: (typeof p.creditorIdx === 'number') ? p.creditorIdx : undefined,
+          // (Piratensystem) Flucht-Zustand nur bei Bedarf setzen (undefined →
+          // Key im JSON weggelassen), damit der serialize↔deserialize-Round-Trip
+          // für normale Spiele exakt stabil bleibt.
+          fleeing: p.fleeing ? true : undefined,
+          pirateCaughtFee: (typeof p.pirateCaughtFee === 'number') ? Math.round(p.pirateCaughtFee) : undefined
         };
+        // Piraten-Marker wiederherstellen (nur für das Piratenteam).
+        if (pirFlag) {
+          o.role = 'pirate';
+          o.isPirate = true;
+          if (typeof p.loot === 'number') o.loot = Math.round(p.loot);
+        }
+        return o;
       }),
       activeIdx: raw.activeIdx || 0,
       over: !!raw.over,
@@ -1315,6 +1580,8 @@ const StantonopolyGame = {
       auction: raw.auction || null,
       forfeitPoll: raw.forfeitPoll || null,
       mortgageChoice: raw.mortgageChoice || null,
+      pirateEncounter: raw.pirateEncounter || null,
+      pirateVerdict: raw.pirateVerdict || null,
       turnSeconds: Math.max(0, Math.round(Number(raw.turnSeconds) || 0)),
       turnDeadline: (typeof raw.turnDeadline === 'number') ? raw.turnDeadline : 0,
       log: Array.isArray(raw.log) ? raw.log.slice() : []
