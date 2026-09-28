@@ -895,7 +895,12 @@ class Rooms {
     if (req.error) return req;
     const res = req.engine.roll();
     if (res && res.err) {
-      return { error: { code: res.err, message: 'Es wurde in diesem Zug bereits gewürfelt.' } };
+      const msg = {
+        ALREADY_ROLLED: 'Es wurde in diesem Zug bereits gewürfelt.',
+        FLEEING: 'Dein Team ist auf der Flucht — in dieser Runde wird nicht gewürfelt.',
+        PIRATE_PENDING: 'Erst die Piraten-Begegnung entscheiden (Schutzgeld zahlen oder fliehen).'
+      }[res.err] || 'Würfeln nicht möglich.';
+      return { error: { code: res.err, message: msg } };
     }
     const ret = this._persistAndReturn(gameId, req.engine, true);
     ret.roll = res;

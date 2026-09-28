@@ -127,6 +127,9 @@ test('AC4: flee → Runde endet + Piraten-Urteil; escaped → Team wieder frei',
   assert.strictEqual(r.action, 'flee');
   assert.strictEqual(r.caughtFee, 500000, 'Default-Multiplikator 2 × 250000');
   assert.strictEqual(g.players[0].fleeing, true, 'Team flieht');
+  // Die Runde endet SERVERSEITIG (wie Aussetzen) → Zug liegt beim nächsten Team.
+  assert.strictEqual(r.turnEnded, true, 'Server beendet die Runde');
+  assert.strictEqual(g.activeIdx, 1, 'Zug sofort an das nächste Team (B)');
   assert.ok(g.pirateVerdict, 'Piraten-Urteil steht aus (Erwischt/Entwischt)');
   // Entwischt bestätigen → frei
   const con = g.pirateEventConfirm('escaped');
@@ -134,6 +137,71 @@ test('AC4: flee → Runde endet + Piraten-Urteil; escaped → Team wieder frei',
   assert.strictEqual(con.verdict, 'escaped');
   assert.strictEqual(g.players[0].fleeing, false, 'Team wieder frei');
   assert.ok(!g.pirateVerdict, 'Urteil erledigt');
+});
+
+// ---------------------------------------------------------------------
+// AC 4a-2: Zug-SPERRE während der Flucht (Review-Korrektur Runde 1).
+// Begegnung entsteht in nextTurn (Pirat zieht auf das Feld des aktiven
+// Teams, game.rolled ist noch false) → 'flee' → die Runde endet sofort
+// und das fliehende Team darf nicht würfeln (Engine-Guard FLEEING).
+// ---------------------------------------------------------------------
+test('AC4: Begegnung aus nextTurn → flee beendet Runde + roll() gesperrt (FLEEING)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateDice: '1w6' } });
+  const pir = pirateOf(g);
+  g.players[0].pos = 4;   // A steht auf Feld 4
+  g.players[1].pos = 0;   // B steht auf Feld 0
+  pir.pos = 3;            // Pirat direkt vor A
+  g.activeIdx = 1;        // B ist am Zug
+  withRand(0, () => g.nextTurn()); // Pirat zieht 3→4 (A-Feld) → Begegnung mit A
+  assert.strictEqual(g.activeIdx, 0, 'A ist am Zug');
+  assert.ok(g.pirateEncounter, 'Begegnung in nextTurn entstanden');
+  assert.strictEqual(g.pirateEncounter.teamIdx, 0);
+  assert.strictEqual(g.rolled, false, 'A hat in diesem Zug noch nicht gewürfelt');
+  const r = g.resolvePirateEncounter('flee');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(g.players[0].fleeing, true);
+  assert.strictEqual(r.turnEnded, true, 'Runde endet serverseitig');
+  assert.strictEqual(g.activeIdx, 1, 'Zug liegt wieder bei B');
+  // Solange die Flucht läuft, ist Würfeln engine-seitig gesperrt.
+  g.activeIdx = 0;
+  const posBefore = g.players[0].pos;
+  const res = g.roll();
+  assert.strictEqual(res.err, 'FLEEING', 'Würfeln auf der Flucht → FLEEING');
+  assert.strictEqual(g.players[0].pos, posBefore, 'kein Positionswechsel beim abgelehnten Wurf');
+
+  // Persistenz: fleeing überlebt serialize↔deserialize (sonst Sperre weg).
+  const g2 = G.deserialize(g.serialize(), D);
+  assert.strictEqual(g2.players[0].fleeing, true, 'Flucht-Status persistiert');
+  g2.activeIdx = 0;
+  assert.strictEqual(g2.roll().err, 'FLEEING', 'Sperre auch nach Round-Trip');
+});
+
+// ---------------------------------------------------------------------
+// AC 3-SPERRE (Review-Korrektur Runde 1): Solange die Begegnung offen ist,
+// darf der aktive Spieler NICHT würfeln — engine-seitig und VOR der Bewegung,
+// damit der abgelehnte Wurf den Spielstand nicht anfasst (nur erreichbar,
+// wenn die Begegnung in nextTurn entstand, also game.rolled noch false ist;
+// nach einer eigenen Landung greift zusätzlich ALREADY_ROLLED).
+// ---------------------------------------------------------------------
+test('AC3: offene Begegnung aus nextTurn → roll() = PIRATE_PENDING ohne Bewegung', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateDice: '1w6' } });
+  const pir = pirateOf(g);
+  g.players[0].pos = 4; g.players[1].pos = 0; pir.pos = 3; g.activeIdx = 1;
+  withRand(0, () => g.nextTurn()); // Pirat zieht 3→4 (A-Feld) → Begegnung mit A
+  assert.strictEqual(g.activeIdx, 0, 'A ist am Zug');
+  assert.strictEqual(g.rolled, false, 'A hat in diesem Zug noch nicht gewürfelt');
+  const posBefore = g.players[0].pos;
+  const res = g.roll();
+  assert.strictEqual(res.err, 'PIRATE_PENDING', 'Würfeln bei offener Begegnung → PIRATE_PENDING');
+  assert.strictEqual(res.pirateEncounter.teamIdx, 0, 'offene Begegnung wird zurückgemeldet');
+  assert.strictEqual(g.players[0].pos, posBefore, 'kein Positionswechsel beim abgelehnten Wurf');
+  assert.strictEqual(g.rolled, false, 'abgelehnter Wurf zählt nicht als gewürfelt');
+  // Nach 'pay' ist die Begegnung aufgelöst und der Zug läuft normal weiter.
+  const r = g.resolvePirateEncounter('pay');
+  assert.strictEqual(r.ok, true);
+  assert.ok(!g.pirateEncounter, 'Begegnung aufgelöst');
+  const after = g.roll();
+  assert.ok(!after.err, 'nach der Bezahlung ist Würfeln wieder möglich (Runde normal)');
 });
 
 // ---------------------------------------------------------------------
@@ -164,23 +232,37 @@ test('AC4: automatisch erwischt bei nicht-Entwischen bis zur nächsten Runde', (
   g.players[0].pos = 1; pir.pos = 2;
   const before = g.players[0].budget;
   rollExact(g, 1);
-  g.resolvePirateEncounter('flee');      // A flieht; Runde endet (nextTurn folgt)
-  withRand(0, () => { g.nextTurn(); });  // A→B (Pirat zieht 1 weiter)
+  withRand(0, () => g.resolvePirateEncounter('flee')); // A flieht; Runde endet serverseitig
   assert.strictEqual(g.players[0].fleeing, true, 'A flieht noch');
+  assert.strictEqual(g.activeIdx, 1, 'Zug liegt bei B');
   withRand(0, () => { g.nextTurn(); });  // B→A → A nicht entwichen → automatisch erwischt
   assert.strictEqual(g.players[0].fleeing, false, 'A automatisch erwischt → Flucht beendet');
   assert.strictEqual(g.players[0].budget, before - 500000, 'automatisch Strafgeld (2×) gezahlt');
 });
 
-// Nicht-zahlbar → Insolvenz-Pfad (offener Sonderfall, Design-Entscheidung).
-test('AC4: Strafgeld nicht zahlbar → Insolvenz (Bankrott am Zugende)', () => {
+// Nicht-zahlbar → NORMALER Insolvenz-Pfad (Review-Korrektur Runde 1): kein
+// Sofort-Bankrott, sondern Zahlungsrückstand (insolvent/debt) mit Sanierungs-
+// Fenster bis zum Zugende — exakt wie bei jeder anderen nicht deckbaren Zahlung.
+test('AC4: Strafgeld nicht zahlbar → normaler Insolvenz-Pfad (Sanierung, sonst Bankrott am Zugende)', () => {
   const g = makeGame([{ name: 'A' }, { name: 'B' }], { capital: 300000 });
   const pir = pirateOf(g);
   g.players[0].pos = 1; pir.pos = 2;
   rollExact(g, 1);
-  g.resolvePirateEncounter('flee');
-  g.pirateEventConfirm('caught'); // 500000 > 300000 → nicht deckbar → Insolvenz
-  assert.strictEqual(g.players[0].bankrupt, true, 'nicht zahlbar → Bankrott (Insolvenz-Pfad)');
+  withRand(0, () => g.resolvePirateEncounter('flee'));
+  const con = g.pirateEventConfirm('caught'); // 500000 > 300000 → nicht deckbar
+  assert.strictEqual(con.ok, true);
+  assert.strictEqual(con.insolvent, true, 'Rückstand gemeldet');
+  assert.strictEqual(g.players[0].bankrupt, false, 'KEIN Sofort-Bankrott');
+  assert.strictEqual(g.players[0].insolvent, true, 'Zahlungsrückstand markiert');
+  assert.strictEqual(g.players[0].budget, -200000, 'Konto im Überzug');
+  assert.strictEqual(g.players[0].debt, 200000, 'offene Schuld = Fehlbetrag');
+  // Ohne Sanierung → Bankrott am Zugende (nextTurn löst den Rückstand auf).
+  withRand(0, () => { g.nextTurn(); }); // B übergibt ab → A ist am Zug
+  assert.strictEqual(g.players[0].bankrupt, false, 'am Zug noch nicht bankrott (Sanierungs-Fenster)');
+  withRand(0, () => { g.nextTurn(); }); // A übergibt ab → Rückstand nicht gedeckt
+  assert.strictEqual(g.players[0].bankrupt, true, 'nicht saniert → Bankrott am Zugende');
+  assert.strictEqual(g.over, true, 'nur noch 1 normales Team → B gewinnt');
+  assert.strictEqual(g.winnerInfo.name, 'B');
 });
 
 // ---------------------------------------------------------------------

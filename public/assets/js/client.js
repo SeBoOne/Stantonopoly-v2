@@ -1811,6 +1811,7 @@
       'Budget: ' + budget,
       'Position: ' + (p.pos != null ? p.pos : '—'),
       (p.jailed ? '⛓ IM GEFÄNGNIS (überspringt ' + (p.jailTurns || 0) + ' Zug/Züge)' : ''),
+      (p.fleeing ? '🏴‍☠️ AUF DER FLUCHT — diese Runde wird nicht gewürfelt (Piraten-Urteil ausstehend)' : ''),
     ].filter((l) => l !== '');
     let leaderUI = '';
     // Nur der aktuelle Teamleiter kann die Rolle (ohne Vote) an ein anderes
@@ -1911,7 +1912,6 @@
     // Alle anderen (Mitglieder, Beobachter, andere Teams) sehen keine Aktions-Buttons.
     const showActions = isLeaderOfActive;
 
-    setBtn('btn-roll', showActions && !rolled && !canBuy, showActions && !rolled && !canBuy);
     setBtn('btn-buy', showActions && canBuy, showActions && canBuy);
     setBtn('btn-skip', showActions && canBuy, showActions && canBuy);
     setBtn('btn-task', showActions, showActions);
@@ -1919,6 +1919,10 @@
     // (insolvent) — es muss zuerst sanieren, sonst scheidet es am Zugende aus.
     const activeP = game.players && game.players[idx];
     const insolventBlock = showActions && activeP && activeP.insolvent;
+    // (Piratensystem) Auf der Flucht ist der Zug gesperrt: nicht würfeln.
+    // Server-seitig doppelt abgesichert (engine.roll → err FLEEING).
+    const fleeingBlock = !!(activeP && activeP.fleeing);
+    setBtn('btn-roll', showActions && !rolled && !canBuy && !fleeingBlock, showActions && !rolled && !canBuy && !fleeingBlock);
     setBtn('btn-next', showActions && !insolventBlock, showActions && rolled && !insolventBlock);
 
     // Optionen (jede Rolle im aktiven Spiel): öffnet das rollenabhängige Modale
