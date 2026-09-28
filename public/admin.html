@@ -128,6 +128,23 @@
         </div>
       </div>
 
+      <!-- ============ Manager-Codes ============ -->
+      <section id="view-managers" class="view">
+        <div class="frame">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head"><span class="eyebrow">ADMIN · MANAGER</span><h2>Manager-Codes</h2></div>
+          <div class="sub"><span class="t-lbl">Zugang zum Preset-Editor (Spiele-Ansicht)</span>
+            <span class="hint">Manager dürfen im Spiel-Setup Presets erstellen/bearbeiten/speichern. Code nur hier sichtbar — einmalig kopieren und intern dem Namenslabel zuordnen.</span>
+          </div>
+          <div class="ad-manager-create">
+            <input id="mgr-name-input" type="text" maxlength="60" placeholder="Internes Namenslabel (z. B. wer der Manager ist)" />
+            <button type="button" id="btn-ad-mgr-create" class="btn btn-xs btn-primary">Code erzeugen</button>
+          </div>
+          <div id="mgr-code-result" class="ad-code-result hidden"></div>
+          <div id="ad-manager-list" class="ad-list"></div>
+        </div>
+      </section>
+
       <!-- ============ Protokoll ============ -->
       <section id="view-log" class="view">
         <div class="frame">

@@ -96,19 +96,20 @@
   }
 
   // ---------------- Views / Nav ----------------
-  const VIEWS = ['login', 'dashboard', 'games', 'presets', 'log'];
+  const VIEWS = ['login', 'dashboard', 'games', 'presets', 'managers', 'log'];
   function showView(name) {
     VIEWS.forEach((v) => {
       const el = $('view-' + v);
       if (el) { el.classList.toggle('hidden', v !== name); el.classList.toggle('active', v === name); }
     });
-    document.body.classList.remove('view-login', 'view-dashboard', 'view-games', 'view-presets', 'view-log');
+    document.body.classList.remove('view-login', 'view-dashboard', 'view-games', 'view-presets', 'view-managers', 'view-log');
     document.body.classList.add('view-' + name);
     // Nav aktualisieren
     renderNav(name);
     if (name === 'dashboard') reloadDashboard();
     else if (name === 'games') reloadGames();
     else if (name === 'presets') reloadPresets();
+    else if (name === 'managers') reloadManagerCodes();
     else if (name === 'log') reloadLog();
   }
 
@@ -116,7 +117,7 @@
     const nav = $('admin-nav');
     if (!nav) return;
     nav.innerHTML = '';
-    const items = [['dashboard', 'Übersicht'], ['games', 'Spiele'], ['presets', 'Presets'], ['log', 'Protokoll']];
+    const items = [['dashboard', 'Übersicht'], ['games', 'Spiele'], ['presets', 'Presets'], ['managers', 'Manager'], ['log', 'Protokoll']];
     items.forEach(([id, label]) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -480,7 +481,7 @@
       const el = $('ad-log-list');
       const rows = d.log || [];
       if (!rows.length) { el.innerHTML = '<div class="ad-empty">Noch keine Aktionen protokolliert.</div>'; return; }
-      const actionLbl = { delete_game: 'Spiel gelöscht', delete_preset: 'Preset gelöscht', save_preset: 'Preset gespeichert', login: 'Anmeldung', login_failed: 'Login fehlgeschlagen', change_password: 'Passwort geändert' };
+      const actionLbl = { delete_game: 'Spiel gelöscht', delete_preset: 'Preset gelöscht', save_preset: 'Preset gespeichert', login: 'Anmeldung', login_failed: 'Login fehlgeschlagen', change_password: 'Passwort geändert', create_manager_code: 'Manager-Code erzeugt', delete_manager_code: 'Manager-Code entfernt', rename_manager_code: 'Manager-Code umbenannt', manager_login: 'Manager eingeloggt', enable_preset: 'Preset aktiviert', disable_preset: 'Preset deaktiviert' };
       el.innerHTML = rows.map((r) =>
         '<div class="ad-row"><div class="ad-row-main">' +
         '<div class="ad-row-head"><span class="ad-status ok">' + esc(actionLbl[r.action] || r.action) + '</span>' +
@@ -491,11 +492,96 @@
     } catch (e) {}
   }
 
+  // ---------------- Manager-Codes ----------------
+  async function reloadManagerCodes() {
+    try {
+      const d = await api('GET', '/manager-codes');
+      const listEl = $('ad-manager-list');
+      const rows = d.codes || [];
+      if (!rows.length) { if (listEl) listEl.innerHTML = '<div class="ad-empty">Noch keine Manager-Codes. Erstelle einen, um einem Spieler erweiterte Preset-Rechte zu geben.</div>'; return; }
+      if (listEl) {
+        // row-parts sind Escaped; Kinder einzeln gebaut, kein rohes innerHTML aus Serverdaten.
+        listEl.innerHTML = '';
+        rows.forEach((c) => {
+          const row = document.createElement('div');
+          row.className = 'ad-row';
+          const main = document.createElement('div');
+          main.className = 'ad-row-main';
+          const head = document.createElement('div');
+          head.className = 'ad-row-head';
+          const nameStrong = document.createElement('strong');
+          nameStrong.textContent = c.name || '—';
+          head.appendChild(nameStrong);
+          main.appendChild(head);
+          const meta = document.createElement('div');
+          meta.className = 'ad-meta';
+          meta.textContent = 'Code: ' + c.code + ' · erstellt ' + (c.created_at || '—');
+          main.appendChild(meta);
+          row.appendChild(main);
+          const side = document.createElement('div');
+          side.className = 'ad-row-side';
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'btn btn-xs btn-danger';
+          delBtn.textContent = 'Entfernen';
+          delBtn.addEventListener('click', () => confirmDeleteManagerCode(c.code, c.name));
+          side.appendChild(delBtn);
+          row.appendChild(side);
+          listEl.appendChild(row);
+        });
+      }
+    } catch (e) {}
+  }
+
+  async function createManagerCode() {
+    const nameIn = $('mgr-name-input');
+    const name = (nameIn ? nameIn.value : '').trim();
+    if (!name) { showNotify('Bitte ein internes Namenslabel angeben (wer ist der Manager?).', true); return; }
+    try {
+      const d = await api('POST', '/manager-codes', { name });
+      const result = $('mgr-code-result');
+      if (result) {
+        result.classList.remove('hidden');
+        // Der Code ist ein serverseitig erzeugtes Geheimnis — nur hier einmalig zeigen.
+        const pre = document.createElement('strong');
+        pre.textContent = 'Neuer Code für "' + d.name + '": ' + d.code;
+        result.innerHTML = '';
+        result.appendChild(pre);
+        const hint = document.createElement('div');
+        hint.className = 'hint';
+        hint.textContent = 'Kopiere ihn jetzt — nach dem Neuladen ist er nur noch als Liste (ohne Geheimnis-Hervorhebung) sichtbar.';
+        result.appendChild(hint);
+      }
+      if (nameIn) nameIn.value = '';
+      showNotify('Manager-Code erzeugt.');
+      await reloadManagerCodes();
+    } catch (e) { showNotify('Erzeugen fehlgeschlagen: ' + e.message, true); }
+  }
+
+  function confirmDeleteManagerCode(code, name) {
+    if (!window.confirm('Manager-Code für "' + name + '" entfernen?\nDer Zugang wird damit sofort entzogen.')) return;
+    (async () => {
+      try {
+        await api('DELETE', '/manager-codes/' + encodeURIComponent(code));
+        showNotify('Manager-Code entfernt.');
+        await reloadManagerCodes();
+      } catch (e) { showNotify('Entfernen fehlgeschlagen: ' + e.message, true); }
+    })();
+  }
+
+  function initManagers() {
+    const createBtn = $('btn-ad-mgr-create');
+    if (createBtn) createBtn.addEventListener('click', createManagerCode);
+    const nameIn = $('mgr-name-input');
+    if (nameIn) nameIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') createManagerCode(); });
+  }
+
   // ---------------- Boot ----------------
   function boot() {
       const stored = loadStoredToken();
       initLogin();
       initPresets();
+      initManagers();
       // Ersteinrichtung prüfen (falls kein Admin-Konto existstiert).
       checkSetup();
     // Bei gespeichertem Token: verifizieren und Dashboard zeigen.

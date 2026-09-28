@@ -206,6 +206,12 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .preset-editor-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
   margin-bottom: 12px; }
 .preset-editor-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* (P4) Manager-Leiste im Preset-Editor — Standardmodus zeigt einen dezenten Hinweis, */
+/* im Manager-Modus die Aktionen als alternierende Kennleiste. */
+.manager-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+  padding: 8px 10px; border: 1px dashed var(--line-bright); background: var(--panel-2); }
+.manager-bar input { max-width: 150px; font: 600 12px/1 ui-monospace, monospace; letter-spacing: .08em; }
+.manager-bar .hint { font-size: 10.5px; }
 .preset-field-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 150px 40px 40px 38px; gap: 8px;
   align-items: center; border: 2px solid var(--line); background: var(--panel-2); padding: 7px 10px; }
