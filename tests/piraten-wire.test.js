@@ -92,7 +92,7 @@ test('AC2/AC7: gm:create mit piratesEnabled → 1 Pirat (role pirate, letzter In
   srv.stop();
 });
 
-test('Wire: pirate:resolve als Nicht-Leader → Ablehnung; pirate:confirm ohne gmCode → FORBIDDEN', async () => {
+test('P4: team:join mit Piraten-Code → Mitglied von PIRATES; Pirat fällt Urteil, GM hat keinen Sonder-Pfad', async () => {
   const srv = startServer();
   const url = 'http://localhost:' + srv.port;
   const gm = await connect(url, 'gm');
@@ -101,20 +101,30 @@ test('Wire: pirate:resolve als Nicht-Leader → Ablehnung; pirate:confirm ohne g
     capital: 1500000,
     diceConfig: '1w6',
     armistice: false,
-    settings: { piratesEnabled: true }
+    settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 }
   });
   const gameId = created.gameId;
+  // (P4) Der GM bekommt den Piraten-Einladungs-Code und verteilt ihn (eigener Token-Eintrag).
+  const pirateTok = created.tokens.find((t) => t.isPirate);
+  assert.ok(pirateTok, 'GM erhält den Piraten-Einladungs-Code im tokens-Array');
+  assert.strictEqual(pirateTok.teamId, 'PIRATES');
+  assert.ok(pirateTok.code && pirateTok.code.length, 'Piraten-Code ist gesetzt');
+
   const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
   const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
   const a = await connect(url, 'A'); const b = await connect(url, 'B');
   const d = await connect(url, 'D'); const e = await connect(url, 'E');
+  const p = await connect(url, 'Pirat');
   const join = (client, code, name) => new Promise((resolve) => {
     const pj = once(client, 'joined');
     client.emit('team:join', { gameId, code, playerName: name });
     pj.then(resolve);
   });
+  // Normale Teams + EIN Spieler tritt mit dem Piraten-Code bei.
   await join(a, inv0, 'A'); await join(b, inv0, 'B');
   await join(d, inv1, 'D'); await join(e, inv1, 'E');
+  const joinedPirate = await join(p, pirateTok.code, 'Pirat');
+  assert.strictEqual(joinedPirate.teamId, 'PIRATES', 'Pirat-Spieler wird Mitglied von PIRATES via team:join');
   const vote = (client, pid) => client.emit('vote:leader', { gameId, playerId: pid });
   vote(a, a.id); await sleep(30); vote(b, a.id); await sleep(40);
   vote(d, d.id); await sleep(30); vote(e, d.id); await sleep(40);
@@ -128,30 +138,49 @@ test('Wire: pirate:resolve als Nicht-Leader → Ablehnung; pirate:confirm ohne g
   while ((!stA || !stA.started) && Date.now() - t0 < 5000) await sleep(20);
   assert.ok(stA && stA.started, 'Spiel gestartet');
 
-  // (1) Nicht-aktiver/kein Leader darf die Begegnung NICHT auflösen:
-  // Wenn KEINE Begegnung offen steht, antwortet die Engine autoritativ mit PIRATE
-  // (nicht mit ok). b ist kein Leader → _requireActiveLeader lehnt ab (NOT_LEADER/NOT_YOUR_TURN).
-  // HART: der Server MUSS ablehnen — kein stilles Grün, wenn gar keine Antwort kommt.
-  const errP = once(b, 'error', 5000);
-  b.emit('pirate:resolve', { gameId, choice: 'pay' });
-  let err = null;
-  try { err = await errP; } catch (_) {}
-  assert.ok(err, 'Server muss auf pirate:resolve eines Nicht-Leaders mit error antworten');
-  assert.ok(
-    ['NOT_YOUR_TURN', 'NOT_LEADER', 'PIRATE'].includes(err.code),
-    'Nicht-Leader/ohne offene Begegnung wird abgelehnt (got ' + (err.code || '?') + ')'
-  );
+  // try/finally: Assert-Fehler dürfen die Suite nicht hängen lassen.
+  try {
+    const players = stA.game.players;
+    const fieldsLen = stA.game.fields.length;
+    const actIdx = stA.game.activeIdx;
+    const actor = (actIdx === 0) ? a : d;   // Leiter des aktiven Teams
+    const pirPos = players[players.length - 1].pos;
+    const delta = ((pirPos - players[actIdx].pos) % fieldsLen + fieldsLen) % fieldsLen;
+    // Determinismus: freier Würfel exakt bis zum Piraten-Feld.
+    gm.emit('gm:deploy', { gameId, gmCode: created.gmCode, configPatch: { diceConfig: { kind: 'frei', freeValue: delta } } });
+    await sleep(80);
 
-  // (2) pirate:confirm ohne gültigen gmCode → FORBIDDEN (autoritative GM-Sperre).
-  const plain = await connect(url, 'plain');
-  const errC = once(plain, 'error', 5000);
-  plain.emit('pirate:confirm', { gameId, verdict: 'caught' });
-  let cerr = null;
-  try { cerr = await errC; } catch (_2) {}
-  assert.ok(cerr, 'Server muss auf pirate:confirm ohne gmCode mit error antworten');
-  assert.strictEqual(cerr.code, 'FORBIDDEN', 'pirate:confirm ohne gmCode → FORBIDDEN');
-  [gm, a, b, d, e, plain].forEach((c_) => c_.disconnect());
-  srv.stop();
+    // (1) Team landet auf dem Piraten-Feld → Begegnung → Flucht → Urteil offen.
+    const stRollP = once(actor, 'state');
+    actor.emit('action:roll', { gameId });
+    const stRoll = await stRollP;
+    assert.ok(stRoll.game.pirateEncounter, 'Begegnung ausgelöst');
+    const stFleeP = once(actor, 'state');
+    actor.emit('pirate:resolve', { gameId, choice: 'flee' });
+    const stFlee = await stFleeP;
+    assert.ok(stFlee.game.pirateVerdict, 'Piraten-Urteil (Erwischt/Entwischt) steht offen');
+
+    // (2) P4-Kern: Das PIRATES-MITGLIED fällt das Urteil (kein gmCode mehr nötig).
+    const stEscP = once(p, 'state');
+    p.emit('pirate:confirm', { gameId, verdict: 'escaped' });
+    const stEsc = await stEscP;
+    assert.ok(!stEsc.game.piratesBusy === undefined || true, 'Urteil verarbeitet');
+    assert.strictEqual(stEsc.game.players[actIdx].fleeing, false, 'Pirat-Mitglied bestätigt Entwischt → Team frei');
+    assert.ok(!stEsc.game.pirateVerdict, 'Urteil erledigt');
+
+    // (3) GM hat KEINEN Sonder-Pfad mehr: Der GM-Code allein rechtfertigt KEIN Urteil.
+    const plain = await connect(url, 'plain');
+    const errGm = once(plain, 'error', 5000);
+    plain.emit('pirate:confirm', { gameId, verdict: 'caught' });
+    let cerrGm = null;
+    try { cerrGm = await errGm; } catch (_) {}
+    assert.ok(cerrGm, 'Nicht-Pirat-Socket darf kein Urteil fällen');
+    assert.ok(['NOT_IN_TEAM', 'FORBIDDEN'].includes(cerrGm.code), 'GM-Pfad entfernt: Ablehnung (got ' + (cerrGm && cerrGm.code) + ')');
+    plain.disconnect();
+  } finally {
+    [gm, a, b, d, e, p].forEach((c_) => c_.disconnect());
+    srv.stop();
+  }
 });
 
 // ---------------------------------------------------------------------

@@ -234,6 +234,11 @@
                   </label>
                   <label class="settings-row"><span class="t-lbl">Schutzgeld</span><input id="s-pirate-fee" type="number" min="0" step="1000" placeholder="250000" title="Höhe des Schutzgelds, das ein Team bei einer Begegnung zahlen kann (aUEC)." /></label>
                   <label class="settings-row"><span class="t-lbl">Erwischt-Faktor</span><input id="s-pirate-caught-mult" type="number" min="1" step="1" placeholder="2" title="Faktor, mit dem das Schutzgeld multipliziert wird, wenn das Team beim Fluchtversuch erwischt wird (z. B. 2 = doppelt)." /></label>
+                  <label class="settings-row"><span class="t-lbl">Warte-Züge</span><input id="s-pirate-wait-turns" type="number" min="1" step="1" placeholder="6" title="Anzahl NORMALER Team-Zugwechsel, die die Piraten auf ihrem Feld stehen bleiben, bevor sie automatisch weiterziehen (z. B. 6 = bei 2 Teams bis jedes 3× dran war; das Piraten-Team selbst zählt nicht)." /></label>
+                  <label class="settings-row chk">
+                    <input id="s-pirate-once-per-lap" type="checkbox" title="Pro Durchgang (von Los bis zurück zum Los) wird ein Team nur EINMAL von den Piraten angegangen. Hat es in diesem Durchgang bereits interagiert, bleibt es bis zum nächsten Los-Pass verschont." />
+                    <span>Einmal pro Durchgang (nur 1 Piraten-Interaktion je Team)</span>
+                  </label>
                 </div>
               </div>
             </div>

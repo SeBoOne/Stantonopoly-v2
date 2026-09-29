@@ -387,7 +387,11 @@
                     piratesEnabled: false,
                     pirateDice: '1w6',
                     pirateProtectionFee: 250000,
-                    pirateCaughtMult: 2
+                    pirateCaughtMult: 2,
+                    // (P7) Warte-Züge der normalen Teams, bis die Piraten weiterziehen.
+                    pirateWaitTurns: 6,
+                    // (P9) Optional: pro Durchgang nur 1 Piraten-Interaktion je Team.
+                    pirateOncePerLap: false
                   };
     let currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
 
@@ -444,6 +448,10 @@
             { const el = $('s-pirate-dice'); if (el) el.value = currentSettings.pirateDice || '1w6'; }
             { const el = $('s-pirate-fee'); if (el) el.value = String(currentSettings.pirateProtectionFee != null ? currentSettings.pirateProtectionFee : 250000); }
             { const el = $('s-pirate-caught-mult'); if (el) el.value = String(currentSettings.pirateCaughtMult != null ? currentSettings.pirateCaughtMult : 2); }
+            // (P7) Warte-Züge der normalen Teams, bis die Piraten weiterziehen (ganze Zahl).
+            { const el = $('s-pirate-wait-turns'); if (el) el.value = String(currentSettings.pirateWaitTurns != null ? currentSettings.pirateWaitTurns : 6); }
+            // (P9) Pro Durchgang nur 1 Piraten-Interaktion je Team.
+            { const el = $('s-pirate-once-per-lap'); if (el) el.checked = !!currentSettings.pirateOncePerLap; }
           }
     function readSettingsInputs() {
       const p = (v, d) => { if (v == null) return d; const x = Number(v); return Number.isFinite(x) && x >= 0 ? x : d; };
@@ -482,6 +490,10 @@
             { const pd = $('s-pirate-dice'); if (pd && (pd.value === '1w6' || pd.value === '2w6')) currentSettings.pirateDice = pd.value; }
             { const pf = $('s-pirate-fee'); if (pf) currentSettings.pirateProtectionFee = Math.max(0, Math.round(Number(pf.value) || 0)); }
             { const pm = $('s-pirate-caught-mult'); if (pm) currentSettings.pirateCaughtMult = Math.max(1, Math.round(Number(pm.value) || 1)); }
+            // (P7) Warte-Züge: ganze Zahl >=1 der normalen Team-Zugwechsel.
+            { const pw = $('s-pirate-wait-turns'); if (pw) currentSettings.pirateWaitTurns = Math.max(1, Math.round(Number(pw.value) || 6)); }
+            // (P9) Einmal pro Durchgang je Team.
+            { const pl = $('s-pirate-once-per-lap'); if (pl) currentSettings.pirateOncePerLap = !!pl.checked; }
           }
     // Settings nur senden, wenn sie von den Defaults abweichen (sonst null)
     function settingsPayload() {
@@ -512,6 +524,10 @@
       if (cur.pirateDice !== base.pirateDice) out.pirateDice = cur.pirateDice;
       if (cur.pirateProtectionFee !== base.pirateProtectionFee) out.pirateProtectionFee = cur.pirateProtectionFee;
       if (cur.pirateCaughtMult !== base.pirateCaughtMult) out.pirateCaughtMult = cur.pirateCaughtMult;
+      // (P7) Warte-Züge (nur senden, wenn vom Default abweichend)
+      if (cur.pirateWaitTurns !== base.pirateWaitTurns) out.pirateWaitTurns = cur.pirateWaitTurns;
+      // (P9) Einmal pro Durchgang
+      if (cur.pirateOncePerLap !== base.pirateOncePerLap) out.pirateOncePerLap = cur.pirateOncePerLap;
       return Object.keys(out).length ? out : null;
     }
 
@@ -684,6 +700,8 @@
       if (src.pirateDice === '1w6' || src.pirateDice === '2w6') s.pirateDice = src.pirateDice;
       if (typeof src.pirateProtectionFee === 'number') s.pirateProtectionFee = src.pirateProtectionFee;
       if (typeof src.pirateCaughtMult === 'number') s.pirateCaughtMult = src.pirateCaughtMult;
+      if (typeof src.pirateWaitTurns === 'number') s.pirateWaitTurns = Math.max(1, Math.round(src.pirateWaitTurns));
+      if (typeof src.pirateOncePerLap === 'boolean') s.pirateOncePerLap = src.pirateOncePerLap;
       if (src.rentMult && typeof src.rentMult === 'object') Object.assign(s.rentMult, src.rentMult);
       if (src.buildMult && typeof src.buildMult === 'object') Object.assign(s.buildMult, src.buildMult);
       currentSettings = s;

@@ -140,69 +140,104 @@ test('AC4: flee → Runde endet + Piraten-Urteil; escaped → Team wieder frei',
 });
 
 // ---------------------------------------------------------------------
-// AC 4a-2: Zug-SPERRE während der Flucht (Review-Korrektur Runde 1).
-// Begegnung entsteht in nextTurn (Pirat zieht auf das Feld des aktiven
-// Teams, game.rolled ist noch false) → 'flee' → die Runde endet sofort
-// und das fliehende Team darf nicht würfeln (Engine-Guard FLEEING).
+// P8 (Bestätigung): Wenn die Piraten sich bewegen und auf ein Feld landen,
+// auf dem bereits ein normales Team steht, passiert NICHTS (advancePirate
+// löst KEINE Begegnung aus — Begegnungen entstehen nur, wenn ein Team per
+// roll() AUF das Piratenfeld zieht).
 // ---------------------------------------------------------------------
-test('AC4: Begegnung aus nextTurn → flee beendet Runde + roll() gesperrt (FLEEING)', () => {
-  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateDice: '1w6' } });
+test('P8: advancePirate landet auf belegtem Feld → KEINE Begegnung (Begegnung nur via roll())', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateDice: '1w6', pirateWaitTurns: 1 } });
   const pir = pirateOf(g);
   g.players[0].pos = 4;   // A steht auf Feld 4
   g.players[1].pos = 0;   // B steht auf Feld 0
-  pir.pos = 3;            // Pirat direkt vor A
+  pir.pos = 3;            // Pirat direkt vor A (auf Feld 3)
   g.activeIdx = 1;        // B ist am Zug
-  withRand(0, () => g.nextTurn()); // Pirat zieht 3→4 (A-Feld) → Begegnung mit A
-  assert.strictEqual(g.activeIdx, 0, 'A ist am Zug');
-  assert.ok(g.pirateEncounter, 'Begegnung in nextTurn entstanden');
-  assert.strictEqual(g.pirateEncounter.teamIdx, 0);
-  assert.strictEqual(g.rolled, false, 'A hat in diesem Zug noch nicht gewürfelt');
-  const r = g.resolvePirateEncounter('flee');
-  assert.strictEqual(r.ok, true);
-  assert.strictEqual(g.players[0].fleeing, true);
-  assert.strictEqual(r.turnEnded, true, 'Runde endet serverseitig');
-  assert.strictEqual(g.activeIdx, 1, 'Zug liegt wieder bei B');
-  // Solange die Flucht läuft, ist Würfeln engine-seitig gesperrt.
-  g.activeIdx = 0;
-  const posBefore = g.players[0].pos;
-  const res = g.roll();
-  assert.strictEqual(res.err, 'FLEEING', 'Würfeln auf der Flucht → FLEEING');
-  assert.strictEqual(g.players[0].pos, posBefore, 'kein Positionswechsel beim abgelehnten Wurf');
-
-  // Persistenz: fleeing überlebt serialize↔deserialize (sonst Sperre weg).
-  const g2 = G.deserialize(g.serialize(), D);
-  assert.strictEqual(g2.players[0].fleeing, true, 'Flucht-Status persistiert');
-  g2.activeIdx = 0;
-  assert.strictEqual(g2.roll().err, 'FLEEING', 'Sperre auch nach Round-Trip');
+  withRand(0, () => g.nextTurn()); // Pirat zieht 3→4 (A-Feld) — NUR Bewegung, keine Begegnung
+  assert.strictEqual(pir.pos, 4, 'Pirat zieht auf das belegte Feld 4');
+  assert.ok(!g.pirateEncounter, 'advancePirate auf belegtes Feld löst KEINE Begegnung aus (P8)');
+  // Erst wenn ein Team per roll() auf das Piratenfeld ZIEHT, entsteht die Begegnung.
+  // A steht jetzt AUF dem Piratenfeld (4): ein späterer Wurf von hier begegnet NICHT
+  // augenblicklich — die Begegnung entsteht nur beim LANDEN auf dem Piraten-Feld.
+  g.players[0].pos = 8; pir.pos = 9; // A zieht 8→9 (Pirat auf 9)
+  const res = rollExact(g, 1);
+  assert.strictEqual(res.to, 9);
+  assert.ok(res.pirateEncounter, 'Team, das per roll() auf das Piratenfeld zieht → normale Begegnung');
 });
 
 // ---------------------------------------------------------------------
-// AC 3-SPERRE (Review-Korrektur Runde 1): Solange die Begegnung offen ist,
-// darf der aktive Spieler NICHT würfeln — engine-seitig und VOR der Bewegung,
-// damit der abgelehnte Wurf den Spielstand nicht anfasst (nur erreichbar,
-// wenn die Begegnung in nextTurn entstand, also game.rolled noch false ist;
-// nach einer eigenen Landung greift zusätzlich ALREADY_ROLLED).
+// P7: Die Piraten bleiben pirateWaitTurns (Zugwechsel der NORMALEN Teams)
+// auf ihrem Feld stehen und ziehen erst dann automatisch weiter (advancePirate).
+// Der Zähler läuft NUR über die normalen Team-Zugwechsel (Pirat selbst nie aktiv).
 // ---------------------------------------------------------------------
-test('AC3: offene Begegnung aus nextTurn → roll() = PIRATE_PENDING ohne Bewegung', () => {
-  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateDice: '1w6' } });
+test('P7: Piraten bleiben pirateWaitTurns normale Zugwechsel, dann advancePirate', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }, { name: 'C' }], {
+    settings: { piratesEnabled: true, pirateDice: '1w6', pirateWaitTurns: 3 }
+  });
   const pir = pirateOf(g);
-  g.players[0].pos = 4; g.players[1].pos = 0; pir.pos = 3; g.activeIdx = 1;
-  withRand(0, () => g.nextTurn()); // Pirat zieht 3→4 (A-Feld) → Begegnung mit A
-  assert.strictEqual(g.activeIdx, 0, 'A ist am Zug');
-  assert.strictEqual(g.rolled, false, 'A hat in diesem Zug noch nicht gewürfelt');
-  const posBefore = g.players[0].pos;
-  const res = g.roll();
-  assert.strictEqual(res.err, 'PIRATE_PENDING', 'Würfeln bei offener Begegnung → PIRATE_PENDING');
-  assert.strictEqual(res.pirateEncounter.teamIdx, 0, 'offene Begegnung wird zurückgemeldet');
-  assert.strictEqual(g.players[0].pos, posBefore, 'kein Positionswechsel beim abgelehnten Wurf');
-  assert.strictEqual(g.rolled, false, 'abgelehnter Wurf zählt nicht als gewürfelt');
-  // Nach 'pay' ist die Begegnung aufgelöst und der Zug läuft normal weiter.
-  const r = g.resolvePirateEncounter('pay');
-  assert.strictEqual(r.ok, true);
-  assert.ok(!g.pirateEncounter, 'Begegnung aufgelöst');
-  const after = g.roll();
-  assert.ok(!after.err, 'nach der Bezahlung ist Würfeln wieder möglich (Runde normal)');
+  g.players[0].pos = 4; g.players[1].pos = 8; g.players[2].pos = 12;
+  pir.pos = 5; g.activeIdx = 0;
+  const before = pir.pos;
+  // 2 normale Zugwechsel: noch nicht erreicht → Pirat bleibt stehen.
+  withRand(0, () => { g.nextTurn(); }); // A → B (Zähler 1)
+  withRand(0, () => { g.nextTurn(); }); // B → C (Zähler 2)
+  assert.strictEqual(pir.pos, before, 'nach 2 von 3 Zugwechseln rückt der Pirat NOCH nicht vor');
+  assert.strictEqual(g.pirateWaitCounter, 2, 'Zähler läuft über die normalen Zugwechsel');
+  // 3. Zugwechsel → Zähler erreicht, Pirat zieht mit eigener Dice (1w6, Zufall 0 → 1).
+  withRand(0, () => { g.nextTurn(); }); // C → A (Zähler 3 → advance)
+  assert.strictEqual(pir.pos, (before + 1) % g.fields.length, 'nach 3 Zugwechseln zieht der Pirat (advancePirate)');
+  assert.strictEqual(g.pirateWaitCounter, 0, 'Zähler nach dem Zug zurückgesetzt');
 });
+
+test('P7: Pirat zieht NICHT, solange Piraten beschäftigt sind (offene Begegnung/Urteil/Flucht)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], {
+    settings: { piratesEnabled: true, pirateDice: '1w6', pirateWaitTurns: 1 }
+  });
+  const pir = pirateOf(g);
+  g.players[0].pos = 1; g.players[1].pos = 8;
+  pir.pos = 2; g.activeIdx = 0;
+  // Begegnung öffnen (A zieht aufs Piratenfeld) → piratesBusy=true.
+  rollExact(g, 1); // A landet auf 2 (Pirat) → Begegnung
+  assert.ok(g.pirateEncounter, 'Begegnung offen (P5: Piraten beschäftigt)');
+  const before = pir.pos;
+  // nextTurn (Aupflösung via skip) — auch wenn der Zähler 1 erreichen würde,
+  // bleibt der Pirat stehen, solange die Begegnung offen ist.
+  withRand(0, () => { g.nextTurn(); });
+  assert.strictEqual(pir.pos, before, 'bei offener Begegnung bewegen sich die Piraten NICHT weiter (P5)');
+});
+
+// ---------------------------------------------------------------------
+// P9: Optional pro Durchgang nur 1 Piraten-Interaktion je Team.
+// (Flag wird beim Los-Pass zurückgesetzt; vor dem Umrunden keine 2. Begegnung.)
+// ---------------------------------------------------------------------
+test('P9: pirateOncePerLap → nur 1 Interaktion/Durchgang/Team; Reset beim Los-Pass', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], {
+    settings: { piratesEnabled: true, pirateOncePerLap: true, pirateWaitTurns: 6 }
+  });
+  const pir = pirateOf(g);
+  const A = g.players[0];
+  // Begegnung 1: A zieht AUF das Piratenfeld → Interaktion setzt das Lap-Flag.
+  A.pos = 3; pir.pos = 5; g.activeIdx = 0;
+  const res1 = rollExact(g, 2); // A 3→5 (Pirat)
+  assert.strictEqual(res1.to, 5);
+  assert.ok(res1.pirateEncounter, 'Begegnung 1 im Durchgang');
+  g.resolvePirateEncounter('pay');
+  assert.strictEqual(A.pirateInteractedThisLap, true, 'Lap-Flag nach Interaktion gesetzt');
+  // A bewegt sich weg, kommt im SELBEN Durchgang wieder aufs Piratenfeld → KEINE 2. Begegnung.
+  A.pos = 4; pir.pos = 5; g.rolled = false;
+  const res2 = rollExact(g, 1); // A 4→5 (Pirat) — gleicher Durchgang, Flag noch gesetzt
+  assert.strictEqual(res2.to, 5);
+  assert.ok(!res2.pirateEncounter, '2. Landung im selben Durchgang (ohne Los-Pass) → KEINE Begegnung (P9)');
+  assert.strictEqual(g.pirateEncounter, null, 'keine 2. Begegnung vor Umrunden');
+  // Los-Pass: A umrundet die Tafel → Flag wird zurückgesetzt, nächste Begegnung möglich.
+  A.pos = 13; pir.pos = 2; g.rolled = false;
+  const res3 = rollExact(g, 5); // 13+5=18 → lap (Über Los), landet auf 2 (Pirat)
+  assert.ok(res3.lapBonus > 0 || res3.to === 2, 'A überquert Los (lap)');
+  // Der Los-Pass hat das alte Interaktion-Flag zurückgesetzt, sodass die neue
+  // Landung auf dem Piratenfeld wieder eine Begegnung auslösen darf. (Die Begegnung
+  // setzt das Flag danach erneut auf true — entscheidend ist die NEUE Begegnung.)
+  assert.ok(res3.pirateEncounter, 'nach Los-Pass wieder eine Interaktion möglich (P9)');
+});
+
 
 // ---------------------------------------------------------------------
 // AC 4b: 'Erwischt' (Pirat drückt) → höheres Strafgeld wird fällig.
