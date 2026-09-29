@@ -1355,13 +1355,27 @@
           const pplayers = Array.isArray(st.pirate.players) ? st.pirate.players : [];
           if (pplayers.length) {
             const pleaderId = st.pirate.leaderId || null;
+            const isMyPirate = client.teamId != null && String(client.teamId).toUpperCase() === 'PIRATES';
             pplayers.forEach((p) => {
               const pid = p.playerId != null ? p.playerId : p.id;
               const pname = p.name || ('Spieler ' + pid);
               const isLeader = pleaderId != null && String(pid) === String(pleaderId);
               const row = document.createElement('div');
               row.className = 'lobby-player' + (isLeader ? ' leader' : '');
-              row.textContent = pname + (isLeader ? ' (Piraten-Leiter)' : '');
+              const span = document.createElement('span');
+              span.textContent = pname + (isLeader ? ' (Piraten-Leiter)' : '');
+              row.appendChild(span);
+              // (P9) Piraten-Mitglieder wählen ihren Leiter untereinander (auch in der Lobby).
+              if (isMyPirate && client.gameId && pid != null) {
+                const vbtn = document.createElement('button');
+                vbtn.type = 'button';
+                vbtn.className = 'btn btn-xs';
+                vbtn.textContent = 'Wählen';
+                vbtn.disabled = isLeader;
+                vbtn.title = 'Piraten-Leader wählen';
+                vbtn.addEventListener('click', () => socket.emit('vote:leader', { gameId: client.gameId, playerId: pid }));
+                row.appendChild(vbtn);
+              }
               pWrap.appendChild(row);
             });
           } else {
@@ -1406,7 +1420,9 @@
   function toBoardData(st) {
     const game = (st && st.game) || {};
     const teams = (st && Array.isArray(st.teams)) ? st.teams : [];
-    const players = (game.players || []).map((p, i) => {
+    // (P7) Ein aufgegebenes Piraten-Team (bankrupt) wird NICHT mehr als Token
+    // auf dem Brett gezeichnet — die Piraten-Figur ist entfernt.
+    const players = (game.players || []).filter((p) => !((p.role === 'pirate' || p.isPirate) && p.bankrupt)).map((p, i) => {
       const meta = teams[i] || {};
       const ship = meta.ship || meta.shipName || '';
       const isPirate = !!(p.role === 'pirate' || p.isPirate);
@@ -1514,13 +1530,21 @@
 
   // ------------- Economy-Aktionen (Hypothek / Abbau / Verkauf / Versteigern / Aufgeben) -------------
   function renderEconBar(st) {
-    const bar = $('econ-bar');
-    if (!bar) return;
-    const idx = myTeamIdx(st);
-    bar.innerHTML = '';
-    if (idx < 0 || !st.started || st.over) { return; }
-    if (client.role !== 'gm' && client.role !== 'leader') {
-      bar.innerHTML = '<div class="econ-hint">Wirtschaft-Aktionen kann nur der Teamleiter auslösen.</div>';
+      const bar = $('econ-bar');
+      if (!bar) return;
+      const idx = myTeamIdx(st);
+      bar.innerHTML = '';
+      // (P8) Piraten (und Beobachter) haben KEINE Wirtschaft: den gesamten
+      // Wirtschaft-Drawer ausblenden (nicht nur den leeren Body), damit die
+      // Kategorie „Wirtschaft“ für das Piratenteam komplett unterdrückt ist.
+      const econDrawer = $('econ-drawer');
+      if (idx < 0 || !st.started || st.over) {
+        if (econDrawer) econDrawer.classList.add('hidden');
+        return;
+      }
+      if (econDrawer) econDrawer.classList.remove('hidden');
+            if (client.role !== 'gm' && client.role !== 'leader') {
+                  bar.innerHTML = '<div class="econ-hint">Wirtschaft-Aktionen kann nur der Teamleiter auslösen.</div>';
       return;
     }
     const p = (st.game && st.game.players) ? st.game.players[idx] : {};
@@ -1884,6 +1908,14 @@
     const game = st.game || {};
     const idx = myTeamIdx(st);
     const teams = Array.isArray(st.teams) ? st.teams : [];
+    // (P8/P9) Piraten-Teammitglied: eigenes Team-Panel mit Piraten-Marker
+    // (🏴‍☠️) statt fälschlichem „Beobachter“. Zeigt Leader/Mitglieder + das
+    // Leader-Transfer-UI (die Wirtschaft/Handel/Auktion-Panels bleiben für
+    // Piraten ausgeblendet — diese rendern nur für normale Teams in st.teams).
+    if (client.teamId != null && String(client.teamId).toUpperCase() === 'PIRATES') {
+      renderPiratePlayerPanel(panel, st);
+      return;
+    }
     if (idx < 0) {
       panel.innerHTML = '<div>Beobachter: keine eigene Mannschaft.</div>';
       return;
@@ -1939,6 +1971,69 @@
     });
   }
 
+  // (P8/P9) Piraten-Team-Panel: rendert das aktive Piraten-Team als eigene
+  // Mannschaft mit Piraten-Marker 🏴‍☠️ (KEIN „Beobachter“) und zeigt den
+  // Piraten-Leader + das Leader-Transfer-UI (Leader-Semantik). Nach einem
+  // Piraten-Aufgeben / letzter-Leave (st.pirate = null) wird „beendet“ angezeigt.
+  function renderPiratePlayerPanel(panel, st) {
+    const game = st.game || {};
+    const pirPlayer = (game.players || []).find((p) => p.role === 'pirate' || p.isPirate);
+    const leaders = leaderMap(st && st.leaders);
+    const pirateLeaderId = (st.pirate && st.pirate.leaderId != null)
+      ? String(st.pirate.leaderId)
+      : (leaders['PIRATES'] != null ? String(leaders['PIRATES']) : null);
+    const amLeader = client.playerId != null && pirateLeaderId != null && String(client.playerId) === pirateLeaderId;
+    const teamName = (st.pirate && st.pirate.teamName) || '🏴‍☠️ Piraten';
+
+    // Piraten-Team aufgegeben/entfernt → Mechanik beendet.
+    if (!st.pirate) {
+      panel.innerHTML = '<div>🏴‍☠️ <strong>Piraten</strong></div>' +
+        '<div>Schiff: PIRATEN</div>' +
+        '<div>Rolle: ' + (client.role || '—') + '</div>' +
+        '<div>Status: <strong>Die Piraten haben aufgegeben — die Piraten-Mechanik ist beendet.</strong></div>';
+      return;
+    }
+
+    const lines = [
+      esc(teamName),
+      'Schiff: PIRATEN',
+      'Rolle: ' + (client.role || '—'),
+      'Position: ' + (pirPlayer && pirPlayer.pos != null ? pirPlayer.pos : '—'),
+      (pirPlayer && pirPlayer.loot > 0 ? 'Erbeutet: ' + fmtUAEC(pirPlayer.loot) + ' aUEC' : '')
+    ].filter((l) => l !== '');
+
+    let leaderUI = '';
+    const members = Array.isArray(st.pirate.players) ? st.pirate.players : [];
+    if (client.role === 'leader') {
+      const others = members.filter((pl) => {
+        const pid = pl.playerId != null ? pl.playerId : pl.id;
+        return client.playerId != null && String(pid) !== String(client.playerId);
+      });
+      leaderUI = others.length
+        ? '<div class="leader-switch"><span>Rolle abgeben an:</span>' +
+          '<select id="leader-candidate">' +
+          others.map((pl) => {
+            const pid = pl.playerId != null ? pl.playerId : pl.id;
+            return '<option value="' + esc(pid) + '">' + esc(pl.name || 'Spieler') + '</option>';
+          }).join('') +
+          '</select>' +
+          '<button type="button" class="btn btn-xs btn-ghost" id="leader-change-btn">Rolle übertragen</button></div>'
+        : '<div class="leader-switch">Du bist Piraten-Leader. Die Rolle kannst du an ein weiteres Piraten-Mitglied abgeben (Mitglieder erscheinen nach ihrem Beitritt).</div>';
+    } else if (client.teamId != null && !isSpectator()) {
+      leaderUI = '<div class="leader-switch">Du bist Piraten-Mitglied — nur der Piraten-Leader kann handeln und die Rolle abgeben.</div>';
+    }
+
+    panel.innerHTML = lines.map((l) => '<div>' + l + '</div>').join('') + leaderUI;
+    const lb = $('leader-change-btn');
+    if (lb) lb.addEventListener('click', () => {
+      const sel = $('leader-candidate');
+      const pid = sel && sel.value;
+      if (!pid) { showNotify('Bitte ein Piraten-Mitglied als neuen Leiter wählen.'); return; }
+      console.log('[client.js] action:transferLeader senden (Pirat)', { gameId: client.gameId, playerId: pid });
+      socket.emit('action:transferLeader', { gameId: client.gameId, playerId: pid });
+    });
+  }
+
   const ACTION_BTN = {};
   function actionBtn(id, label, handler) {
     let b = ACTION_BTN[id];
@@ -1978,6 +2073,9 @@
     });
     if (!st.started || st.over) {
       allIds.forEach((id) => setBtn(id, false, false));
+      // (P8) Piraten-Aktions-Button auch außerhalb eines aktiven Spiels ausblenden.
+      const advBtn = ACTION_BTN['btn-pirate-advance'];
+      if (advBtn) { advBtn.style.display = 'none'; advBtn.disabled = true; }
       // Start-Button im Spiel-View für GM, wenn nicht gestartet
       const startBtn = actionBtn('btn-start-game', 'Start', () => {
         console.log('[client.js] gm:start senden (aus Action-Bar)', { gameId: client.gameId, gmCode: client.gmCode });
@@ -2020,6 +2118,25 @@
     const canNext = showActions && !insolventBlock && (rolled || taskBlock);
     setBtn('btn-next', showActions && !insolventBlock, canNext);
 
+    // (P8/P9) Piraten-Team: eigenes Aktionsset — „Piraten ziehen lassen“ (nur
+    // der Piraten-Leader). Wirtschafts-/Wurf-/Kauf-Buttons bleiben ausgeblendet
+    // (Piraten haben keine Wirtschaft; die Panels rendern ohnehin nur für
+    // normale Teams). Das Urteil fällen läuft über das Begegnungs-Modal.
+    const isPirateTeam = client.teamId != null && String(client.teamId).toUpperCase() === 'PIRATES';
+    if (isPirateTeam) {
+      ['btn-roll', 'btn-buy', 'btn-skip', 'btn-task', 'btn-next'].forEach((id) => setBtn(id, false, false));
+      const pirateAlive = (game.players || []).some((pp) => (pp.role === 'pirate' || pp.isPirate) && !pp.bankrupt);
+      const canAdvance = canAct() && !isSpectator() && pirateAlive;
+      const advBtn = actionBtn('btn-pirate-advance', '🏴‍☠️ Piraten ziehen lassen', onPirateAdvanceClick);
+      if (advBtn) {
+        advBtn.style.display = canAdvance ? '' : 'none';
+        advBtn.disabled = !canAdvance;
+      }
+    } else {
+      const advBtn = ACTION_BTN['btn-pirate-advance'];
+      if (advBtn) { advBtn.style.display = 'none'; advBtn.disabled = true; }
+    }
+
     // Optionen (jede Rolle im aktiven Spiel): öffnet das rollenabhängige Modale
     // mit "Spiel verlassen" + (Teammitglied) Aufgeben-Abstimmung bzw. (GM) Pausieren.
     const inGame = !!st.started && !st.over;
@@ -2061,13 +2178,19 @@
               '</div></div>');
           }
           // (2h#7) GM-only: Teamleiter ändern — Button togglet das Formular darunter.
+          // (P9) Das Piraten-Team ist dabei: Der GM kann auch einen Piraten-Leader
+          // über die GM-Optionen ernennen (st.pirate wird in die Auswahl aufgenommen).
           const st2 = client.lastState;
           const teams2 = st2 && Array.isArray(st2.teams) ? st2.teams : [];
-          if (teams2.length > 1) {
-            const teamOpts = teams2.map((t) => {
+          const leaderTeams = teams2.slice();
+          if (st2 && st2.pirate && st2.pirate.players && st2.pirate.players.length) {
+            leaderTeams.push({ teamId: 'PIRATES', teamName: st2.pirate.teamName || '🏴‍☠️ Piraten', ship: 'PIRATEN', players: st2.pirate.players });
+          }
+          if (leaderTeams.length > 1) {
+            const teamOpts = leaderTeams.map((t) => {
               const tid = t.teamId != null ? t.teamId : t.id;
               const tname = t.teamName || (t.ship || '') || ('Team ' + tid);
-              return '<option value="' + tid + '">' + tname + '</option>';
+              return '<option value="' + tid + '">' + (tid === 'PIRATES' ? '🏴‍☠️ ' : '') + tname + '</option>';
             }).join('');
             items.push('<div class="opt-toggle">' +
               '<div class="opt-row" data-opt="setleader">⚔ Teamleiter ändern — wähle Team und Mitglied, um den Leiter zu wechseln.</div>' +
@@ -2119,7 +2242,11 @@
             if (!playerSel || !lcConfirm) return;
             const chosenTeamId = teamSel.value;
             const st3 = client.lastState;
-            const teams3 = st3 && Array.isArray(st3.teams) ? st3.teams : [];
+            const teams3 = st3 && Array.isArray(st3.teams) ? st3.teams.slice() : [];
+            // (P9) Piraten-Team für die Spieler-Auswahl des Teamleiter-Formulars berücksichtigen.
+            if (st3 && st3.pirate && st3.pirate.players && st3.pirate.players.length) {
+              teams3.push({ teamId: 'PIRATES', players: st3.pirate.players });
+            }
             const chosenTeam = teams3.find((t) => String(t.teamId != null ? t.teamId : t.id) === chosenTeamId);
             const players3 = (chosenTeam && Array.isArray(chosenTeam.players)) ? chosenTeam.players : [];
             playerSel.innerHTML = '<option value="">— Mitglied wählen —</option>' +
@@ -2205,6 +2332,13 @@
     socket.emit('action:nextTurn', { gameId: client.gameId });
   }
 
+  // (P8/P9) Piraten-Leader schiebt die Piraten direkt weiter (eigene Würfelregel).
+  function onPirateAdvanceClick() {
+    console.log('[client.js] pirate:advance senden', { gameId: client.gameId });
+    socket.emit('pirate:advance', { gameId: client.gameId });
+    showNotify('Piraten ziehen…');
+  }
+
   function renderLog(log) {
     const el = $('log');
     if (!el) return;
@@ -2256,6 +2390,19 @@
       if (leaderId != null && client.playerId != null && String(leaderId) === String(client.playerId)) {
         client.role = 'leader';
       } else if (client.role === 'leader' && leaderId != null && String(leaderId) !== String(client.playerId)) {
+        client.role = 'member';
+      }
+    }
+    // (P9) Piraten-Team: Rolle aktualisieren, wenn ich gewählter Piraten-Leader bin
+    // (st.pirate.leaderId bzw. leaders-Map für PIRATES). Piraten treten auch während
+    // des Spiels bei; ihre Rolle wird hier aus dem Server-State abgeleitet.
+    if (client.teamId != null && String(client.teamId).toUpperCase() === 'PIRATES' && client.playerId != null) {
+      const pirLeaderId = (st.pirate && st.pirate.leaderId != null)
+        ? String(st.pirate.leaderId)
+        : (leaders['PIRATES'] != null ? String(leaders['PIRATES']) : null);
+      if (pirLeaderId != null && String(client.playerId) === pirLeaderId) {
+        client.role = 'leader';
+      } else if (client.role === 'leader') {
         client.role = 'member';
       }
     }
@@ -2411,7 +2558,11 @@
   // Weltweites Banner, solange der Piraten-Modus in diesem Spiel aktiv ist.
   function renderPirateBanner(st) {
     let el = $('pirate-banner');
-    const on = !!(st.game && st.game.settings && st.game.settings.piratesEnabled);
+    // (P7) Banner nur, solange die Piraten tatsächlich aktiv sind (nach einem
+    // Aufgeben / letzter-Leave ist das Piraten-Team entfernt → Banner aus).
+    const piratesAlive = !!(st.game && Array.isArray(st.game.players) &&
+      st.game.players.some((p) => (p.role === 'pirate' || p.isPirate) && !p.bankrupt));
+    const on = !!(st.game && st.game.settings && st.game.settings.piratesEnabled) && piratesAlive;
     if (!on) { if (el) el.remove(); return; }
     if (!el) {
       el = document.createElement('div');
@@ -2465,6 +2616,8 @@
     }
     // Nur Piraten-Mitglieder fällen das Urteil (eigenes Team).
     if (String(client.teamId || '') !== 'PIRATES') return;
+    // (P9) Das Urteil fällt der Piraten-LEADER (Leader-Semantik des Teams).
+    if (client.role !== 'leader') return;
     const key = String(vd.teamIdx);
     if (seenPirateVerdict === key) return;
     seenPirateVerdict = key;

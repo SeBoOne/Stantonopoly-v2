@@ -473,6 +473,9 @@ function attachMethods(game) {
   game.demolish = function (fieldIdx) { return StantonopolyGame.demolish(game, fieldIdx); };
   game.forfeit = function () { return StantonopolyGame.forfeit(game); };
   game.forfeitTeam = function (teamIdx) { return StantonopolyGame.forfeitTeam(game, teamIdx); };
+  // (P7) Piraten-Team gibt auf — entfernt die Piraten-Figur + beendet die
+  // Piraten-Mechanik (server-authoritativ, Nutzung rooms + Engine alike).
+  game.forfeitPirates = function () { return StantonopolyGame.forfeitPirates(game); };
   game.sellProperty = function (fieldIdx, buyerIdx, price) { return StantonopolyGame.sellProperty(game, fieldIdx, buyerIdx, price); };
   game.resolveMortgageChoice = function (buyerIdx, choice) { return StantonopolyGame.resolveMortgageChoice(game, buyerIdx, choice); };
   game.auctionField = function (fieldIdx, bids) { return StantonopolyGame.auctionField(game, fieldIdx, bids); };
@@ -1473,6 +1476,28 @@ const StantonopolyGame = {
     // es wird NICHT auf 0/leer gesetzt.
     p.forfeited = true;
     log(game, p.name + ' gibt per Abstimmung auf und scheidet aus (letzter Stand bleibt für das Endresultat erhalten).');
+    checkWin(game);
+    return { ok: true };
+  },
+
+  // ---------------------------------------------------------------------
+  // (P7) Piraten-Team gibt auf — zwei Auslöser (Aufgeben-Abstimmung des
+  // Piraten-Teams ODER letzter Piraten-Spieler verlässt das Team). Die
+  // Piraten-Figur wird als tote/entfernte Entität markiert (bankrupt) und
+  // alle offenen Piraten-Zustände aufgelöst: keine Begegnungen mehr, kein
+  // pirateOncePerLap/waitTurns, keine Piraten-Bewegung. Das Spiel läuft mit
+  // den normalen Teams weiter; der Sieg-Pfad bleibt konsistent (Piraten
+  // zählen nie zum Sieg — aliveCount ignoriert sie).
+  // ---------------------------------------------------------------------
+  forfeitPirates: function (game) {
+    const pir = pirateOf(game);
+    if (!pir) return { ok: false, reason: 'no_pirates' };
+    pir.bankrupt = true;
+    pir.forfeited = true;
+    game.pirateEncounter = null;
+    game.pirateVerdict = null;
+    game.pirateWaitCounter = 0;
+    log(game, '🏴‍☠️ Das Piraten-Team gibt auf — die Piraten scheiden aus, die Piraten-Mechanik ist beendet.');
     checkWin(game);
     return { ok: true };
   },

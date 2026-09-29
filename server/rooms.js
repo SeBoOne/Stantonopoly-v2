@@ -143,7 +143,10 @@ function buildView({ gameId, game, teams, leaders }) {
         // verborgen (P10-Pro-Socket-Zuschnitt in broadcast()).
         let pirate = null;
         if (game && Array.isArray(game.players)) {
-          const pir = game.players.find((p) => p.role === 'pirate' || p.isPirate);
+          // (P7) Ein aufgegebenes/entferntes Piraten-Team (bankrupt) wird NICHT
+          // mehr als aktives Piraten-Team angezeigt (st.pirate = null) — die
+          // Piraten-Mechanik ist dann beendet.
+          const pir = game.players.find((p) => (p.role === 'pirate' || p.isPirate) && !p.bankrupt);
           if (pir) {
             const pirRow = (teams || []).find((t) => String(t.teamId) === 'PIRATES');
             const pirMembers = (dbm.getPlayers(gameId) || []).filter((p) => String(p.teamId) === 'PIRATES')
@@ -686,6 +689,8 @@ class Rooms {
     }
 
     sock.join(this._roomOf(resolvedGameId));
+    // (P9) Piraten-Join: Erster beigetretener Spieler wird Piraten-Leader.
+    if (String(team.teamId).toUpperCase() === 'PIRATES') this._ensurePirateLeader(resolvedGameId, sock);
         return {
           ok: true,
           gameId: resolvedGameId,
@@ -787,11 +792,15 @@ class Rooms {
   voteLeader({ gameId, playerId, sock }) {
     const gameRow = dbm.getGame(gameId);
     if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
-    if (gameRow.started) {
-      return { error: { code: 'GAME_STARTED', message: 'Während des Spiels bestimmt der Teamleiter seine Nachfolge selbst.' } };
-    }
     const me = dbm.getPlayer(sock.id);
     if (!me || me.gameId !== gameId) return { error: { code: 'NOT_IN_TEAM', message: 'Kein Mitglied dieses Spiels.' } };
+    const isPirate = String(me.teamId).toUpperCase() === 'PIRATES';
+    // (P9) Piraten-Wahlen sind auch WÄHREND des Spiels erlaubt (Piraten treten
+    // jederzeit bei und wählen ihren Leiter untereinander). Normale Teams:
+    // nur vor Spielstart — während des Spiels gibt der Leader die Rolle aktiv ab.
+    if (gameRow.started && !isPirate) {
+      return { error: { code: 'GAME_STARTED', message: 'Während des Spiels bestimmt der Teamleiter seine Nachfolge selbst.' } };
+    }
 
     // candidateId per playerId
     const candidate = dbm.getPlayer(playerId);
@@ -801,6 +810,16 @@ class Rooms {
 
     // Stimme speichern, KEINE sofortige Auflösung
     dbm.addVote({ gameId, teamId: me.teamId, voterId: me.id, candidateId: candidate.id });
+
+    // (P9) Piraten-Wahl löst den Leiter SOFORT auf (Mehrheit → Leader), damit
+    // „Pirat-vote setzt leader“ auch ohne Start/Neuaufnahme greift.
+    if (isPirate) {
+      const led = this._resolvePirateVote(gameId);
+      const votes = dbm.getVotes(gameId, 'PIRATES');
+      const vc = {};
+      votes.forEach((v) => { vc[v.candidateId] = (vc[v.candidateId] || 0) + 1; });
+      return { ok: true, gameId, teamId: me.teamId, votes: vc, leaderId: led };
+    }
 
     // Stimmenzahlen zurückgeben (für Live-Anzeige in der UI)
     const votes = dbm.getVotes(gameId, me.teamId);
@@ -1154,6 +1173,61 @@ class Rooms {
     return { gameRow, team, me, isLeader };
   }
 
+  // ---------------------------------------------------------------------
+  // (P9) Piraten-Join: Der ERSTE beigetretene Spieler des PIRATES-Teams wird
+  // Piraten-Leader (wie bei normalen Teams). So hat das Piraten-Team immer
+  // einen handlungsfähigen Leiter (Urteil fällen / Piraten ziehen lassen),
+  // auch wenn es erst WÄHREND des Spiels beitritt.
+  // ---------------------------------------------------------------------
+  _ensurePirateLeader(gameId, sock) {
+    try {
+      if (!sock || !sock.id) return null;
+      const team = dbm.getTeam(gameId, 'PIRATES');
+      if (!team) return null;
+      const cur = team.leaderId;
+      if (cur) {
+        const pl = dbm.getPlayer(cur);
+        const stillValid = pl && String(pl.gameId) === String(gameId) && String(pl.teamId) === 'PIRATES';
+        if (stillValid) return cur;
+      }
+      dbm.setLeader(gameId, 'PIRATES', sock.id);
+      return sock.id;
+    } catch (e) { return null; }
+  }
+
+  // ---------------------------------------------------------------------
+  // (P9) Piraten-Wahl sofort auflösen: Mehrheit der aktuellen Piraten-Mitglieder
+  // wird untereinander zum Leiter gewählt (auch WÄHREND des Spiels, da Piraten
+  // jederzeit beitreten können). Analog resolveTeamLeader, aber für PIRATES
+  // und ohne Start-Abhängigkeit.
+  // ---------------------------------------------------------------------
+  _resolvePirateVote(gameId) {
+    const members = (dbm.getPlayers(gameId) || []).filter((p) => String(p.teamId) === 'PIRATES');
+    if (!members.length) { dbm.setLeader(gameId, 'PIRATES', null); return null; }
+    const votes = dbm.getVotes(gameId, 'PIRATES');
+    const valid = new Set(members.map((m) => String(m.id)));
+    const counts = {};
+    votes.forEach((v) => {
+      if (valid.has(String(v.voterId)) && valid.has(String(v.candidateId))) {
+        counts[String(v.candidateId)] = (counts[String(v.candidateId)] || 0) + 1;
+      }
+    });
+    const entries = Object.entries(counts);
+    let pick = null;
+    if (entries.length) {
+      entries.sort((a, b) => b[1] - a[1]);
+      const max = entries[0][1];
+      const tied = entries.filter((e) => e[1] === max).map((e) => e[0]);
+      pick = tied.length === 1 ? tied[0] : tied[Math.floor(Math.random() * tied.length)];
+    } else {
+      const team = dbm.getTeam(gameId, 'PIRATES');
+      const ex = team && team.leaderId && valid.has(String(team.leaderId)) ? String(team.leaderId) : members[Math.floor(Math.random() * members.length)].id;
+      pick = ex;
+    }
+    dbm.setLeader(gameId, 'PIRATES', pick);
+    return pick;
+  }
+
   // ------------------------------------------------------------------
   // (Piratensystem) Begegnung auflösen: das AKTIVE Team (das auf dem
   // Piraten-Feld gelandet ist) wählt 'pay' (Schutzgeld) oder 'flee'.
@@ -1179,6 +1253,10 @@ class Rooms {
   actionPirateConfirm({ gameId, verdict, sock }) {
     const req = this._requirePirateMember({ gameId, sock, action: 'das Piraten-Urteil fällen' });
     if (req.error) return req;
+    // (P9) Das Urteil fällt der Piraten-LEADER (Leader-Semantik des Teams).
+    if (!req.isLeader) {
+      return { error: { code: 'NOT_LEADER', message: 'Nur der Piraten-Leader darf das Piraten-Urteil fällen.' } };
+    }
     const v = String(verdict || '').toLowerCase();
     if (v !== 'caught' && v !== 'escaped') return { error: { code: 'BAD_VERDICT', message: 'Ungültiges Urteil.' } };
     const engine = G.deserialize(req.gameRow.state, D);
@@ -1198,6 +1276,10 @@ class Rooms {
   actionPirateAdvance({ gameId, sock }) {
     const req = this._requirePirateMember({ gameId, sock, action: 'die Piraten ziehen zu lassen' });
     if (req.error) return req;
+    // (P9) Piraten ziehen lassen ist Leader-gebunden (Leader-Semantik des Teams).
+    if (!req.isLeader) {
+      return { error: { code: 'NOT_LEADER', message: 'Nur der Piraten-Leader kann die Piraten ziehen lassen.' } };
+    }
     const engine = G.deserialize(req.gameRow.state, D);
     const r = engine.advancePirate();
     if (!r.moved) return { error: { code: 'NO_PIRATES', message: 'Kein Piraten-Team aktiv.' } };
@@ -1443,7 +1525,11 @@ class Rooms {
     // P5: Ein-Einzel-Team (nur 1 Mitglied) → Abstimmung ÜBERSPRUNGEN und sofort
     // aufgeben (kein Poll, kein Timer, kein Modal). Server-authoritativ.
     if (memberCount <= 1) {
-      const r = engine.forfeitTeam(teamIdx);
+      // (P7) Piraten-Team: Aufgeben entfernt die Piraten-Figur + beendet die
+      // Piraten-Mechanik komplett (Begegnungen/Bewegung/oncePerLap).
+      const r = (String(me.teamId).toUpperCase() === 'PIRATES')
+        ? engine.forfeitPirates()
+        : engine.forfeitTeam(teamIdx);
       if (!r.ok) return { error: { code: 'INACTIVE', message: 'Aufgeben nicht möglich.' } };
       this.logEngine(gameId, engine, me.name + ' ist allein im Team und gibt SOFORT auf (Einzel-Team, Abstimmung übersprungen).');
       return this._persistAndReturn(gameId, engine, true);
@@ -1505,7 +1591,12 @@ class Rooms {
     engine.forfeitPoll = null;
     let resultMsg = accepted ? 'AUFGEGEBEN' : 'nicht aufgegeben';
     if (accepted) {
-      engine.forfeitTeam(poll.teamIdx);
+      if (poll.teamId && String(poll.teamId).toUpperCase() === 'PIRATES') {
+        // (P7) Piraten-Aufgabe entfernt die Piraten-Figur + beendet die Mechanik.
+        engine.forfeitPirates();
+      } else {
+        engine.forfeitTeam(poll.teamIdx);
+      }
     }
     this.logEngine(gameId, engine, 'Abstimmung „Team aufgeben“ beendet: ' + yes + ' FÜR, ' + no + ' GEGEN → ' + resultMsg + '.');
     this._persistAndReturn(gameId, engine, true);
@@ -1653,9 +1744,14 @@ class Rooms {
           const engine = this._loadEngine(gameId);
           if (engine) {
             const teamIdx = this._piOf(engine, me.teamId);
-            if (teamIdx >= 0 && !engine.players[teamIdx].bankrupt) {
-              engine.forfeitTeam(teamIdx);
-              this.logEngine(gameId, engine, me.name + ' verlässt als letzter Spieler — Team gibt auf (Forfeit).');
+            const isPirateTeam = String(me.teamId).toUpperCase() === 'PIRATES';
+            // (P7) Letzter Piraten-Spieler verlässt das Team → die Piraten-Figur
+            // wird entfernt + die Piraten-Mechanik beendet (wie Aufgeben).
+            const forf = isPirateTeam
+              ? engine.forfeitPirates()
+              : ((teamIdx >= 0 && !engine.players[teamIdx].bankrupt) ? engine.forfeitTeam(teamIdx) : { ok: false });
+            if (forf.ok) {
+              this.logEngine(gameId, engine, me.name + ' verlässt als letzter ' + (isPirateTeam ? 'Piraten-Spieler — die Piraten geben auf' : 'Spieler — Team gibt auf') + ' (Forfeit).');
               dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: engine.over ? 1 : 0 });
             }
           }

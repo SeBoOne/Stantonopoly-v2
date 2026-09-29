@@ -41,7 +41,7 @@ function withRand(r, fn) {
 }
 
 function pirateOf(g) {
-  return g.players.find((p) => p.isPirate || p.role === 'pirate') || null;
+  return g.players.find((p) => (p.isPirate || p.role === 'pirate') && !p.bankrupt) || null;
 }
 
 // ---------------------------------------------------------------------
@@ -454,4 +454,66 @@ test('P3: Pirat auf steuer + piratesBusy → nur Steuer (keine Begegnung)', () =
   assert.strictEqual(res.to, 3);
   assert.ok(!res.pirateEncounter, 'bei piratesBusy keine Begegnung auf Steuer-Feld (P3)');
   assert.strictEqual(g.players[0].budget, before - 30000, 'nur die Steuer (30000) wird erhoben');
+});
+
+// ---------------------------------------------------------------------
+// P7 (Team-Mechanik Runde): Piraten-Können-AUFGEBEN. forfeitPirates entfernt
+// die Piraten-Figur (als tote/entfernte Entität = bankrupt), löst alle offenen
+// Piraten-Zustände auf, und das Spiel läuft OHNE Piraten-Mechanik weiter:
+// keine Begegnungen mehr, keine Piraten-Bewegung; der Sieg-Pfad bleibt konsistent.
+// ---------------------------------------------------------------------
+test('P7: forfeitPirates entfernt Pirat (bankrupt), beendet Begegnung/Bewegung, Spiel läuft weiter', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateWaitTurns: 1 } });
+  const pir = pirateOf(g);
+  g.players[0].pos = 1; pir.pos = 2;
+  const res = rollExact(g, 1); // A 1→2 (Pirat) → Begegnung
+  assert.ok(res.pirateEncounter, 'Begegnung ausgelöst');
+
+  const r = g.forfeitPirates();
+  assert.strictEqual(r.ok, true, 'Aufgeben erfolgreich');
+  assert.strictEqual(pir.bankrupt, true, 'Pirat als entfernte/tote Entität markiert');
+  assert.strictEqual(g.pirateEncounter, null, 'offene Begegnung aufgelöst');
+  assert.strictEqual(g.pirateVerdict, null, 'kein offenes Urteil');
+  assert.strictEqual(g.pirateWaitCounter, 0, 'Warte-Zähler zurückgesetzt');
+  assert.strictEqual(pirateOf(g), null, 'kein aktives Piraten-Team mehr');
+  assert.ok(!g.players.find((p) => (p.role === 'pirate' || p.isPirate) && !p.bankrupt), 'kein lebender Pirat');
+
+  // Spiel geht OHNE Piraten weiter: A zieht erneut AUF das ehemalige Piraten-Feld → KEINE Begegnung.
+  g.players[0].pos = 1; g.rolled = false; g.activeIdx = 0;
+  const res2 = rollExact(g, 1); // 1→2 (ehemaliges Piraten-Feld)
+  assert.strictEqual(res2.to, 2);
+  assert.ok(!res2.pirateEncounter, 'nach Aufgeben KEINE neue Begegnung (Mechanik beendet)');
+  assert.strictEqual(g.pirateEncounter, null, 'kein sync pirateEncounter');
+
+  // advancePirate bewegt nichts mehr (kein aktiver Pirat).
+  const adv = g.advancePirate();
+  assert.strictEqual(adv.moved, false, 'Piraten-Bewegung deaktiviert');
+
+  // Sieg-Pfad bleibt konsistent: 1 normales Team + (totes) Piraten-Team → normales Team gewinnt.
+  g.forfeitTeam(0);
+  assert.strictEqual(g.over, true, 'Spiel endet bei nur noch 1 normalem Team (Pirat zählt nicht)');
+  assert.strictEqual(g.winnerInfo.name, 'B');
+});
+
+test('P7: forfeitPirates ohne aktiven Piraten → ok:false (nicht doppel-aufgebbar)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
+  const r1 = g.forfeitPirates();
+  assert.strictEqual(r1.ok, true);
+  const r2 = g.forfeitPirates();
+  assert.strictEqual(r2.ok, false, 'zweimal Aufgeben wird abgelehnt');
+  assert.strictEqual(r2.reason, 'no_pirates');
+});
+
+// ---------------------------------------------------------------------
+// P7 Wire-Persistenz: Nach einem Piraten-Aufgeben überlebt der ent-Referenz
+// state (bankrupt Pirat) den serialize↔deserialize-Round-Trip; pirateOf bleibt
+// null nach dem Reload — die Piraten-Mechanik ist dauerhaft beendet.
+// ---------------------------------------------------------------------
+test('P7: Piraten-Aufgeben persistiert über Round-Trip (kein neues aktives Piraten-Team)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
+  g.forfeitPirates();
+  const s = g.serialize();
+  const g2 = G.deserialize(s, D);
+  assert.strictEqual(pirateOf(g2), null, 'nach Reload weiterhin kein aktiver Pirat');
+  assert.ok(g2.players.some((p) => p.role === 'pirate' && p.bankrupt), 'entfernte Piraten-Entität persistiert');
 });

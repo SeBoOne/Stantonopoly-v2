@@ -344,3 +344,185 @@ test('gameResult: Pirat nur als loot-Statistik, nicht in der Team-Platzierung', 
     srv.stop();
   }
 });
+
+// ---------------------------------------------------------------------
+// P9 (Team-Mechanik Runde): Piraten-Team braucht einen Teamleader wie normale
+// Teams. 1) Erster Piraten-Join setzt leaderId, 2) Pirat-vote (auch WÄHREND des
+// Spiels) setzt den Leiter, 3) der GM kann einen Piraten-Leader per gm:setleader
+// ernennen.
+// ---------------------------------------------------------------------
+test('P9: join setzt Piraten-leader → Pirat-vote setzt leader → GM-Ernennung setzt leader', async () => {
+  const srv = startServer();
+  const url = 'http://localhost:' + srv.port;
+  const gm = await connect(url, 'gm');
+  const created = await createGame(gm, {
+    teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false,
+    settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 }
+  });
+  const gameId = created.gameId;
+  const pirateTok = created.tokens.find((t) => t.isPirate);
+  const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
+  const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
+  const a = await connect(url, 'A'); const d = await connect(url, 'D');
+  const p1 = await connect(url, 'Pirat1'); const p2 = await connect(url, 'Pirat2');
+  const join = (cl, code, name) => new Promise((res) => { const pj = once(cl, 'joined'); cl.emit('team:join', { gameId, code, playerName: name }); pj.then(res); });
+  const waitState = async (getFn, pred, timeoutMs = 6000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) { const s = getFn(); if (s && pred(s)) return s; await sleep(25); }
+    throw new Error('waitState-Timeout: Zustand nicht erreicht');
+  };
+  try {
+    // Normale Teams beitreten → Spiel starten (Piraten treten später während des Spiels bei).
+    await join(a, inv0, 'A'); await join(d, inv1, 'D');
+    const vote = (cl, pid) => cl.emit('vote:leader', { gameId, playerId: pid });
+    vote(a, a.id); await sleep(30); vote(d, d.id); await sleep(40);
+    let stGm = null; gm.on('state', (s) => { stGm = s; });
+    gm.emit('gm:start', { gameId, gmCode: created.gmCode });
+    await waitState(() => stGm, (s) => s.started);
+    assert.ok(stGm.started, 'Spiel gestartet');
+
+    // (1) P9: Erster Piraten-Join → er ist der Piraten-Leader.
+    await join(p1, pirateTok.code, 'Pirat1');
+    await waitState(() => stGm, (s) => s.pirate && s.pirate.leaderId === p1.id);
+    assert.strictEqual(stGm.pirate.leaderId, p1.id, 'erster Piraten-Join = Piraten-Leader');
+
+    // (2) P9: Ein weiterer Pirat tritt bei und VOTED (während des Spiels) → Leader wechselt sofort.
+    await join(p2, pirateTok.code, 'Pirat2');
+    await waitState(() => stGm, (s) => s.pirate && s.pirate.players && s.pirate.players.length === 2);
+    p2.emit('vote:leader', { gameId, playerId: p2.id });
+    await waitState(() => stGm, (s) => s.pirate && s.pirate.leaderId === p2.id);
+    assert.strictEqual(stGm.pirate.leaderId, p2.id, 'Pirat-vote (während des Spiels) setzt den Leiter');
+
+    // (3) P9: GM ernennt den Piraten-Leader zurück zu P1 (gm:setleader).
+    gm.emit('gm:setleader', { gameId, gmCode: created.gmCode, teamId: 'PIRATES', playerId: p1.id });
+    await waitState(() => stGm, (s) => s.pirate && s.pirate.leaderId === p1.id);
+    assert.strictEqual(stGm.pirate.leaderId, p1.id, 'GM-Ernennung setzt Piraten-Leader');
+  } finally {
+    [gm, a, d, p1, p2].forEach((c_) => c_.disconnect());
+    srv.stop();
+  }
+});
+
+// ---------------------------------------------------------------------
+// P7 (Team-Mechanik Runde): Piraten können AUFGEBEN. Hier: EIN einzelnes
+// Piraten-Mitglied gibt (ohne Abstimmung) sofort auf → die Piraten-Figur wird
+// aus players entfernt (bankrupt), st.pirate verschwindet (st.pirate = null),
+// das Spiel läuft OHNE Piraten-Mechanik weiter.
+// ---------------------------------------------------------------------
+test('P7: einzelnes Piraten-Team gibt auf (sofort) → Pirat entfernt, st.pirate=null', async () => {
+  const srv = startServer();
+  const url = 'http://localhost:' + srv.port;
+  const gm = await connect(url, 'gm');
+  const created = await createGame(gm, {
+    teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false,
+    settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 }
+  });
+  const gameId = created.gameId;
+  const pirateTok = created.tokens.find((t) => t.isPirate);
+  const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
+  const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
+  const a = await connect(url, 'A'); const d = await connect(url, 'D');
+  const p = await connect(url, 'Pirat');
+  const join = (cl, code, name) => new Promise((res) => { const pj = once(cl, 'joined'); cl.emit('team:join', { gameId, code, playerName: name }); pj.then(res); });
+  const waitState = async (getFn, pred, timeoutMs = 6000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) { const s = getFn(); if (s && pred(s)) return s; await sleep(25); }
+    throw new Error('waitState-Timeout: Zustand nicht erreicht');
+  };
+  try {
+    await join(a, inv0, 'A'); await join(d, inv1, 'D');
+    const vote = (cl, pid) => cl.emit('vote:leader', { gameId, playerId: pid });
+    vote(a, a.id); await sleep(30); vote(d, d.id); await sleep(40);
+    await join(p, pirateTok.code, 'Pirat');
+    let stGm = null; gm.on('state', (s) => { stGm = s; });
+    gm.emit('gm:start', { gameId, gmCode: created.gmCode });
+    await waitState(() => stGm, (s) => s.started && s.pirate && !!s.pirate.leaderId);
+    assert.ok(stGm.pirate.leaderId === p.id, 'Pirat ist Leader (einzelnes Mitglied)');
+
+    // Einzelnen Piraten aufgeben lassen → sofort (keine Abstimmung).
+    p.emit('action:forfeit', { gameId });
+    await waitState(() => stGm, (s) => {
+      if (s.pirate) return false;
+      const pir = ((s.game && s.game.players) || []).find((pp) => pp.role === 'pirate' || pp.isPirate);
+      return !!(pir && pir.bankrupt === true);
+    });
+    assert.strictEqual(stGm.pirate, null, 'st.pirate verschwindet nach Aufgeben (st.pirate = null)');
+    // Neustarten-Gate: Das Spiel läuft OHNE Piraten weiter (normale Teams aktiv).
+    const pirLive = (stGm.game.players || []).find((pp) => (pp.role === 'pirate' || pp.isPirate) && !pp.bankrupt);
+    assert.ok(!pirLive, 'kein aktives Piraten-Team mehr in players[]');
+    assert.strictEqual(stGm.over, false, 'Spiel läuft ohne Piraten weiter');
+  } finally {
+    [gm, a, d, p].forEach((c_) => c_.disconnect());
+    srv.stop();
+  }
+});
+
+// ---------------------------------------------------------------------
+// P7 (letzter-Leave): Der LETZTE Piraten-Spieler verlässt das Team → die
+// Piraten-Figur wird entfernt (forfeitPirates), die Piraten-Mechanik endet.
+// ---------------------------------------------------------------------
+test('P7: letzter Piraten-Spieler verlässt das Team → Pirat entfernt', async () => {
+  const srv = startServer();
+  const url = 'http://localhost:' + srv.port;
+  const gm = await connect(url, 'gm');
+  const created = await createGame(gm, {
+    teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false,
+    settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 }
+  });
+  const gameId = created.gameId;
+  const pirateTok = created.tokens.find((t) => t.isPirate);
+  const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
+  const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
+  const a = await connect(url, 'A'); const d = await connect(url, 'D');
+  const p = await connect(url, 'Pirat');
+  const join = (cl, code, name) => new Promise((res) => { const pj = once(cl, 'joined'); cl.emit('team:join', { gameId, code, playerName: name }); pj.then(res); });
+  const waitState = async (getFn, pred, timeoutMs = 6000) => {
+    const t0 = Date.now();
+    while (Date.now() - t0 < timeoutMs) { const s = getFn(); if (s && pred(s)) return s; await sleep(25); }
+    throw new Error('waitState-Timeout: Zustand nicht erreicht');
+  };
+  try {
+    await join(a, inv0, 'A'); await join(d, inv1, 'D');
+    const vote = (cl, pid) => cl.emit('vote:leader', { gameId, playerId: pid });
+    vote(a, a.id); await sleep(30); vote(d, d.id); await sleep(40);
+    await join(p, pirateTok.code, 'Pirat');
+    let stGm = null; gm.on('state', (s) => { stGm = s; });
+    gm.emit('gm:start', { gameId, gmCode: created.gmCode });
+    await waitState(() => stGm, (s) => s.started && s.pirate && !!s.pirate.leaderId);
+    assert.strictEqual(stGm.pirate.leaderId, p.id, 'Pirat ist Leader vor dem Leave');
+
+    // Letzter Piraten-Spieler verlässt (confirm=true) → Piraten-Figur wird entfernt.
+    const leftP = once(p, 'left');
+    p.emit('game:leave', { gameId, confirm: true });
+    await leftP;
+    await waitState(() => stGm, (s) => s.started && s.pirate === null);
+    const pirLive = (stGm.game.players || []).find((pp) => (pp.role === 'pirate' || pp.isPirate) && !pp.bankrupt);
+    assert.ok(!pirLive, 'kein aktives Piraten-Team nach letztem Leave');
+    assert.strictEqual(stGm.over, false, 'Spiel läuft für die normalen Teams weiter');
+  } finally {
+    [gm, a, d, p].forEach((c_) => c_.disconnect());
+    srv.stop();
+  }
+});
+
+// ---------------------------------------------------------------------
+// P8 (Statischer Client-Check): Der Client rendert ein Piraten-Teammitglied als
+// Piratenteam (🏴‍☠️, KEIN 'Beobachter') und blendet Wirtschaft/Handel/Auktion
+// für Piraten aus (diese Panels rendern nur für normale Teams in st.teams).
+// ---------------------------------------------------------------------
+test('P8 (statisch): Client rendert Piratenteam-Panel statt Beobachter + blendet Wirtschaft/Handel/Auktion aus', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'assets', 'js', 'client.js'), 'utf8');
+  // (a) renderPlayerPanel hat einen Piraten-Zweig VOR dem 'Beobachter'-Fallback.
+  const piratePanelIdx = src.indexOf('renderPiratePlayerPanel(panel, st)');
+  const beobachterIdx = src.indexOf("panel.innerHTML = '<div>Beobachter: keine eigene Mannschaft.</div>'");
+  assert.ok(piratePanelIdx >= 0, 'renderPlayerPanel ruft ein Piraten-Team-Panel auf (kein Beobachter-Fallback für PIRATES)');
+  assert.ok(piratePanelIdx < beobachterIdx, 'Piraten-Zweig steht VOR dem Beobachter-Fallback');
+  // (b) Das Piraten-Panel labelt als Piratenteam mit Marker 🏴‍☠️.
+  assert.ok(/🏴‍☠️/.test(src), 'Piraten-Team wird mit dem Piraten-Marker 🏴‍☠️ labelt');
+  // (c) Wirtschaft/Handel/Auktion-Panels rendern nur für normale Teams (idx<0 → früh return/hidden).
+  assert.ok(/function renderEconBar[\s\S]{0,600}if \(idx < 0 \|\| !st\.started/.test(src), 'renderEconBar versteckt für Nicht-Team (Piraten: idx=-1 → ausgeblendet)');
+  assert.ok(/function renderTradePanel[\s\S]{0,600}if \(idx < 0 \|\| !st\.started/.test(src), 'renderTradePanel (Handel/Auktion) versteckt für Nicht-Team (Piraten)');
+  assert.strictEqual(/Piraten ziehen lassen/.test(src), true, 'Piraten-Aktion „Piraten ziehen lassen“ ist im Client vorhanden');
+});
