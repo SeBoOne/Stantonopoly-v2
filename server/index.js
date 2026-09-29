@@ -25,11 +25,7 @@ const io = new Server(server, {
   cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
-const rooms = new Rooms({
-  to: (room) => ({
-    emit: (event, data) => io.to(room).emit(event, data)
-  })
-});
+const rooms = new Rooms(io);
 
 // ---- Static + health ----
 app.use(express.static(PUBLIC));

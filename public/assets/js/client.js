@@ -1303,7 +1303,26 @@
       card.appendChild(pWrap);
       list.appendChild(card);
     });
-    // Start-Button nur für GM sichtbar (UX; echte Prüfung server-seitig).
+    // (P10) Piraten-Team in der Lobby: NUR sichtbar, wenn der Server den
+        // Pirat-Eintrag mitsendet (st.pirate). Normale Team-Sockets bekommen ihn
+        // vom Server NICHT (broadcast strippt ihn) → für sie bleibt der Pirat
+        // unsichtbar. Der GM/Pirat-Socket sieht ihn + die normalen Teams.
+        if (st && st.pirate) {
+          const pcard = document.createElement('div');
+          pcard.className = 'lobby-team lobby-team-pirate';
+          const phead = document.createElement('div');
+          phead.className = 'lobby-team-head';
+          phead.textContent = (st.pirate.teamName || '🏴‍☠️ Piraten') + ' — ' + (st.pirate.ship || 'PIRATEN');
+          pcard.appendChild(phead);
+          const pWrap = document.createElement('div');
+          pWrap.className = 'lobby-team-players';
+          const pnote = document.createElement('span');
+          pnote.textContent = 'Piraten-Team (vom GM gesteuert)';
+          pWrap.appendChild(pnote);
+          pcard.appendChild(pWrap);
+          list.appendChild(pcard);
+        }
+        // Start-Button nur für GM sichtbar (UX; echte Prüfung server-seitig).
     // Die Klasse 'hidden' (display:none !important) toggeln, nicht style.display.
     const btnStart = $('btn-start');
     if (btnStart) {
@@ -1386,9 +1405,18 @@
 
   function renderBoardView(st) {
     window.__boardData = toBoardData(st);
-    if (typeof window.initBoard === 'function' && !client.boardReady) {
+    // (P9) Feld-/Boarddaten IMMER frisch aus dem aktuellen state übernehmen.
+    // initBoard baut die Feldkarten (Name/Preis/Gebühr) nur EINMAL pro Spiel auf;
+    // renderBoard aktualisiert danach nur Marker/Tokens. Beim Wechsel in ein
+    // ANDERES Spiel (anderes Preset/Feldlayout — z.B. nach Verlassen + Beitritt
+    // per Einladungscode) würde das Board sonst die Feldkarten des VORHERIGEN
+    // Spiels zeigen (stale Cache über das gelöste Spiel hinaus) bis zum Reload.
+    // Deshalb: Board neu aufbauen, sobald die gameId wechselt.
+    const gameId = (st && st.gameId) || client.gameId;
+    if (typeof window.initBoard === 'function' && (!client.boardReady || client._builtGameId !== gameId)) {
       window.initBoard();
       client.boardReady = true;
+      client._builtGameId = gameId;
     }
     if (typeof window.renderBoard === 'function') {
       window.renderBoard();
