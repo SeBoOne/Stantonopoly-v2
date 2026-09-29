@@ -912,7 +912,9 @@ class Rooms {
     if (res && res.err) {
       const msgs = {
         ALREADY_ROLLED: 'Es wurde in diesem Zug bereits gewürfelt.',
-        TASK_PENDING: 'Team hat noch eine offene Aufgabe — erst „Aufgabe erledigt“ bestätigen.'
+        TASK_PENDING: 'Team hat noch eine offene Aufgabe — erst „Aufgabe erledigt“ bestätigen.',
+        FLEEING: 'Dein Team ist auf der Flucht — in dieser Runde wird nicht gewürfelt.',
+        PIRATE_PENDING: 'Erst die Piraten-Begegnung entscheiden (Schutzgeld zahlen oder fliehen).'
       };
       return { error: { code: res.err, message: msgs[res.err] || 'Würfeln nicht möglich.' } };
     }

@@ -546,6 +546,21 @@ const StantonopolyGame = {
       log(game, 'Würfeln nicht möglich: ' + p.name + ' muss erst seine Aufgabe erledigen.');
       return { err: 'TASK_PENDING' };
     }
+    // (Piratensystem) Auf der Flucht ist der Zug gesperrt: das Team darf NICHT
+    // würfeln (Engine-seitig, nicht nur im Client) — die Flucht läuft bis zur
+    // eigenen nächsten Runde bzw. bis zum Erwischt/Entwischt-Urteil.
+    if (p && p.fleeing) {
+      log(game, p.name + ' ist auf der Flucht — in dieser Runde wird nicht gewürfelt.');
+      return { err: 'FLEEING' };
+    }
+    // (Piratensystem) Schutz: Während eine Begegnung für den aktiven Spieler
+    // offen ist, darf NICHT gewürfelt werden (Direkt-NextTurn/Skip erledigt die
+    // Auflösung). Nur am aktiven Spieler relevant. VOR der Bewegung geprüft,
+    // damit ein abgelehnter Wurf den Spielstand nicht anfasst.
+    if (game.pirateEncounter && game.pirateEncounter.teamIdx === game.activeIdx) {
+      log(game, 'Würfeln nicht möglich: die Piraten-Begegnung ist noch offen (Schutzgeld zahlen oder fliehen).');
+      return { err: 'PIRATE_PENDING', pirateEncounter: game.pirateEncounter };
+    }
     const cfg = game.diceConfig;
 
     let sum;
@@ -603,13 +618,6 @@ const StantonopolyGame = {
     const events = [];
     let canBuy = false;
     let turnPassed = false; // true = Aufrufer kann direkt nextTurn()
-
-    // (Piratensystem) Schutz: Während eine Begegnung für den aktiven Spieler
-    // offen ist, darf NICHT gewürfelt werden (Direkt-NextTurn/Skip erledigt die
-    // Auflösung). Nur am aktiven Spieler relevant.
-    if (game.pirateEncounter && game.pirateEncounter.teamIdx === game.activeIdx) {
-      return { err: 'PIRATE_PENDING', pirateEncounter: game.pirateEncounter };
-    }
 
     const pir = pirateOf(game);
     const pirateHere = !!(pir && pir.pos === to);
@@ -710,7 +718,14 @@ const StantonopolyGame = {
       game.pirateEncounter = null;
       game.pirateVerdict = { teamIdx: enc.teamIdx, fee: enc.fee, caughtFee: enc.caughtFee };
       log(game, p.name + ' versucht zu fliehen — die Piraten warten auf das Urteil (Erwischt/Entwischt). Die Runde endet.');
-      return { ok: true, action: 'flee', caughtFee: enc.caughtFee };
+      // (Fix Review Runde 1) Die Runde endet SERVERSEITIG wie beim Aussetzen:
+      // der Zug geht sofort an das nächste Team. Damit ist die Flucht auch dann
+      // wirksam, wenn die Begegnung in nextTurn() entstand (Pirat zieht auf das
+      // Feld des neuen aktiven Teams) und game.rolled noch false ist.
+      // Beim Erreichen der eigenen nächsten Runde greift in nextTurn() der
+      // Auto-Erwischt-Pfad (_applyPirateCaught), falls kein „Entwischt“ kam.
+      this.nextTurn(game);
+      return { ok: true, action: 'flee', caughtFee: enc.caughtFee, turnEnded: true };
     }
     return { ok: false, reason: 'bad_choice' };
   },
@@ -741,8 +756,10 @@ const StantonopolyGame = {
       p.fleeing = false;
       p.pirateCaughtFee = undefined;
       log(game, p.name + ' wurde von den Piraten erwischt und muss das erhöhte Strafgeld zahlen (' + fmt(fee) + ').');
-      this.resolveInsolvency(game, vd.teamIdx);
-      return { ok: true, verdict: 'caught', payedFull: paid, fee };
+      // (Fix Review Runde 1) KEIN Sofort-Bankrott: nicht deckbares Strafgeld läuft
+      // durch den NORMALEN Insolvenz-Pfad (pay() setzt insolvent/debt; das Team
+      // kann bis zum Ende seines Zuges sanieren, sonst Bankrott in nextTurn).
+      return { ok: true, verdict: 'caught', payedFull: paid, fee, insolvent: !!p.insolvent };
     }
     return { ok: false, reason: 'bad_verdict' };
   },
@@ -768,8 +785,10 @@ const StantonopolyGame = {
     p.fleeing = false;
     p.pirateCaughtFee = undefined;
     log(game, p.name + ' konnte bis zur nächsten Runde nicht entwischen → automatisch erwischt, zahlt ' + fmt(fee) + ' Strafgeld.');
-    this.resolveInsolvency(game, teamIdx);
-    return { ok: true, payedFull: paid, fee };
+    // (Fix Review Runde 1) Kein Sofort-Bankrott — der normale Insolvenz-Pfad
+    // greift: pay() markiert insolvent/debt, das Team darf in seinem Zug
+    // sanieren, sonst Bankrott am Zugende (nextTurn → resolveInsolvency).
+    return { ok: true, payedFull: paid, fee, insolvent: !!p.insolvent };
   },
 
   buy: function (game) {
