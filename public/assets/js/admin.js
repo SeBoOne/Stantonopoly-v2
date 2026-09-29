@@ -20,7 +20,172 @@
   const DEFAULT_LEVEL_NAMES = { ALLEIN: 'Standard', CYCLONE: 'Cyclone', STORM: 'Storm', BALLISTA: 'Ballista', ARMISTICE: 'Armistice Zone' };
   let currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES);
 
-  const DEFAULT_FIELDS = () => [
+    // Spielregeln (Settings) je Preset — identisch zum Spiel-Editor (client.js).
+    // Interne Werte = Dezimal (wie Server); Eingabefelder zeigen Prozent (50 → 0.50).
+    const DEFAULT_SETTINGS_CLIENT = {
+      rentMult: { ALLEIN: 0.10, CYCLONE: 0.50, STORM: 1.00, BALLISTA: 2.00, ARMISTICE: 3.00 },
+      buildMult: { ALLEIN: 0, CYCLONE: 0.25, STORM: 0.50, BALLISTA: 1.00, ARMISTICE: 1.50 },
+      mortgageMult: 0.75,
+      unmortgageRate: 1.10,
+      bankSellEnabled: true,
+      bankPayout: 0.75,
+      demolishRefundRate: 0.50,
+      auctionMs: 15000,
+      pollMs: 15000,
+      armisticeEnabled: false,
+      buildGroupOwnership: true,
+      buildGroupEven: true,
+      tasksEnabled: false,
+      tasksTurnTimerMs: 10000,
+      tasksRequireTrade: false,
+      diceConfig: '1w6',
+      turnSeconds: 0,
+      piratesEnabled: false,
+      pirateDice: '1w6',
+      pirateProtectionFee: 250000,
+      pirateCaughtMult: 2
+    };
+    let currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
+
+    // (2m #13) Gleichmäßig-Regel nur in Verbindung mit Besitz-Regel.
+    function syncEvenToggle() {
+      const owned = $('ad-s-build-group-owned');
+      const even = $('ad-s-build-group-even');
+      if (!owned || !even) return;
+      even.disabled = !owned.checked;
+      if (!owned.checked) even.checked = false;
+    }
+    function bindMonopolyToggles() {
+      const owned = $('ad-s-build-group-owned');
+      const even = $('ad-s-build-group-even');
+      if (owned) owned.addEventListener('change', syncEvenToggle);
+      if (even) even.addEventListener('change', () => { const o = $('ad-s-build-group-owned'); if (!o || !o.checked) even.checked = false; });
+    }
+
+    // Settings aus einem (Preset-)Objekt übernehmen (Default-Merge; Daten sind Dezimal).
+    function applyPresetSettings(p) {
+      const src = (p && p.settings && typeof p.settings === 'object') ? p.settings : {};
+      const s = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
+      if (typeof src.mortgageMult === 'number') s.mortgageMult = src.mortgageMult;
+      if (typeof src.unmortgageRate === 'number') s.unmortgageRate = src.unmortgageRate;
+      if (typeof src.bankSellEnabled === 'boolean') s.bankSellEnabled = src.bankSellEnabled;
+      if (typeof src.bankPayout === 'number') s.bankPayout = src.bankPayout;
+      if (typeof src.demolishRefundRate === 'number') s.demolishRefundRate = src.demolishRefundRate;
+      if (typeof src.auctionMs === 'number') s.auctionMs = src.auctionMs;
+      if (typeof src.pollMs === 'number') s.pollMs = src.pollMs;
+      if (typeof src.armisticeEnabled === 'boolean') s.armisticeEnabled = src.armisticeEnabled;
+      if (typeof src.tasksEnabled === 'boolean') s.tasksEnabled = src.tasksEnabled;
+      if (typeof src.monopolyBuildRule === 'boolean') { s.buildGroupOwnership = src.monopolyBuildRule; s.buildGroupEven = src.monopolyBuildRule; }
+      if (typeof src.buildGroupOwnership === 'boolean') s.buildGroupOwnership = src.buildGroupOwnership;
+      if (typeof src.buildGroupEven === 'boolean') s.buildGroupEven = src.buildGroupEven;
+      if (typeof src.tasksTurnTimerMs === 'number') s.tasksTurnTimerMs = src.tasksTurnTimerMs;
+      if (typeof src.tasksRequireTrade === 'boolean') s.tasksRequireTrade = src.tasksRequireTrade;
+      if (typeof src.piratesEnabled === 'boolean') s.piratesEnabled = src.piratesEnabled;
+      if (src.pirateDice === '1w6' || src.pirateDice === '2w6') s.pirateDice = src.pirateDice;
+      if (typeof src.pirateProtectionFee === 'number') s.pirateProtectionFee = src.pirateProtectionFee;
+      if (typeof src.pirateCaughtMult === 'number') s.pirateCaughtMult = src.pirateCaughtMult;
+      if (src.rentMult && typeof src.rentMult === 'object') Object.assign(s.rentMult, src.rentMult);
+      if (src.buildMult && typeof src.buildMult === 'object') Object.assign(s.buildMult, src.buildMult);
+      if (src.diceConfig === '1w6' || src.diceConfig === '2w6') s.diceConfig = src.diceConfig;
+      if (typeof src.turnSeconds === 'number') s.turnSeconds = src.turnSeconds;
+      currentSettings = s;
+    }
+
+    function syncSettingsInputs() {
+      const set = (id, v) => { const el = $(id); if (el && el.value !== undefined) { if (typeof v === 'undefined' || v === null) el.value = ''; else el.value = Math.round(v * 100); } };
+      set('ad-s-rent-ALLEIN', currentSettings.rentMult.ALLEIN);
+      set('ad-s-rent-CYCLONE', currentSettings.rentMult.CYCLONE);
+      set('ad-s-rent-STORM', currentSettings.rentMult.STORM);
+      set('ad-s-rent-BALLISTA', currentSettings.rentMult.BALLISTA);
+      set('ad-s-rent-ARMISTICE', currentSettings.rentMult.ARMISTICE);
+      set('ad-s-build-CYCLONE', currentSettings.buildMult.CYCLONE);
+      set('ad-s-build-STORM', currentSettings.buildMult.STORM);
+      set('ad-s-build-BALLISTA', currentSettings.buildMult.BALLISTA);
+      set('ad-s-build-ARMISTICE', currentSettings.buildMult.ARMISTICE);
+      set('ad-s-mortgage-mult', currentSettings.mortgageMult);
+      { const el = $('ad-s-unmortgage-rate'); if (el) el.value = String(Math.round((currentSettings.unmortgageRate - 1) * 100)); }
+      set('ad-s-bank-payout', currentSettings.bankPayout);
+      set('ad-s-demolish-refund', currentSettings.demolishRefundRate);
+      { const bs = $('ad-s-bank-sell'); if (bs) bs.checked = !!currentSettings.bankSellEnabled; }
+      { const el = $('ad-s-auction-ms'); if (el) el.value = Math.round(currentSettings.auctionMs / 1000); }
+      { const el = $('ad-s-poll-ms'); if (el) el.value = Math.round(currentSettings.pollMs / 1000); }
+      { const el = $('ad-s-armistice'); if (el) el.checked = !!currentSettings.armisticeEnabled; }
+      { const el = $('ad-s-build-group-owned'); if (el) el.checked = !!currentSettings.buildGroupOwnership; }
+      { const el = $('ad-s-build-group-even'); if (el) el.checked = !!(currentSettings.buildGroupEven && currentSettings.buildGroupOwnership); syncEvenToggle(); }
+      { const el = $('ad-s-tasks-enabled'); if (el) el.checked = !!currentSettings.tasksEnabled; }
+      { const el = $('ad-s-tasks-turn-timer'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.tasksTurnTimerMs) || 0) / 1000)); }
+      { const el = $('ad-s-tasks-require-trade'); if (el) el.checked = !!currentSettings.tasksRequireTrade; }
+      { const el = $('ad-s-dice'); if (el) el.value = currentSettings.diceConfig || '1w6'; }
+      { const el = $('ad-s-turnsecs'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0))); }
+      { const el = $('ad-s-pirates-enabled'); if (el) el.checked = !!currentSettings.piratesEnabled; }
+      { const el = $('ad-s-pirate-dice'); if (el) el.value = currentSettings.pirateDice || '1w6'; }
+      { const el = $('ad-s-pirate-fee'); if (el) el.value = String(currentSettings.pirateProtectionFee != null ? currentSettings.pirateProtectionFee : 250000); }
+      { const el = $('ad-s-pirate-caught-mult'); if (el) el.value = String(currentSettings.pirateCaughtMult != null ? currentSettings.pirateCaughtMult : 2); }
+    }
+
+    function readSettingsInputs() {
+      const p = (v, d) => { if (v == null) return d; const x = Number(v); return Number.isFinite(x) && x >= 0 ? x : d; };
+      const read = (id, apply) => { const el = $(id); if (el) { const v = el.value; if (v !== undefined && v !== '') apply(v); } };
+      read('ad-s-rent-ALLEIN', (v) => currentSettings.rentMult.ALLEIN = p(v, 0.10) / 100);
+      read('ad-s-rent-CYCLONE', (v) => currentSettings.rentMult.CYCLONE = p(v, 0.50) / 100);
+      read('ad-s-rent-STORM', (v) => currentSettings.rentMult.STORM = p(v, 1.00) / 100);
+      read('ad-s-rent-BALLISTA', (v) => currentSettings.rentMult.BALLISTA = p(v, 2.00) / 100);
+      read('ad-s-rent-ARMISTICE', (v) => currentSettings.rentMult.ARMISTICE = p(v, 3.00) / 100);
+      read('ad-s-build-CYCLONE', (v) => currentSettings.buildMult.CYCLONE = p(v, 0.25) / 100);
+      read('ad-s-build-STORM', (v) => currentSettings.buildMult.STORM = p(v, 0.50) / 100);
+      read('ad-s-build-BALLISTA', (v) => currentSettings.buildMult.BALLISTA = p(v, 1.00) / 100);
+      read('ad-s-build-ARMISTICE', (v) => currentSettings.buildMult.ARMISTICE = p(v, 1.50) / 100);
+      read('ad-s-mortgage-mult', (v) => currentSettings.mortgageMult = p(v, 0.75) / 100);
+      read('ad-s-unmortgage-rate', (v) => currentSettings.unmortgageRate = p(v, 10) / 100 + 1);
+      read('ad-s-bank-payout', (v) => currentSettings.bankPayout = p(v, 0.75) / 100);
+      read('ad-s-demolish-refund', (v) => currentSettings.demolishRefundRate = p(v, 0.50) / 100);
+      { const bs = $('ad-s-bank-sell'); if (bs) currentSettings.bankSellEnabled = !!bs.checked; }
+      read('ad-s-auction-ms', (v) => currentSettings.auctionMs = Math.max(1, Math.round(Number(v)) * 1000));
+      read('ad-s-poll-ms', (v) => currentSettings.pollMs = Math.max(1, Math.round(Number(v)) * 1000));
+      { const ae = $('ad-s-armistice'); if (ae) currentSettings.armisticeEnabled = !!ae.checked; }
+      { const mr = $('ad-s-build-group-owned'); if (mr) currentSettings.buildGroupOwnership = !!mr.checked; }
+      { const er = $('ad-s-build-group-even'); if (er && currentSettings.buildGroupOwnership) currentSettings.buildGroupEven = !!er.checked; }
+      { const te_ = $('ad-s-tasks-enabled'); if (te_) currentSettings.tasksEnabled = !!te_.checked; }
+      { const tt = $('ad-s-tasks-turn-timer'); if (tt) currentSettings.tasksTurnTimerMs = Math.max(0, Math.round(Number(tt.value) || 0) * 1000); }
+      { const tr = $('ad-s-tasks-require-trade'); if (tr) currentSettings.tasksRequireTrade = !!tr.checked; }
+      { const de = $('ad-s-dice'); if (de && (de.value === '1w6' || de.value === '2w6')) currentSettings.diceConfig = de.value; }
+      { const te = $('ad-s-turnsecs'); if (te) currentSettings.turnSeconds = Math.max(0, Math.round(Number(te.value) || 0)); }
+      { const pe = $('ad-s-pirates-enabled'); if (pe) currentSettings.piratesEnabled = !!pe.checked; }
+      { const pd = $('ad-s-pirate-dice'); if (pd && (pd.value === '1w6' || pd.value === '2w6')) currentSettings.pirateDice = pd.value; }
+      { const pf = $('ad-s-pirate-fee'); if (pf) currentSettings.pirateProtectionFee = Math.max(0, Math.round(Number(pf.value) || 0)); }
+      { const pm = $('ad-s-pirate-caught-mult'); if (pm) currentSettings.pirateCaughtMult = Math.max(1, Math.round(Number(pm.value) || 1)); }
+    }
+
+    // Settings nur senden, wenn sie von den Defaults abweichen (sonst null).
+    function settingsPayload() {
+      const base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
+      const cur = currentSettings;
+      const out = {};
+      if (JSON.stringify(cur.rentMult) !== JSON.stringify(base.rentMult)) out.rentMult = cur.rentMult;
+      if (JSON.stringify(cur.buildMult) !== JSON.stringify(base.buildMult)) out.buildMult = cur.buildMult;
+      if (cur.mortgageMult !== base.mortgageMult) out.mortgageMult = cur.mortgageMult;
+      if (cur.unmortgageRate !== base.unmortgageRate) out.unmortgageRate = cur.unmortgageRate;
+      if (cur.bankSellEnabled !== base.bankSellEnabled) out.bankSellEnabled = cur.bankSellEnabled;
+      if (cur.bankPayout !== base.bankPayout) out.bankPayout = cur.bankPayout;
+      if (cur.demolishRefundRate !== base.demolishRefundRate) out.demolishRefundRate = cur.demolishRefundRate;
+      if (cur.auctionMs !== base.auctionMs) out.auctionMs = cur.auctionMs;
+      if (cur.pollMs !== base.pollMs) out.pollMs = cur.pollMs;
+      if (cur.armisticeEnabled !== base.armisticeEnabled) out.armisticeEnabled = cur.armisticeEnabled;
+      if (cur.buildGroupOwnership !== base.buildGroupOwnership) out.buildGroupOwnership = cur.buildGroupOwnership;
+      if (cur.buildGroupEven !== base.buildGroupEven) out.buildGroupEven = cur.buildGroupEven;
+      if (cur.tasksEnabled !== base.tasksEnabled) out.tasksEnabled = cur.tasksEnabled;
+      if (cur.tasksTurnTimerMs !== base.tasksTurnTimerMs) out.tasksTurnTimerMs = cur.tasksTurnTimerMs;
+      if (cur.tasksRequireTrade !== base.tasksRequireTrade) out.tasksRequireTrade = cur.tasksRequireTrade;
+      if (cur.piratesEnabled !== base.piratesEnabled) out.piratesEnabled = cur.piratesEnabled;
+      if (cur.pirateDice !== base.pirateDice) out.pirateDice = cur.pirateDice;
+      if (cur.pirateProtectionFee !== base.pirateProtectionFee) out.pirateProtectionFee = cur.pirateProtectionFee;
+      if (cur.pirateCaughtMult !== base.pirateCaughtMult) out.pirateCaughtMult = cur.pirateCaughtMult;
+      if (cur.diceConfig !== base.diceConfig) out.diceConfig = cur.diceConfig;
+      if (cur.turnSeconds !== base.turnSeconds) out.turnSeconds = cur.turnSeconds;
+      return Object.keys(out).length ? out : null;
+    }
+
+    const DEFAULT_FIELDS = () => [
     { type: 'los', name: 'Orison' },
     { type: 'grundstueck', name: 'Seraphim', price: 400000 },
     { type: 'grundstueck', name: 'Shubin Mining SCD-1', price: 500000 },
@@ -311,8 +476,10 @@
     const inp = $('ad-preset-name');
     if (inp && currentPresetName) inp.value = currentPresetName;
     renderFields();
-    syncLevelNames();
-  }
+        syncLevelNames();
+        syncSettingsInputs();
+        bindMonopolyToggles();
+      }
   function closeEditor() {
     const m = $('admin-preset-modal');
     if (m) m.classList.add('hidden');
@@ -440,15 +607,19 @@
     const name = (inp && inp.value ? inp.value : currentPresetName).trim();
     if (!name) { showNotify('Bitte einen Namen eingeben.', true); return; }
     readLevelNames();
-    const levelNames = {};
-    LEVEL_KEYS.forEach((k) => { if (currentLevelNames[k]) levelNames[k] = currentLevelNames[k]; });
-    try {
-      const created = !presetList.some((p) => p.name === name);
-      await api('POST', '/presets', {
-        name,
-        fields: normalizeFields(),
-        levelNames: Object.keys(levelNames).length ? levelNames : null
-      });
+        const levelNames = {};
+        LEVEL_KEYS.forEach((k) => { if (currentLevelNames[k]) levelNames[k] = currentLevelNames[k]; });
+        // Regeln aus den Eingabefeldern übernehmen (nur Abweichungen von Defaults)
+        readSettingsInputs();
+        const settings = settingsPayload();
+        try {
+          const created = !presetList.some((p) => p.name === name);
+          await api('POST', '/presets', {
+            name,
+            fields: normalizeFields(),
+            levelNames: Object.keys(levelNames).length ? levelNames : null,
+            settings
+          });
       showNotify('Preset "' + name + '" ' + (created ? 'angelegt' : 'gespeichert') + '.');
       closeEditor();
       currentPresetName = name;
@@ -475,20 +646,22 @@
     if (sel) sel.addEventListener('change', () => { currentPresetName = sel.value || ''; updatePresetMeta(); });
     const nb = $('btn-ad-preset-new');
     if (nb) nb.addEventListener('click', () => {
-      currentPresetName = '';
-      editingFields = DEFAULT_FIELDS();
-      currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES);
-      const inp = $('ad-preset-name'); if (inp) inp.value = '';
-      openEditor();
-    });
-    const ed = $('btn-ad-preset-edit');
-    if (ed) ed.addEventListener('click', () => {
-      if (!currentPresetName) { showNotify('Bitte ein Preset auswählen.', true); return; }
-      const p = presetList.find((x) => x.name === currentPresetName);
-      editingFields = (p && Array.isArray(p.fields) && p.fields.length) ? p.fields.map((f) => ({ ...f })) : DEFAULT_FIELDS();
-      currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES, (p && p.levelNames) || {});
-      openEditor();
-    });
+          currentPresetName = '';
+          editingFields = DEFAULT_FIELDS();
+          currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES);
+          currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS_CLIENT));
+          const inp = $('ad-preset-name'); if (inp) inp.value = '';
+          openEditor();
+        });
+        const ed = $('btn-ad-preset-edit');
+        if (ed) ed.addEventListener('click', () => {
+          if (!currentPresetName) { showNotify('Bitte ein Preset auswählen.', true); return; }
+          const p = presetList.find((x) => x.name === currentPresetName);
+          editingFields = (p && Array.isArray(p.fields) && p.fields.length) ? p.fields.map((f) => ({ ...f })) : DEFAULT_FIELDS();
+          currentLevelNames = Object.assign({}, DEFAULT_LEVEL_NAMES, (p && p.levelNames) || {});
+          applyPresetSettings(p);
+          openEditor();
+        });
     const tg = $('btn-ad-preset-toggle');
     if (tg) tg.addEventListener('click', async () => {
       if (!currentPresetName) { showNotify('Bitte ein Preset auswählen.', true); return; }
