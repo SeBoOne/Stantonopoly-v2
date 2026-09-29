@@ -227,7 +227,7 @@
   }
   const socket = io();
 
-  socket.on('connect', () => console.log('[client.js] verbunden'));
+  socket.on('connect', () => { client.socketId = socket.id; console.log('[client.js] verbunden'); });
   socket.on('disconnect', () => {
     console.log('[client.js] getrennt');
     showNotify('Verbindung zum Server getrennt — verbinde neu…');
@@ -2225,8 +2225,11 @@
           color: meta.color || '',
           teamName: meta.teamName || p.name || ('Team ' + (i + 1)),
           bankrupt: !!p.bankrupt,
+          // (t_3d729454 P7) Forfeit-Status + echter Wirtschaftsstand im Endresultat.
+          forfeited: !!p.forfeited,
           winner: !!p.winner || (winnerId != null && String(p.id) === String(winnerId)),
-          budget: (typeof p.budget === 'number') ? p.budget : 0
+          budget: (typeof p.budget === 'number') ? p.budget : 0,
+          properties: p.properties || {}
         };
         if (entry.winner) alive.unshift(entry);
         else if (!p.bankrupt) alive.push(entry);
@@ -2236,13 +2239,25 @@
     }
     const rows = ranking.map((r) => {
       const medal = r.place === 1 ? '🏆' : (r.place === 2 ? '🥈' : (r.place === 3 ? '🥉' : ''));
-      const status = r.winner ? 'Sieger' : (r.bankrupt ? 'ausgeschieden' : 'aktiv');
+      // (t_3d729454 P7) Status: forfeit → „durch Aufgabe verloren“ (statt normal/ausgeschieden).
+      const status = r.winner ? 'Sieger' : (r.forfeited ? 'durch Aufgabe verloren' : (r.bankrupt ? 'ausgeschieden' : 'aktiv'));
       const colorDot = r.color ? '<span class="rk-dot" style="background:' + r.color + '"></span>' : '';
+      // (t_3d729454 P7) Echter letzter Wirtschaftsstand: Rest-Budget + Liegenschaften.
+      const propKeys = Object.keys(r.properties || {});
+      let eco = '';
+      if (typeof r.budget === 'number') {
+        const propNames = propKeys.map((fi) => {
+          const f = (st.game && st.game.fields && st.game.fields[fi]) ? st.game.fields[fi].name : ('Feld ' + fi);
+          return f;
+        }).join(', ');
+        eco = '<div class="rk-eco">💰 ' + fmtUAEC(r.budget) + ' &nbsp;·&nbsp; 🏠 ' + propKeys.length + ' ' + (propKeys.length === 1 ? 'Liegenschaft' : 'Liegenschaften') +
+          (propNames ? ' <small>(' + esc(propNames) + ')</small>' : '') + '</div>';
+      }
       return '<div class="rk-row' + (r.winner ? ' rk-winner' : '') + '">' +
         '<span class="rk-place">' + r.place + '.</span>' +
         colorDot +
         '<span class="rk-name">' + esc(r.teamName || r.name || '?') + (r.ship ? ' <small>(' + esc(r.ship) + ')</small>' : '') + '</span>' +
-        '<span class="rk-status">' + medal + ' ' + status + '</span>' +
+        '<span class="rk-status">' + medal + ' ' + status + '</span>' + eco +
         '</div>';
     }).join('');
     openModal({
@@ -2378,6 +2393,9 @@
     }
     // Nur für Teammitglied (Leader oder Member) ohne sich wiederholendes Modal.
     if (!(client.role === 'leader' || client.role === 'member')) return;
+    // (t_3d729454 P6) Der Starter sieht KEIN Abstimmungs-Modal — er hat den Prozess
+    // gestartet und zählt automatisch als JA (Server setzt votes[startedBy]=1).
+    if (poll.startedBy && client.socketId && String(poll.startedBy) === String(client.socketId)) return;
     const key = poll.started + ':' + (poll.startedBy || '');
     if (pollUIKey === key) return;
     pollUIKey = key;

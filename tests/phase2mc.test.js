@@ -167,8 +167,11 @@ test('2m P7: letzter Spieler verlässt → erst leave:confirm, nach Bestätigung
   const gAfter = dbMod.getGame(ev.gameId);
   const engAfter = engine.deserialize(gAfter.state, D);
   assert.equal(engAfter.players[0].bankrupt, true, 'Team0 per Forfeit ausgeschieden');
-  assert.equal(engAfter.players[0].budget, 0, 'Guthaben aufgegeben');
-  assert.deepEqual(engAfter.players[0].properties, {}, 'Eigentum aufgegeben');
+  // (t_3d729454 P7) Forfeit räumt NICHT mehr Budget/Liegenschaften — der echte
+  // letzte Wirtschaftsstand bleibt für das Endresultat erhalten.
+  assert.equal(engAfter.players[0].forfeited, true, 'forfeit-Flag gesetzt');
+  assert.equal(engAfter.players[0].budget, 1500000, 'Guthaben bleibt erhalten (P7, nicht 0)');
+  assert.deepEqual(engAfter.players[0].properties, {}, 'Eigentum bleibt erhalten (P7, hier leer)');
 });
 
 // ─── 2n P6: Nach Rejoin-Gerätewechsel kann ein Normalspieler wieder verlassen ─

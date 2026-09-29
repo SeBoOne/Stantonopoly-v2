@@ -249,6 +249,8 @@ test('2m P12: Fortsetzen mit leerem Team → GM gefragt; „trotzdem fortsetzen�
     const t1Idx = engAfter.players.findIndex((p) => String(p.id) === String(t1.teamId));
     assert.ok(t1Idx >= 0, 'Team1 in Engine');
     assert.equal(engAfter.players[t1Idx].bankrupt, true, 'leeres Team1 per Forfeit ausgeschieden');
-    assert.equal(engAfter.players[t1Idx].budget, 0, 'Guthaben aufgegeben');
+    // (t_3d729454 P7) Forfeit räumt NICHT mehr Budget — echter letzter Stand bleibt.
+    assert.equal(engAfter.players[t1Idx].forfeited, true, 'forfeit-Flag gesetzt');
+    assert.equal(engAfter.players[t1Idx].budget, 1500000, 'Guthaben bleibt erhalten (P7, nicht 0)');
     assert.equal(engAfter.over, true, 'Spiel beendet (nur noch ein aktives Team)');
 });
