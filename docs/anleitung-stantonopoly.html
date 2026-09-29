@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stantonopoly V2 — Spielanleitung</title>
+<style>
+:root{
+  --bg:#0a0d12; --bg2:#0e141c; --panel:#121a24; --line:#1e2937;
+  --fg:#dfe7ef; --fg-faint:#8ea0b3; --fg-dim:#b6c4d2;
+  --accent:#e8a33d; --accent-hi:#ffb84d; --danger:#ff6a52; --ok:#5bd67a; --pirat:#ff7a6a;
+  --mono:ui-monospace,'Cascadia Code','JetBrains Mono',monospace;
+  --display:ui-monospace,'Cascadia Code','Segoe UI',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--display);line-height:1.7;
+  padding:2.5rem clamp(1rem,5vw,6rem) 6rem;}
+.wrap{max-width:900px;margin:0 auto}
+
+header{border-bottom:2px solid var(--line);padding-bottom:1.5rem;margin-bottom:2.5rem}
+.kicker{font-family:var(--mono);font-size:.78rem;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-bottom:.6rem;display:flex;gap:.6rem;align-items:center}
+.kicker::before{content:"";width:2rem;height:1px;background:var(--accent)}
+h1{font-size:2.6rem;font-weight:800;letter-spacing:-.02em;color:#fff}
+h1 .v{color:var(--accent);font-size:1.1rem;border:1px solid var(--accent);padding:.1rem .5rem;border-radius:2px;vertical-align:middle;margin-left:.5rem;font-family:var(--mono)}
+p.sub{color:var(--fg-faint);margin-top:.5rem;font-size:1.05rem}
+
+nav{margin:1.5rem 0 2.5rem;display:flex;flex-wrap:wrap;gap:.5rem}
+nav a{color:var(--accent-hi);font-family:var(--mono);font-size:.85rem;text-decoration:none;border:1px solid var(--line);padding:.4rem .9rem;border-radius:2px}
+nav a:hover{border-color:var(--accent)}
+
+section{margin-bottom:3.5rem}
+h2{font-size:2rem;font-weight:700;color:#fff;margin-bottom:.3rem;display:flex;align-items:center;gap:.7rem}
+h2 .ic{font-size:1.6rem}
+h2::after{content:"";flex:1;height:1px;background:var(--line);margin-left:.8rem}
+.role-tag{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;color:var(--fg-faint);text-transform:uppercase;margin-bottom:1.2rem}
+h3{font-size:1.2rem;color:var(--accent-hi);margin:1.8rem 0 .6rem}
+
+p{color:var(--fg-dim);max-width:70rem;margin-bottom:.8rem}
+p b{color:var(--fg)}
+ol,ul{margin:.4rem 0 1rem 1.4rem;color:var(--fg-dim)}
+li{margin-bottom:.5rem}
+li b{color:var(--fg)}
+.note{background:rgba(232,163,61,.06);border-left:3px solid var(--accent);padding:.8rem 1.1rem;border-radius:2px;color:var(--fg-dim);font-size:.95rem;margin:1rem 0}
+.note.pirate{border-color:var(--pirat);background:rgba(255,106,82,.05)}
+.note b{color:var(--accent-hi)}
+
+figure{margin:1.2rem 0 1.5rem}
+figure img{width:100%;border:1px solid var(--line);border-radius:4px;background:#0c1118}
+figcaption{font-size:.8rem;color:var(--fg-faint);margin-top:.5rem;font-family:var(--mono);letter-spacing:.02em}
+figcaption b{color:var(--accent)}
+
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.95rem}
+th{text-align:left;font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;color:var(--fg-faint);text-transform:uppercase;padding:.5rem .7rem;border-bottom:2px solid var(--line)}
+td{padding:.5rem .7rem;border-bottom:1px solid var(--line);color:var(--fg-dim)}
+td b{color:var(--fg)}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+@media(max-width:750px){.two{grid-template-columns:1fr}}
+
+.badge-inline{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;border:1px solid var(--accent);color:var(--accent-hi);padding:.15rem .5rem;border-radius:2px}
+.badge-pirate{border-color:var(--pirat);color:var(--pirat)}
+.badge-norm{border-color:var(--fg-faint);color:var(--fg-faint)}
+
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color:var(--fg-faint);font-family:var(--mono);font-size:.75rem;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Star Citizen · Spielanleitung</div>
+  <h1>STANTONOPOLY<span class="v">V2</span></h1>
+  <p class="sub">Was du als Spieler, Pirat, Teamleiter, Manager oder GM tun musst — Schritt für Schritt.</p>
+</header>
+
+<nav>
+  <a href="#spieler">👤 Normaler Spieler</a>
+  <a href="#pirat">🏴‍☠️ Pirat</a>
+  <a href="#teamleiter">👑 Teamleiter</a>
+  <a href="#manager">🛠️ Manager</a>
+  <a href="#gm">🎤 Game Master</a>
+</nav>
+
+<!-- ================= SPIELER ================= -->
+<section id="spieler">
+  <h2><span class="ic">👤</span> Normaler Spieler</h2>
+  <div class="role-tag">Du trittst einem Team bei, würfelst, kaufst, handelst — und arbeitest im Team zusammen.</div>
+
+  <h3>1. Einem Spiel beitreten</h3>
+  <p>Der <b>Game Master (GM)</b> erstellt das Spiel und gibt jedem Team einen <b>Einladungscode</b>. Den Code deines Teams erfährst du vom GM. Öffne Stantonopoly, klicke <b>„Mit Code beitreten"</b>, gib den Code und deinen Namen ein.</p>
+  <figure>
+    <img src="anleitung-img/guide-lobby.png" alt="Lobby mit Einladungscodes">
+    <figcaption>Die Lobby (GM-Sicht): Jedes Team hat seinen eigenen <b>Einladungscode</b> (<span class="badge-inline">UMQG</span>, <span class="badge-pirate">24HC</span> …). Den Code deines Teams gibt dir der GM.</figcaption>
+  </figure>
+
+  <h3>2. Dein Team und die Teamleader-Wahl</h3>
+  <p>Nach dem Beitritt ist dein Team eine <b>Karte in der Lobby</b> mit deinem Namen. Bevor das Spiel startet, stimmt dein Team über den <b>Teamleader</b> ab — das ist die Person, die später bauen und handeln darf.</p>
+
+  <h3>3. Das Spielfeld: Würfeln und Ziehen</h3>
+  <p>Das Spielfeld ist eine <b>horizontale Kartenreihe</b> — die Orte des Stantonolys. Bist du am Zug, ist oben <b>„DU BIST AM ZUG"</b> zu sehen und der <b>WÜRFELN</b>-Button leuchtet orange. Klicke ihn, um dein Schiff über die Felder zu ziehen.</p>
+  <figure>
+    <img src="anleitung-img/guide-spielfeld-leader.png" alt="Spielfeld mit Aktionsleiste">
+    <figcaption>Du bist am Zug: Der <b>WÜRFELN</b>-Button ist aktiv, dein Kontostand steht links unten (1.500.000 aUEC), rechts findest du die Panels <b>Wirtschaft</b>, <b>Handel &amp; Auktion</b>, <b>Cashflow</b> und <b>Mein Team</b>.</figcaption>
+  </figure>
+
+  <h3>4. Feld auswerten: Kaufen, Gebühr, Ereignis, Gefängnis</h3>
+  <p>Jedes Feld hat seine Regeln:</p>
+  <table>
+    <tr><th>Feldtyp</th><th>Was passiert?</th></tr>
+    <tr><td><b>LOS (Orison)</b></td><td>Beim Überqueren/Erreichen erhältst du <b>+500.000 aUEC</b>.</td></tr>
+    <tr><td><b>Grundstück (frei)</b></td><td>Du darfst es <b>kaufen</b> (Kaufpreis + Farbgruppe) oder skip.</td></tr>
+    <tr><td><b>Grundstück (fremd)</b></td><td>Du zahlst <b>Miete</b> an den Besitzer (je Ausbaustufe).</td></tr>
+    <tr><td><b>Ereignis</b></td><td>Ereignis-Effekt (z.&nbsp;B. Gebühr <b>125.000</b> beim Covalex-Hub-Gundo).</td></tr>
+    <tr><td><b>Steuer</b></td><td>Steuer wird erhoben.</td></tr>
+    <tr><td><b>Gefängnis</b></td><td>Zahl <b>Freikauf</b> oder sitze Zügen ab (Modal mit Wahl).</td></tr>
+    <tr><td><b>Frei Parken</b></td><td>Neutral — nichts passiert.</td></tr>
+  </table>
+
+  <h3>5. Wirtschaft, Handel &amp; Auktion nutzen</h3>
+  <p>Rechts in der Seitenleiste kannst du:</p>
+  <ul>
+    <li><b>Wirtschaft (ECON):</b> Dein Feld auswählen, ausbauen, hypothekieren, abbauen.</li>
+    <li><b>Handel &amp; Auktion:</b> Felder anbieten, auf Angebote antworten, eigene Felder versteigern.</li>
+    <li><b>Cashflow (Verlauf):</b> Alle Geldbewegungen deines Teams einsehen.</li>
+  </ul>
+  <div class="note"><b>Hinweis:</b> <b>Bauen</b>, Hypothek und Handel sind <b>Teamleiter-Aktionen</b> — als normales Mitglied siehst du sie, kannst sie aber nicht auslösen.</div>
+
+  <h3>6. Zug beenden</h3>
+  <p>Nach deiner Aktion klicke <b>NÄCHSTER ZUG</b>, um ans nächste Team zu übergeben. Das Ziel: das <b>letzte Team mit Vermögen gewinnen</b>.</p>
+</section>
+
+<!-- ================= PIRAT ================= -->
+<section id="pirat">
+  <h2><span class="ic">🏴‍☠️</span> Pirat</h2>
+  <div class="role-tag">Du spielst das Piratenteam — beitreten, um Schutzgeld zu kassieren und Fluchten zu entscheiden.</div>
+
+  <h3>1. Als Pirat einsteigen</h3>
+  <p>Das Piratenteam ist <b>ein eigenes Team</b> (nicht vom GM gesteuert) und hat seinen <b>eigenen Piraten-Einladungscode</b>. Der GM verteilt ihn. Du trittst damit bei wie bei jedem anderen Team.</p>
+  <figure>
+    <img src="anleitung-img/guide-piraten-lobby.png" alt="Lobby mit Piraten-Team">
+    <figcaption>Das Piratenteam erscheint in der Lobby mit eigenem Code (<span class="badge-pirate">24HC</span>) und eigener Karte — betretbar per Piraten-Einladungscode.</figcaption>
+  </figure>
+
+  <h3>2. Was Piraten können — und was nicht</h3>
+  <ul>
+    <li>✅ <b>Eigene Würfelregel</b> — die Piraten ziehen mit eigener Würfelzahl über das Brett.</li>
+    <li>✅ <b>Schutzgeld kassieren</b>, <b>Fluchten entscheiden</b> (Erwischt/Entwischt).</li>
+    <li>❌ <b>Keine Wirtschaft</b> (keine Felder kaufen/bauen), <b>kein Handel</b>, <b>keine Auktion</b>.</li>
+    <li>❌ Die Piraten <b>können nicht gewinnen</b> — ihr Beutegut zählt nur als Statistik am Ende.</li>
+  </ul>
+
+  <h3>3. Begegnung: Schutzgeld oder Flucht</h3>
+  <p>Landet ein normales Team auf dem Feld der Piraten, öffnet sich ein <b>Entscheidungs-Modal</b>:</p>
+  <ul>
+    <li><b>Schutzgeld zahlen:</b> Das Team zahlt den festgelegten Betrag, die Runde läuft normal weiter.</li>
+    <li><b>Flucht versuchen:</b> Das Team ist bis zur nächsten Runde auf der Flucht. Dann entscheidest <b>du als Pirat</b> (im Urteils-Modal): <b>Erwischt</b> (doppeltes Strafgeld) oder <b>Entwischt</b>.</li>
+  </ul>
+  <figure>
+    <img src="anleitung-img/guide-piraten-begegnung.png" alt="Piraten-Begegnungs-Modal">
+    <figcaption>Die Begegnung: Das Team hat <b>FLIEHEN</b> oder <b>ZAHLEN (100.000 aUEC)</b>. Das Modal schließt sich nur über diese Buttons.</figcaption>
+  </figure>
+  <div class="note pirate"><b>Piratentipp:</b> Nach der Begegnung ziehen die Piraten weiter. Auf <b>Steuerfeldern</b> greift beides (Steuer + Begegnung), auf <b>Ereignisfeldern</b> verdrängt die Begegnung das Ereignis, auf <b>Gefängnis</b> und <b>Frei-Parken</b> sind die Piraten inaktiv.</div>
+
+  <h3>4. Teamleader der Piraten</h3>
+  <p>Wie bei normalen Teams stimmen die Piraten einen <b>Teamleader</b> ab (oder der GM ernennt einen). Der Piraten-Leader führt die Team-Aktionen aus, z.&nbsp;B. das Urteil fällen oder die Piraten ziehen lassen.</p>
+</section>
+
+<!-- ================= TEAMLEITER ================= -->
+<section id="teamleiter">
+  <h2><span class="ic">👑</span> Teamleiter</h2>
+  <div class="role-tag">Du bist das „Kommando" deines Teams — mit besonderen Rechten.</div>
+
+  <h3>1. Teamleader werden</h3>
+  <p>Vom <b>Team-Vote</b> vor Spielstart oder vom <b>GM per Ernennung</b>. Der Teamleader kann die Rolle <b>jederzeit an ein anderes Teammitglied weitergeben</b>.</p>
+
+  <h3>2. Deine besonderen Aktionen</h3>
+  <table>
+    <tr><th>Aktion</th><th>Erklärung</th></tr>
+    <tr><td><b>Ausbauen</b></td><td>Dein Feld in der Wirtschaft auswählen → Ausbaustufe erhöhen (Miete steigt).</td></tr>
+    <tr><td><b>Hypothek / Abbau</b></td><td>Feld beleihen oder abreißen (Sanierung bei Geldnot).</td></tr>
+    <tr><td><b>Handel / Auktion</b></td><td>Feld anbieten/verkaufen, auf Angebote antworten, versteigern.</td></tr>
+    <tr><td><b>Aufgeben (Forfeit)</b></td><td>Aufgeben startet eine Team-Abstimmung.</td></tr>
+  </table>
+
+  <h3>3. Wirtschaft im Blick</h3>
+  <figure>
+    <img src="anleitung-img/guide-spielfeld.png" alt="Spielfeld Übersicht">
+    <figcaption>Das Brett mit Feldkarten (Preis, Miete, Ausbaustufe, Farbgruppe) und der Startfelder-Übersicht — als Leader siehst du zusätzlich die <b>Wirtschaft</b>-Aktionen.</figcaption>
+  </figure>
+  <div class="note"><b>Regel:</b> Ausbauen ist nur in der <b>ganzen Farbgruppe</b> und <b>gleichmäßig</b> (Monopoly-Bauregel) möglich — du musst erst die ganze Farbreihe besitzen.</div>
+
+  <h3>4. Leader abgeben</h3>
+  <p>Über <b>Mein Team</b> kannst du den Teamleader-Status an ein Mitglied deines Teams übertragen. Gut, wenn du mal keine Zeit hast oder jemand anderes die Wirtschaft übernehmen soll.</p>
+</section>
+
+<!-- ================= MANAGER ================= -->
+<section id="manager">
+  <h2><span class="ic">🛠️</span> Manager</h2>
+  <div class="role-tag">Du verwalst Presets (Spielkarten + Regeln) mit erweiterten Rechten — ohne Admin-Oberfläche.</div>
+
+  <h3>1. Wofür ist der Manager da?</h3>
+  <p>Ein normaler Spieler darf im <b>Preset-Editor</b> nur temporär für sein eigenes Spiel ändern („Standardmodus"). Ein <b>Manager</b> kann Presets <b>dauerhaft bearbeiten, neu erstellen und speichern</b>. Den Manager-Code bekommst du <b>als Person</b> vom Admin.</p>
+
+  <h3>2. Im Preset-Editor einloggen</h3>
+  <p>Beim <b>Spiel-Erstellen</b> öffnest du den Editor über <b>„⚙ Karte &amp; Regeln bearbeiten"</b>. Dort unten siehst du die <b>Manager-Bar</b>: Gib deinen <b>Manager-Code</b> ein und klicke <b>AKTIVIEREN</b>.</p>
+  <figure>
+    <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
+    <figcaption>Der Preset-Editor: Feldliste (Typ, Name, Preis, Farbgruppe, ↑↓×) mit der <b>Manager-Bar</b> oben („MANAGER → Manager-Code → AKTIVIEREN"). Im Standardmodus gelten Änderungen nur für dieses Spiel.</figcaption>
+  </figure>
+
+  <h3>3. Was ein Manager darf</h3>
+  <ul>
+    <li><b>Bestehende Presets bearbeiten und speichern</b> (auch eingebaute, die bleiben als Preset erhalten).</li>
+    <li><b>Neue Presets erstellen</b> und dauerhaft speichern.</li>
+    <li>Presets <b>deaktivieren</b> (im Spiel-Erstellen nicht mehr wählbar).</li>
+    <li>Alle Aktionen werden im <b>Audit-Log</b> des Admins protokolliert (mit deinem Namen).</li>
+  </ul>
+</section>
+
+<!-- ================= GM ================= -->
+<section id="gm">
+  <h2><span class="ic">🎤</span> Game Master (GM)</h2>
+  <div class="role-tag">Du organisierst das Spiel: erstellen, Codes verteilen, starten, pausieren, Abschluss.</div>
+
+  <h3>1. Ein Spiel erstellen</h3>
+  <p>Klicke <b>„Spiel erstellen"</b>, wähle die Anzahl Teams (2–8), ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1"), und gib eine <b>Schiffsausstattung</b> je Team an. Optional im Preset-Editor: Piratensystem, Aufgabenregel usw.</p>
+  <figure>
+    <img src="anleitung-img/guide-setup.png" alt="Setup-Maske">
+    <figcaption>Die Setup-Maske: Teams wählen, GM-Name, Preset, Schiffe je Team. So kommst du zur Lobby.</figcaption>
+  </figure>
+
+  <h3>2. Codes verteilen und starten</h3>
+  <p>In der Lobby siehst du den <b>GM-CODE („NUR DU")</b> und die <b>Einladungscodes je Team</b>. Verteile die Team-Codes an deine Spieler (und den Piraten-Code ans Piratenteam). Wenn alle drin sind: <b>SPIEL STARTEN</b>.</p>
+  <figure>
+    <img src="anleitung-img/guide-setup-filled.png" alt="Setup ausgefüllt">
+    <figcaption>Spiel-Erstellen ausgefüllt: Teams, Preset, Schiffe — bereit zum Erstellen.</figcaption>
+  </figure>
+
+  <h3>3. Während des Spiels</h3>
+  <ul>
+    <li><b>Pausieren / Fortsetzen:</b> Das Spiel anhalten und später weiterlaufen lassen.</li>
+    <li><b>Teamleader ernennen:</b> Falls ein Team streitet, kannst du per GM-Option einen Teamleader bestimmen.</li>
+    <li><b>Beobachten:</b> Du siehst das ganze Brett und die Logs (auch die Piraten-Ansicht).</li>
+  </ul>
+  <div class="note"><b>GM-Hinweis:</b> Als GM kannst du per <b>Spectate</b> Spiele beobachten, ohne selbst zu spielen. Die Piraten sind eine Begegnungs-Interaktion und erfordern ein echtes Piratenteam — der GM <b>steuert sie nicht mehr selbst</b>.</div>
+
+  <h3>4. Spielende</h3>
+  <p>Das Spiel endet, wenn nur noch ein Team Vermögen besitzt. Das <b>Endresultat</b> zeigt den Sieger und — falls Piraten aktiv waren — die <b>Piraten-Erbeute als Statistik</b>. Beendete Spiele findest du in der Spiele-Liste (Tab „Abgeschlossen").</p>
+</section>
+
+<footer>
+  STANTONOPOLY V2 · Spielanleitung · für Spieler, Piraten, Teamleiter, Manager &amp; GM
+</footer>
+
+</div>
+</body>
+</html>
