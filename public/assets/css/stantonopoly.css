@@ -633,6 +633,7 @@ body.view-game .actionbar { display: flex; }
 /* Endresultat (client.js lobby:result handler) */
 .result-title { font: 700 18px/1.2 ui-monospace, monospace; margin-bottom: 8px; }
 .result-winner { color: var(--accent-hi); font-size: 15px; margin-bottom: 10px; }
+.result-pirate { color: var(--warn, #e8a33d); font-size: 14px; margin-bottom: 10px; }
 .result-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
 .result-table th { text-align: left; font: 600 10px/1 ui-monospace, monospace; letter-spacing: .14em;
   text-transform: uppercase; color: var(--fg-faint); padding: 7px 8px; border-bottom: 2px solid var(--line); }

@@ -293,3 +293,54 @@ test('Wire/AC4: Piraten-Begegnung → flee beendet Runde (Würfeln gesperrt) →
     srv.stop();
   }
 });
+
+// ---------------------------------------------------------------------
+// (Piraten-Fix) Endauswertung: Der Pirat erscheint NICHT als reguläres Team
+// in der Platzierung (kein Budget/Gewinner) — nur als Statistik der
+// Gesamterbeute (loot). gameResult liefert daher nur die normalen Teams in
+// `players` plus ein separates `pirateLoot`.
+// ---------------------------------------------------------------------
+test('gameResult: Pirat nur als loot-Statistik, nicht in der Team-Platzierung', async () => {
+  const srv = startServer();
+  const url = 'http://localhost:' + srv.port;
+  const gm = await connect(url, 'gm');
+  const created = await createGame(gm, {
+    teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false,
+    settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 }
+  });
+  const gameId = created.gameId;
+  const pirateTok = created.tokens.find((t) => t.isPirate);
+  const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
+  const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
+  const a = await connect(url, 'A'); const b = await connect(url, 'B');
+  const d = await connect(url, 'D'); const e = await connect(url, 'E');
+  const p = await connect(url, 'Pirat');
+  const join = (cl, code, name) => new Promise((res) => { const pj = once(cl, 'joined'); cl.emit('team:join', { gameId, code, playerName: name }); pj.then(res); });
+  await join(a, inv0, 'A'); await join(b, inv0, 'B'); await join(d, inv1, 'D'); await join(e, inv1, 'E');
+  await join(p, pirateTok.code, 'Pirat');
+  try {
+    // Spiel starten (gm:start) — gameResult prüft auf `over`/`players`.
+    const vote = (cl, pid) => cl.emit('vote:leader', { gameId, playerId: pid });
+    vote(a, a.id); await sleep(30); vote(b, a.id); await sleep(30);
+    vote(d, d.id); await sleep(30); vote(e, d.id); await sleep(40);
+    let stA = null; a.on('state', (s) => { stA = s; });
+    const gmStart = once(gm, 'state'); gm.emit('gm:start', { gameId, gmCode: created.gmCode });
+    const t0 = Date.now(); while ((!stA || !stA.started) && Date.now() - t0 < 5000) await sleep(20);
+    assert.ok(stA && stA.started, 'Spiel gestartet');
+    assert.strictEqual(stA.game.players.length, 3, '2 normale Teams + 1 Pirat im Engine-State');
+
+    // gameResult: Pirat gefiltert, nur 2 normale Teams, loot integriert.
+    const r = srv.rooms.gameResult(gameId);
+    assert.ok(r, 'gameResult vorhanden');
+    assert.strictEqual(r.players.length, 2, 'Pirat nicht in der Team-Platzierung');
+    const ships = (r.players || []).map((x) => String(x.ship || ''));
+    assert.ok(!ships.some((s) => /pirat/i.test(s)), 'kein PIRATEN-Ship unter den Teams: ' + JSON.stringify(ships));
+    assert.ok(!/pirat/i.test(r.players.map((x) => x.name).join(' ')), 'kein Piraten-Name in der Team-Tabelle');
+    assert.strictEqual(r.players[0].ship, 'Redeemer', 'ship bleibt dem richtigen Team zugeordnet');
+    assert.ok(r.players.every((x) => x._isPirate === undefined), 'interne _isPirate-Marker nicht nach außen');
+    assert.strictEqual(r.pirateLoot, 0, 'ohne Begegnung ist loot 0');
+  } finally {
+    [gm, a, b, d, e, p].forEach((c_) => c_.disconnect());
+    srv.stop();
+  }
+});

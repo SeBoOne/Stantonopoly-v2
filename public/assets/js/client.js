@@ -113,6 +113,7 @@
     wrap.setAttribute('data-hascancel', opts.onCancel ? '1' : '0');
     client.__modalCancel = opts.onCancel;
     client.__modalConfirm = opts.onConfirm;
+    client.__modalKind = opts.kind || '';   // Kennung (z.B. 'pirateVerdict') für gezieltes Schließen
     // ESC-Handler wieder entfernen, wenn das nächste Modal kommt oder geschlossen wird.
     window.__modalEscH = escH;
     if (opts.onOpen) opts.onOpen();
@@ -124,6 +125,7 @@
     if (confirm && client.__modalConfirm) { const fn = client.__modalConfirm; client.__modalConfirm = null; client.__modalCancel = null; fn(); }
     else if (runCancel && client.__modalCancel) { const fn = client.__modalCancel; client.__modalCancel = null; client.__modalConfirm = null; fn(); }
     else { client.__modalCancel = null; client.__modalConfirm = null; }
+    client.__modalKind = '';
     if (window.__modalEscH) { document.removeEventListener('keydown', window.__modalEscH); window.__modalEscH = null; }
     if (el) el.remove();
   }
@@ -2452,7 +2454,15 @@
   // hat KEINEN Sonder-Pfad mehr.
   function maybeShowPirateVerdict(st) {
     const vd = st.game && st.game.pirateVerdict;
-    if (!vd) { seenPirateVerdict = ''; return; }
+    if (!vd) {
+      // (Piraten-Fix) Auto-Erwischt oder manuelles Urteil: das offene Verdict-Modal
+      // ausblenden, sobald kein Urteil mehr anhängig ist. Gezielt — nur dieses Modal
+      // (kind 'pirateVerdict') wird geschlossen, ohne andere Modals und OHNE runCancel
+      // (damit nicht fälschlich 'Entwischt' gesendet wird).
+      seenPirateVerdict = '';
+      if (client.__modalKind === 'pirateVerdict') closeModal();
+      return;
+    }
     // Nur Piraten-Mitglieder fällen das Urteil (eigenes Team).
     if (String(client.teamId || '') !== 'PIRATES') return;
     const key = String(vd.teamIdx);
@@ -2462,6 +2472,7 @@
     openModal({
       title: '🏴‍☠️ Flucht — Urteil der Piraten',
       icon: '🏴‍☠️',
+      kind: 'pirateVerdict',
       body: '<p><strong>' + esc(teamName) + '</strong> versucht zu fliehen. Hat das Team entwischt oder wurde es erwischt?</p>' +
         (vd.caughtFee ? '<ul><li>Erwischt → Strafgeld: <strong>' + fmtUAEC(vd.caughtFee) + ' aUEC</strong>.</li></ul>' : ''),
       confirmText: 'Erwischt',
@@ -2991,7 +3002,12 @@
     resBox.classList.remove('hidden');
     const rows = (r && r.players) ? r.players.slice().sort((a, b) => (b.winner ? 1 : 0) - (a.winner ? 1 : 0)) : [];
     const winnerLine = r && r.winner ? '<div class="result-winner">🏆 Sieger: <strong>' + esc(r.winner.name || '?') + '</strong></div>' : '';
-    resBox.innerHTML = '<div class="result-title">Endresultat: ' + esc(r && r.name || '') + '</div>' + winnerLine +
+    // (Piraten-Fix) Der Pirat erscheint nicht in der Team-Tabelle, sondern nur als
+    // Statistik-Zeile mit seiner Gesamterbeute (loot), sofern diese > 0 ist.
+    const pirateLine = (r && r.pirateLoot > 0)
+      ? '<div class="result-pirate">🏴‍☠️ Piraten erbeuteten insgesamt <strong>' + fmtUAEC(r.pirateLoot) + ' aUEC</strong>.</div>'
+      : '';
+    resBox.innerHTML = '<div class="result-title">Endresultat: ' + esc(r && r.name || '') + '</div>' + winnerLine + pirateLine +
       '<table class="result-table"><thead><tr><th>Team</th><th>Budget</th><th>Liegenschaften</th><th>Status</th></tr></thead><tbody>' +
       rows.map((p) => '<tr>' +
         '<td>' + (p.winner ? '👑 ' : '') + esc(p.name || '') + (p.ship ? ' <small>(' + esc(p.ship) + ')</small>' : '') + '</td>' +

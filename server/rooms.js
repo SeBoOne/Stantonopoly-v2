@@ -2047,25 +2047,35 @@ class Rooms {
     try { game = G.deserialize(gameRow.state, D); } catch (e) { game = null; }
     if (!game) return null;
     const teams = dbm.getTeams(gameId) || [];
+    // (Piraten-Fix) Der Pirat darf NICHT als reguläres Team in der Platzierung
+    // erscheinen (kein Budget/Gewinner) — nur als Statistik: Gesamterbeute (loot).
+    // Kopplung über teamId (Map), NICHT über den Array-Index: dbm.getTeams und
+    // game.players sind nicht garantiert gleichsortiert (PIRATES wandert je nach
+    // DB-Abfrage ans Anfang). Der Pirat wird erst NACH dem Mapping gefiltert.
+    const teamBy = new Map((teams || []).map((t) => [String(t.teamId), t]));
+    const pirateEntry = (game.players || []).find((p) => p.role === 'pirate' || p.isPirate);
+    const allRows = (game.players || []).map((p) => {
+      const t = teamBy.get(String(p.id !== undefined ? p.id : p.teamId)) || {};
+      return {
+        name: p.name,
+        ship: p.ship || t.ship || '',
+        budget: p.budget,
+        bankrupt: !!p.bankrupt,
+        winner: !!p.winner,
+        fieldValue: Object.keys(p.properties || {}).reduce((sum, fid) => {
+          const f = game.fields[Number(fid)];
+          return sum + (f && typeof f.price === 'number' ? f.price : 0);
+        }, 0),
+        _isPirate: !!(p.role === 'pirate' || p.isPirate)
+      };
+    });
     return {
       gameId,
       name: gameRow.name || 'Ohne Namen',
       over: !!game.over,
       winner: game.winnerInfo ? { name: game.winnerInfo.name, ship: game.winnerInfo.ship } : null,
-      players: (game.players || []).map((p, i) => {
-        const t = teams[i] || {};
-        return {
-          name: p.name,
-          ship: t.ship || '',
-          budget: p.budget,
-          bankrupt: !!p.bankrupt,
-          winner: !!p.winner,
-          fieldValue: Object.keys(p.properties || {}).reduce((sum, fid) => {
-            const f = game.fields[Number(fid)];
-            return sum + (f && typeof f.price === 'number' ? f.price : 0);
-          }, 0)
-        };
-      })
+      players: allRows.filter((x) => !x._isPirate).map(({ _isPirate, ...rest }) => rest),
+      pirateLoot: pirateEntry ? Math.round(Number(pirateEntry.loot) || 0) : 0
     };
   }
 }
