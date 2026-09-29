@@ -102,7 +102,9 @@ test('Trade-Bypass-Fix: Ziel-Team-Check blockiert fremde Leader', async () => {
   let afterAccept = null;
   b.on('state', (st) => { afterAccept = st; });
   b.emit('trade:respond', { gameId, offerId, accept: 1 });
-  await sleep(300);
+  // (QA-Flak) statt festem sleep: auf das gesetzte afterAccept-Event warten (event-getrieben).
+  const tAcc = Date.now();
+  while (!afterAccept && Date.now() - tAcc < 5000) await sleep(50);
   assert.ok(afterAccept && (!afterAccept.game.offers || afterAccept.game.offers.length === 0), 'B (Ziel) kann annehmen');
 
   // C (Mitglied, kein Leader) versucht anzunehmen
@@ -112,7 +114,9 @@ test('Trade-Bypass-Fix: Ziel-Team-Check blockiert fremde Leader', async () => {
   let offerState2 = null;
   c.on('state', (st) => { offerState2 = st; });
   b.emit('trade:make', { gameId, kind: 'sell', field: 2, price: 100000, targetIdx: 0 });
-  await sleep(300);
+  // (QA-Flak) event-getrieben warten statt festes sleep.
+  const tMk = Date.now();
+  while ((!offerState2 || !offerState2.game || !Array.isArray(offerState2.game.offers) || offerState2.game.offers.length === 0) && Date.now() - tMk < 5000) await sleep(50);
 
   assert.ok(offerState2 && offerState2.game && Array.isArray(offerState2.game.offers) && offerState2.game.offers.length > 0, 'Angebot sichtbar');
   const offerId2 = offerState2.game.offers[0].id;
