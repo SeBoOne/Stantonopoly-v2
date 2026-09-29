@@ -175,6 +175,28 @@ function pirateOf(game) {
   return null;
 }
 
+// (P6) Piraten sind "beschäftigt", solange eine Begegnung (Zahlen/Fliehen) offen
+// ist ODER ein Urteil (Erwischt/Entwischt) aussteht ODER ein Team auf der Flucht
+// ist. Währenddessen: keine NEUE Begegnung mit einem weiteren Team und keine
+// automatische Eigen-Bewegung der Piraten (P5).
+function piratesBusy(game) {
+  if (!game || !game.players) return false;
+  if (game.pirateEncounter) return true;
+  if (game.pirateVerdict) return true;
+  for (const p of game.players) {
+    if (!isPirate(p) && !p.bankrupt && p.fleeing) return true;
+  }
+  return false;
+}
+
+// (P9) Ein Team hat in diesem Durchgang bereits mit den Piraten interagiert?
+// Nur relevant, wenn pirateOncePerLap aktiv ist — sonst immer false.
+function pirateLapDone(game, teamIdx) {
+  if (!(game && game.settings && game.settings.pirateOncePerLap)) return false;
+  const p = game.players && game.players[teamIdx];
+  return !!(p && p.pirateInteractedThisLap);
+}
+
 // ---------------------------------------------------------------------
 // (2m-A) Vermögenswert eines Teams: Guthaben + Summe der Grundstückswerte
 // INKL. Ausbauwert. Für Hypotheken-belastete Felder zählt NUR 10 % ihres
@@ -414,7 +436,10 @@ function beginPirateEncounter(game, teamIdx, fieldIdx) {
     caughtFee,
     mode: 'choice'
   };
+  // (P9) Ein Team, das eine Begegnung auslöst, hat in diesem Durchgang (bis zum
+  // nächsten Los-Pass) bereits mit den Piraten interagiert — Flag für oncePerLap.
   const p = game.players[teamIdx];
+  if (p) p.pirateInteractedThisLap = true;
   return { teamIdx, playerId: p ? p.id : null, fee, caughtFee };
 }
 
@@ -645,15 +670,23 @@ const StantonopolyGame = {
     const pir = pirateOf(game);
     const pirateHere = !!(pir && pir.pos === to);
 
+    // (P9) Los-Pass: Beim Überqueren von Feld 0 wird das In-Durchgangs-Flag
+    // zurückgesetzt, damit ein Team pro Durchgang wieder 1x interagieren kann.
+    if (lap) p.pirateInteractedThisLap = undefined;
+
     if (game.over) {
       turnPassed = true;
     } else if (p.bankrupt) {
       turnPassed = true;
-    } else if (pirateHere) {
+    } else if (pirateHere && !piratesBusy(game) && !pirateLapDone(game, game.activeIdx)) {
       // (Piratensystem) Begegnung: Zug pausiert auf Entscheidung (zahlen/fliehen).
       // Die normale Feld-Logik wird NACH der Auflösung im selben Zug angewandt
       // (resolvePirateEncounter → landingEffects), damit die Runde „normal weiter“
       // geht (Design-Entscheidung: Begegnung zuerst, dann Feld-Effekte).
+      // (P6) Nur wenn die Piraten NICHT beschäftigt sind — solange eine Interaktion
+      // läuft, wird ein neu landendes Team ignoriert (normale Feld-Logik unten).
+      // (P9) Bei pirateOncePerLap ignoriert, wenn das Team diesen Durchgang schon
+      // interagiert hat (Flag wird beim Los-Pass obiger Zeile zurückgesetzt).
       const b = beginPirateEncounter(game, game.activeIdx, to);
       events.push({ text: '🏴‍☠️ Piraten! Schutzgeld ' + fmt(b.fee) + ' zahlen oder fliehen?', playerId: b.playerId, kind: 'pirate-encounter', encounter: { fee: b.fee, caughtFee: b.caughtFee } });
       log(game, p.name + ' landet auf dem Piraten-Feld → Begegnung: Schutzgeld ' + fmt(b.fee) + ' zahlen oder fliehen.');
@@ -1136,18 +1169,21 @@ const StantonopolyGame = {
     // Neuer Zug: Würfel-Sperre aufheben + Kaufentscheidung zurücksetzen.
     game.rolled = false;
     game.canBuy = false;
-    // (Piratensystem) Piraten rücken weiter vor (auch wenn ein Team flieht) —
-    // genau EIN Zug pro Rundenwechsel. Steht das neue aktive Team danach
-    // bereits auf dem Piraten-Feld, folgt sofort eine Begegnung.
-    if (game.settings && game.settings.piratesEnabled) {
-      this.advancePirate(game);
-      const nxt = game.players[game.activeIdx];
-      if (!game.pirateEncounter && nxt && !nxt.bankrupt && !nxt.fleeing) {
-        const apir = pirateOf(game);
-        if (apir && apir.pos === nxt.pos) {
-          beginPirateEncounter(game, game.activeIdx, nxt.pos);
-          log(game, nxt.name + ' steht auf dem Piraten-Feld → Begegnung: Schutzgeld zahlen oder fliehen.');
-        }
+    // (Piratensystem P5/P7/P8) Die Piraten rücken NICHT mehr automatisch jede Runde
+    // vor, sondern bleiben pirateWaitTurns (normale) Team-Zugwechsel auf ihrem Feld
+    // und ziehen dann mit eigener Würfelregel weiter (P7). Während die Piraten
+    // beschäftigt sind (offene Begegnung / Urteil / fliehende Team), zählt der
+    // Zähler NICHT und sie bewegen sich NICHT (P5). AdvancePirate selbst löst
+    // beim Landen auf einem belegten Feld KEINE Begegnung aus (P8) — Begegnungen
+    // entstehen nur, wenn ein Team per roll() AUF das Piratenfeld zieht.
+    if (game.settings && game.settings.piratesEnabled && !piratesBusy(game)) {
+      const waitTurns = Math.max(1, (game.settings && game.settings.pirateWaitTurns != null)
+        ? Number(game.settings.pirateWaitTurns)
+        : 6);
+      game.pirateWaitCounter = (Number(game.pirateWaitCounter) || 0) + 1;
+      if (game.pirateWaitCounter >= waitTurns) {
+        game.pirateWaitCounter = 0;
+        this.advancePirate(game);
       }
     }
     log(game, 'Zug wechselt von ' + game.players[from].name + ' zu ' + game.players[game.activeIdx].name + '.');
@@ -1670,6 +1706,7 @@ const StantonopolyGame = {
       mortgageChoice: game.mortgageChoice || null,
       pirateEncounter: game.pirateEncounter || null,
       pirateVerdict: game.pirateVerdict || null,
+      pirateWaitCounter: Number(game.pirateWaitCounter) || 0,
       turnSeconds: Math.max(0, Math.round(Number(game.turnSeconds) || 0)),
       turnDeadline: typeof game.turnDeadline === 'number' ? game.turnDeadline : 0,
       taskDeadline: typeof game.taskDeadline === 'number' ? game.taskDeadline : 0,
@@ -1714,7 +1751,9 @@ const StantonopolyGame = {
           // Key im JSON weggelassen), damit der serialize↔deserialize-Round-Trip
           // für normale Spiele exakt stabil bleibt.
           fleeing: p.fleeing ? true : undefined,
-          pirateCaughtFee: (typeof p.pirateCaughtFee === 'number') ? Math.round(p.pirateCaughtFee) : undefined
+          pirateCaughtFee: (typeof p.pirateCaughtFee === 'number') ? Math.round(p.pirateCaughtFee) : undefined,
+          // (P9) Once-per-Lap-Flag: nur bei true persistieren (sonst Key weglassen).
+          pirateInteractedThisLap: p.pirateInteractedThisLap ? true : undefined
         };
         // Piraten-Marker wiederherstellen (nur für das Piratenteam).
         if (pirFlag) {
@@ -1739,6 +1778,7 @@ const StantonopolyGame = {
       mortgageChoice: raw.mortgageChoice || null,
       pirateEncounter: raw.pirateEncounter || null,
       pirateVerdict: raw.pirateVerdict || null,
+      pirateWaitCounter: Number(raw.pirateWaitCounter) || 0,
       turnSeconds: Math.max(0, Math.round(Number(raw.turnSeconds) || 0)),
       turnDeadline: (typeof raw.turnDeadline === 'number') ? raw.turnDeadline : 0,
       taskDeadline: (typeof raw.taskDeadline === 'number') ? raw.taskDeadline : 0,

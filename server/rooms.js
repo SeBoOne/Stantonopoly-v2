@@ -68,7 +68,13 @@ function buildView({ gameId, game, teams, leaders }) {
   // Engine-Zustand (serialisierbar) re-expandieren: players sind Teams.
   const lmap = {};
   (leaders || []).forEach((l) => { if (l && l.teamId) lmap[l.teamId] = l.leaderId; });
-  const teamViews = (teams || []).map((t, ti) => {
+  // (P4) Das PIRATES-Team ist in der teams-Tabelle eine NORMALE Zeile (beitretbar
+  // per Einladungscode) — wird aber NICHT in st.teams gelistet (Piraten haben einen
+  // eigenen Lobby-Eintrag st.pirate). st.teams bleibt die NGIERbase für normale Teams.
+  // Die Engine hängt das Piratenteam als LETZTEN Player an → Index-Alignment zu
+  // den normalen team-Zeilen bleibt erhalten, wenn PIRATES aus der Liste entfällt.
+  const normalTeams = (teams || []).filter((t) => String(t.teamId) !== 'PIRATES' && String(t.teamId).toUpperCase() !== 'PIRATES');
+  const teamViews = normalTeams.map((t, ti) => {
     const enginePlayer = (game && game.players && game.players[ti]) || {};
     // Votes pro Kandidat für dieses Team (Live-Stimmenzahlen)
     const vc = {};
@@ -128,23 +134,29 @@ function buildView({ gameId, game, teams, leaders }) {
       });
       return alive.concat(out).map((e, i) => Object.assign(e, { place: i + 1 }));
     })() : [];
-    // (P10) Piraten-Team als eigener Lobby-Eintrag (nur wenn piratesEnabled und
-        // die Engine ein Piratenteam angelegt hat). Der Pirat ist ein einzelnes
-        // Entitäts-Team (kein Spieler-Socket) — der GM hostet/steuert es. Normale
-        // Team-Sockets bekommen diesen Eintrag NICHT (broadcast strippt ihn), damit
-        // das Piratenteam in der Lobby für sie unsichtbar bleibt.
+    // (P4) Piraten-Team als eigener Lobby-Eintrag (nur wenn piratesEnabled und
+        // die Engine ein Piratenteam angelegt hat). Das Piratenteam ist jetzt ein
+        // VOLLWERTIGES beitretbares Team (P4): Es hat echte Mitglieder (Spieler, die
+        // per Piraten-Einladungscode beigetreten sind) + einen Leiter (leaderId).
+        // Gedacht für die Lobby-Sichtbarkeit: der Eintrag inkl. Mitglieder wird per
+        // Broadcast an GM-/Piraten-Sockets zugestellt, normalen Teams bleibt er
+        // verborgen (P10-Pro-Socket-Zuschnitt in broadcast()).
         let pirate = null;
         if (game && Array.isArray(game.players)) {
           const pir = game.players.find((p) => p.role === 'pirate' || p.isPirate);
           if (pir) {
+            const pirRow = (teams || []).find((t) => String(t.teamId) === 'PIRATES');
+            const pirMembers = (dbm.getPlayers(gameId) || []).filter((p) => String(p.teamId) === 'PIRATES')
+              .map((p) => ({ playerId: p.id, id: p.id, name: p.name }));
             pirate = {
               id: 'PIRATES',
               teamId: 'PIRATES',
               ship: 'PIRATEN',
-              teamName: '🏴‍☠️ Piraten',
+              teamName: (pirRow && pirRow.teamName) || '🏴‍☠️ Piraten',
               color: '#7b2f00',
-              leaderId: null,
-              players: [],   // Pirat hat keine Mitglieder (ein Entitäts-Team)
+              leaderId: (pirRow && pirRow.leaderId) || null,
+              inviteCode: (pirRow && pirRow.invite_code) || null,
+              players: pirMembers,
               votes: {},
               pos: (typeof pir.pos === 'number') ? pir.pos : 0,
               budget: (typeof pir.budget === 'number') ? pir.budget : 0
@@ -468,6 +480,15 @@ class Rooms {
     let gmCode;
     do { gmCode = randCode(6); } while (dbm.getCode(gmCode));
 
+    // (P4) Piratensystem aktiv? Entscheidet, ob ein PIRATES-Team (beitretbar per
+    // eigenem Einladungscode) zusätzlich angelegt wird. Der GM bleibt frei, in
+    // welchem Team er mitspielt — das Piraten-Team ist ein NORMALES beitretbares
+    // Team mit eigenem Code. RegelSettings werden weiter unten aufgelöst; für die
+    // Entscheidung genügt ein Merge über die hier bereits erkennbaren Settings.
+    const _pirateRuleSettings = (config.settings && typeof config.settings === 'object' && Object.keys(config.settings).length)
+      ? config.settings : (config.preset ? ((D.PRESETS[config.preset] && D.PRESETS[config.preset].settings) || null) : null);
+    const piratesEnabled = !!(D.mergeSettings(_pirateRuleSettings).piratesEnabled);
+
     // Teams anlegen
     const teamRows = [];
     const ships = Array.isArray(config.ships) && config.ships.length
@@ -483,6 +504,16 @@ class Rooms {
       dbm.upsertTeam({ gameId, teamId, ship, color, invite_code: invite, leaderId: null });
       dbm.addCode({ code: invite, kind: 'invite', gameId, teamId });
       teamRows.push({ teamId, ship, color, invite, task, teamName: 'Team ' + ship });
+    }
+
+    // (P4) Piraten-Team als VOLLWERTIGES beitretbares Team (eigener Einladungs-Code).
+    // Der GM erhält diesen Code und verteilt ihn; Spieler treten wie bei normalen
+    // Teams per team:join bei und steuern das Piraten-Urteil — NICHT mehr der GM.
+    let pirateInvite = null;
+    if (piratesEnabled) {
+      pirateInvite = genUniqueCode('invite', 4);
+      dbm.upsertTeam({ gameId, teamId: 'PIRATES', ship: 'PIRATEN', color: '#7b2f00', invite_code: pirateInvite, leaderId: null });
+      dbm.addCode({ code: pirateInvite, kind: 'invite', gameId, teamId: 'PIRATES' });
     }
     dbm.addCode({ code: gmCode, kind: 'gm', gameId });
 
@@ -545,8 +576,12 @@ class Rooms {
       ok: true,
       gameId,
       gmCode,
-      // tokens: Einladungscodes je Team (Schiff + Aufgabe + Code) für den GM-Screen
+      // tokens: Einladungscodes je Team (Schiff + Aufgabe + Code) für den GM-Screen.
+      // (P4) Inkl. des Piraten-Teams, das der GM per Code verteilt.
       tokens: teamRows.map((t) => ({ ship: t.ship, task: t.task, teamName: t.teamName, teamId: t.teamId, code: t.invite }))
+        .concat(piratesEnabled && pirateInvite
+          ? [{ ship: 'PIRATEN', task: '', teamName: '🏴‍☠️ Piraten', teamId: 'PIRATES', code: pirateInvite, isPirate: true }]
+          : [])
     };
   }
 
@@ -855,9 +890,13 @@ class Rooms {
     }
     this._addGmSocket(gameId, sock);
     const teams = dbm.getTeams(gameId);
-    // jedes Team braucht >=1 Mitglied
+    // jedes Team braucht >=1 Mitglied — ABER das Piraten-Team ist ausgenommen:
+    // Piraten sind ein beitretbares Zusatz-Team (P4), das der GM per Code verteilt
+    // und das auch während des Spiels noch Spieler aufnehmen kann. Ein Spiel kann
+    // ohne Piraten-Mitglieder starten.
     const players = dbm.getPlayers(gameId) || [];
-    const empty = teams.filter((t) => players.filter((p) => p.teamId === t.teamId).length === 0);
+    const playableTeams = teams.filter((t) => String(t.teamId) !== 'PIRATES');
+    const empty = playableTeams.filter((t) => players.filter((p) => p.teamId === t.teamId).length === 0);
     const alreadyStarted = !!gameRow.started;
     // (2m P12) Fortsetzen mit leeren Teams: Beim ERSTEN Start blockieren (INCOMPLETE).
     // Beim Fortsetzen eines pausierten Spiels wird der GM gefragt: (a) warten oder
@@ -1097,6 +1136,25 @@ class Rooms {
   }
 
   // ------------------------------------------------------------------
+  // (P4) Piraten-Mitglied-Schutz: Der anfragende Socket MUSS als Mitglied des
+  // PIRATES-Teams registriert sein (Spieler, die per Piraten-Einladungscode
+  // beigetreten sind). Nur diese Spieler fällen das Piraten-Urteil und schieben
+  // die Piraten an — der GM hat hier KEINEN Sonder-Pfad mehr.
+  // ------------------------------------------------------------------
+  _requirePirateMember({ gameId, sock, action }) {
+    const gameRow = dbm.getGame(gameId);
+    if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
+    const me = dbm.getPlayer(sock.id);
+    if (!me || me.gameId !== gameId) return { error: { code: 'NOT_IN_TEAM', message: 'Kein Mitglied dieses Spiels.' } };
+    if (String(me.teamId) !== 'PIRATES') {
+      return { error: { code: 'FORBIDDEN', message: 'Nur ein Piraten-Team-Mitglied darf ' + action + '.' } };
+    }
+    const team = dbm.getTeam(gameId, 'PIRATES');
+    const isLeader = !!(team && team.leaderId && String(team.leaderId) === String(sock.id));
+    return { gameRow, team, me, isLeader };
+  }
+
+  // ------------------------------------------------------------------
   // (Piratensystem) Begegnung auflösen: das AKTIVE Team (das auf dem
   // Piraten-Feld gelandet ist) wählt 'pay' (Schutzgeld) oder 'flee'.
   // ------------------------------------------------------------------
@@ -1114,11 +1172,12 @@ class Rooms {
 
   // ------------------------------------------------------------------
   // (Piratensystem) Piraten-Urteil nach einer Flucht: 'caught' oder
-  // 'escaped'. Der GM (Host) bestätigt als Pirat — das Piraten-Team
-  // hat kein eigenes Spieler-Socket.
+  // 'escaped'. (P4) Das Urteil fällt ein PIRATES-Team-Mitglied (Spieler, die
+  // per Piraten-Einladungscode beigetreten sind) — NICHT mehr der GM. Der
+  // GM-Sonder-Pfad entfällt; jedes Piraten-Mitglied darf die Entscheidung treffen.
   // ------------------------------------------------------------------
-  actionPirateConfirm({ gameId, gmCode, verdict, sock }) {
-    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'das Piraten-Urteil fällen' });
+  actionPirateConfirm({ gameId, verdict, sock }) {
+    const req = this._requirePirateMember({ gameId, sock, action: 'das Piraten-Urteil fällen' });
     if (req.error) return req;
     const v = String(verdict || '').toLowerCase();
     if (v !== 'caught' && v !== 'escaped') return { error: { code: 'BAD_VERDICT', message: 'Ungültiges Urteil.' } };
@@ -1131,14 +1190,13 @@ class Rooms {
   }
 
   // ------------------------------------------------------------------
-  // (Piratensystem) Piraten ziehen sofort weiter (eigener Dice) — vom
-  // GM anstoßbar, falls die automatische Ziehung nach Bezahlung manuell
-  // angeregt werden soll. Meist automatisch im nextTurn; diese Aktion
-  // erlaubt zusätzlich direktes Vorrücken (z. B. nach Schutzgeld-Zahlung
-  // ohne Rundenwechsel).
+  // (Piratensystem) Piraten ziehen sofort weiter (eigener Dice) — von einem
+  // PIRATES-Team-Mitglied anstoßbar (P4, kein GM-Pfad mehr). Meist automatisch
+  // im nextTurn (P7-Wartezeit); diese Aktion erlaubt zusätzlich direktes
+  // Vorrücken durch die Piraten-Spieler (z. B. nach Schutzgeld-Zahlung).
   // ------------------------------------------------------------------
-  actionPirateAdvance({ gameId, gmCode, sock }) {
-    const req = this._requireGmOwner({ gameId, gmCode, sock, action: 'die Piraten ziehen zu lassen' });
+  actionPirateAdvance({ gameId, sock }) {
+    const req = this._requirePirateMember({ gameId, sock, action: 'die Piraten ziehen zu lassen' });
     if (req.error) return req;
     const engine = G.deserialize(req.gameRow.state, D);
     const r = engine.advancePirate();
@@ -1762,11 +1820,11 @@ class Rooms {
   }
 
   // Broadcast eines frischen State in den Raum.
-  // (P10) Pro-Socket-Zuschnitt: Der Pirat-Eintrag (st.pirate) wird nur GM-Sockets
-  // (Host/Steuerung des Piraten-Teams) zugestellt; normale Team-Sockets sehen ihn
-  // NICHT (st.pirate = null) — das Piraten-Team bleibt für sie in der Lobby unsichtbar.
-  // Server-authoritativ: wir entscheiden anhand der GM-Socket-Registrierung, nicht anhand
-  // von clientseitigem Zurechtrutschen.
+  // (P10 + P4) Pro-Socket-Zuschnitt: Der Pirat-Eintrag (st.pirate) wird nur
+  // GM-Sockets UND Mitgliedern des PIRATES-Teams zugestellt; normale Team-Sockets
+  // sehen ihn NICHT (st.pirate = null). Piraten-Mitglieder brauchen den Eintrag,
+  // um ihr Team in der Lobby zu sehen; normale Teams bleiben für den Piraten
+  // unsichtbar. Server-authoritativ.
   broadcast(gameId) {
     const base = this.viewFor(gameId);
     if (!base) return null;
@@ -1780,8 +1838,11 @@ class Rooms {
     sockList.forEach((sock) => {
       if (!sock || !sock.rooms || !sock.rooms.has(room)) return;
       const isGm = this._isGmSocket(gameId, sock.id);
+      const pl = dbm.getPlayer(sock.id);
+      const isPirateMember = !!pl && String(pl.teamId) === 'PIRATES';
+      const deliverPirate = isGm || isPirateMember;
       // Kopie mit gefiltertem Pirat-Status für diesen Empfänger.
-      const payload = Object.assign({}, base, { pirate: isGm ? base.pirate : null });
+      const payload = Object.assign({}, base, { pirate: deliverPirate ? base.pirate : null });
       try { sock.emit('state', payload); } catch (e) { /* Socket evtl. abgebaut */ }
     });
     return base;

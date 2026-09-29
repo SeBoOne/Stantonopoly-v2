@@ -93,7 +93,13 @@ const DEFAULT_SETTINGS = {
   piratesEnabled: false,
   pirateDice: '1w6',      // eigene Würfel der Piraten ('1w6'|'2w6')
   pirateProtectionFee: 250000, // Schutzgeld-Höhe (aUEC)
-  pirateCaughtMult: 2     // Faktor, wenn das Team erwischt wird (z.B. 2 = doppelt)
+  pirateCaughtMult: 2,    // Faktor, wenn das Team erwischt wird (z.B. 2 = doppelt)
+  // (P7) Warte-Turns: Die Piraten bleiben so viele NORMALE-Team-Zugwechsel auf ihrem
+  // Feld, bevor sie automatisch weiterziehen. Jeder komplette Zug eines normalen Teams
+  // zählt 1. (Pirat-Team selbst zählt nicht.)
+  pirateWaitTurns: 6,
+  // (P9) Optional: pro Durchgang nur 1 Piraten-Interaktion je Team (Reset bei Los-Pass).
+  pirateOncePerLap: false
 };
 
 // ---------------------------------------------------------------------------
