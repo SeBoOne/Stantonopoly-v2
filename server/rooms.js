@@ -145,14 +145,16 @@ function buildView({ gameId, game, teams, leaders }) {
 // teamIdFromSocket: wird vom Aufrufer (index.js) als Socket-Daten geliefert.
 class Rooms {
   constructor(broadcast, opts = {}) {
-    // broadcast: { to(room).emit(event, data) } - zentraler io
-    this.io = broadcast;
-    this._turnTimers = {}; // gameId -> setTimeout-Handle (2g#17 Zug-Timer)
-    // GM-Sockets je Spiel (Sockets, die einen gültigen GM-Code präsentiert haben):
-    // sie sind vom Auto-Remove bei Disconnect ausgenommen und können sich während
-    // eines laufenden Spiels nicht selbst entfernen (Punkt 1 + 8).
-    this._gmSockets = Object.create(null); // gameId -> Set(sockId)
-    // Laufende Disconnect-Timeout-Timer je Socket: sockId -> { gameId, timer, name }
+      // broadcast: { to(room).emit(event, data) } - zentraler io
+      this.io = broadcast;
+      this._turnTimers = {}; // gameId -> setTimeout-Handle (2g#17 Zug-Timer)
+      // (Aufgabenregel P4) Beschäftigtes-Team-Timer je Spiel: gameId -> setTimeout-Handle.
+      this._taskTimers = {};
+      // GM-Sockets je Spiel (Sockets, die einen gültigen GM-Code präsentiert haben):
+      // sie sind vom Auto-Remove bei Disconnect ausgenommen und können sich während
+      // eines laufenden Spiels nicht selbst entfernen (Punkt 1 + 8).
+      this._gmSockets = Object.create(null); // gameId -> Set(sockId)
+      // Laufende Disconnect-Timeout-Timer je Socket: sockId -> { gameId, timer, name }
     this._pendingDisconnects = new Map();
     this._disconnectTimeoutMs = Number(opts.disconnectTimeoutMs) > 0
       ? Number(opts.disconnectTimeoutMs)
@@ -222,10 +224,12 @@ class Rooms {
       const gameRow = dbm.getGame(gameId);
       if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
       dbm.setPaused(gameId, true);
-      this._clearTurnTimer(gameId);
-      const e2 = G.deserialize(dbm.getGame(gameId).state, D);
-      e2.turnDeadline = 0;
-      this._save(gameId, e2);
+            this._clearTurnTimer(gameId);
+            this._clearTaskTimer(gameId);
+            const e2 = G.deserialize(dbm.getGame(gameId).state, D);
+            e2.turnDeadline = 0;
+            e2.taskDeadline = 0;
+            this._save(gameId, e2);
       const engine = this._loadEngine(gameId);
       if (engine) {
         this.logEngine(gameId, engine, 'Spiel wird nach ' + Math.round(this._inactiveMs / 60000) + ' min Inaktivität automatisch pausiert.');
@@ -253,6 +257,7 @@ class Rooms {
         this.logEngine(gameId, engine, 'Spiel wird nach langer Pause automatisch beendet (kein aktives Team).');
       }
       this._clearTurnTimer(gameId);
+            this._clearTaskTimer(gameId);
       dbm.setPaused(gameId, false);
       dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: 1 });
       this.broadcast(gameId);
@@ -339,19 +344,70 @@ class Rooms {
   }
 
   _expireTurnTimer(gameId) {
-    delete this._turnTimers[gameId];
-    try {
-      const gameRow = dbm.getGame(gameId);
-      if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
-      const engine = G.deserialize(gameRow.state, D);
-      if (!(Math.round(Number(engine.turnSeconds) || 0) > 0) || engine.over) return;
-      engine.nextTurn();
-      this._save(gameId, engine);
-      this.broadcast(gameId);
-    } catch (e) { /* ignorieren */ }
-  }
+      delete this._turnTimers[gameId];
+      try {
+        const gameRow = dbm.getGame(gameId);
+        if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
+        const engine = G.deserialize(gameRow.state, D);
+        if (!(Math.round(Number(engine.turnSeconds) || 0) > 0) || engine.over) return;
+        engine.nextTurn();
+        this._save(gameId, engine);
+        this.broadcast(gameId);
+      } catch (e) { /* ignorieren */ }
+    }
 
-  _save(gameId, game) {
+    // ------------------------------------------------------------------
+    // (Aufgabenregel P4) Beschäftigtes-Team-Timer: Wenn das AKTIVE Team eine
+    // offene Aufgabe hat, bekommt es tasksTurnTimerMs Zeit, sie abzuschließen.
+    // Läuft der Timer ohne Abschluss ab, endet der Zug automatisch (nextTurn),
+    // die Aufgabe bleibt offen (weiter bestätigbar zwischen Zügen). Wird die
+    // Aufgabe rechtzeitig erledigt, läuft der Zug normal weiter (kein Auto-Ende).
+    // ------------------------------------------------------------------
+    _armTaskTimer(gameId) {
+      this._clearTaskTimer(gameId);
+      try {
+        const gameRow = dbm.getGame(gameId);
+        if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
+        const engine = G.deserialize(gameRow.state, D);
+        const s = engine.settings || {};
+        if (!s.tasksEnabled) return;
+        const ms = Math.max(0, Math.round(Number(s.tasksTurnTimerMs) || 0));
+        if (!(ms > 0)) return;
+        const active = engine.players[engine.activeIdx];
+        if (!active || !active.taskPending) return;
+        engine.taskDeadline = Date.now() + ms;
+        this._save(gameId, engine);
+        this._taskTimers[gameId] = setTimeout(() => this._expireTaskTimer(gameId), ms + 250);
+      } catch (e) { /* ignorieren */ }
+    }
+
+    _clearTaskTimer(gameId) {
+      if (this._taskTimers[gameId]) {
+        clearTimeout(this._taskTimers[gameId]);
+        delete this._taskTimers[gameId];
+      }
+    }
+
+    _expireTaskTimer(gameId) {
+      delete this._taskTimers[gameId];
+      try {
+        const gameRow = dbm.getGame(gameId);
+        if (!gameRow || !gameRow.started || gameRow.over || gameRow.paused) return;
+        const engine = G.deserialize(gameRow.state, D);
+        const s = engine.settings || {};
+        if (!s.tasksEnabled || !(Math.max(0, Math.round(Number(s.tasksTurnTimerMs) || 0)) > 0)) return;
+        const active = engine.players[engine.activeIdx];
+        // Aufgabe wurde inzwischen erledigt → nichts zu tun (Zug läuft normal weiter).
+        if (!active || !active.taskPending) return;
+        // Timer abgelaufen ohne Abschluss → Zug endet automatisch, Aufgabe bleibt offen.
+        engine.nextTurn();
+        this._save(gameId, engine);
+        this._armTaskTimer(gameId); // neues aktives Team ggf. wieder mit Timer
+        this.broadcast(gameId);
+      } catch (e) { /* ignorieren */ }
+    }
+
+    _save(gameId, game) {
     // started bewusst aus der DB übernehmen: engine._started wird von
     // serialize/deserialize NICHT übertragen (started lebt in der games-Spalte),
     // sonst würde ein deserialisierter Timersave started=0 zurückschreiben.
@@ -897,7 +953,9 @@ class Rooms {
     // (2m-A) Jede Spieleraktion zählt als Aktivität (verhindert Auto-Pause).
     dbm.touchActivity(gameId);
     // (2g#17) Jede Aktion re-armt den Zug-Timer (Inaktivitäts-Timeout-Modell).
-    this._armTurnTimer(gameId);
+        this._armTurnTimer(gameId);
+    // (Aufgabenregel P4) Beschäftigtes-Team-Timer nach jeder Aktion neu bewerten.
+    this._armTaskTimer(gameId);
     // Frisch persistierten State (inkl. turnDeadline des soeben armierten Timers) zurückgeben.
     const fresh = dbm.getGame(gameId);
     let retState = engine.serialize();
@@ -970,7 +1028,13 @@ class Rooms {
     const engine = G.deserialize(gameRow.state, D);
     const player = engine.players.find((p) => String(p.id) === String(team.teamId));
     if (!player || !player.taskPending) return { error: { code: 'NO_TASK', message: 'Kein Team mit offener Aufgabe.' } };
-    player.taskPending = false;
+    // (Aufgabenregel P2) taskComplete über die ENGINE ausführen, damit ein
+    // schwebender Kauf/Ausbau (pendingAction) erst hier WIRKSAM wird (Besitz /
+    // Ausbaustufe übertragen, Miete aktiv). Nur so greift die P2-Logik auch im
+    // Wire-Pfad — ein bloßes `taskPending=false` würde den Commit verschlucken.
+    const playerIdx = this._piOf(engine, team.teamId);
+    const comp = G.taskComplete(engine, playerIdx);
+    if (!comp || !comp.ok) return { error: { code: 'NO_TASK', message: 'Aufgabe konnte nicht abgeschlossen werden.' } };
     const ret = this._persistAndReturn(gameId, engine, true);
     ret.taskDone = true;
     ret.teamId = team.teamId;
@@ -1524,7 +1588,8 @@ class Rooms {
     if (!gameRow.started) {
       // Neue Lobby: komplett entfernen (keine Liste, keine Codes mehr).
       this._clearTurnTimer(gameId);
-      this._removeGmSocket(gameId, sock.id);
+            this._clearTaskTimer(gameId);
+            this._removeGmSocket(gameId, sock.id);
       // Alle im Raum informieren, dass das Spiel abgebrochen/entfernt wurde.
       if (this.io && this.io.to) this.io.to(this._roomOf(gameId)).emit('game:cancelled', { gameId, removed: true });
       dbm.deleteGame(gameId);
@@ -1676,6 +1741,7 @@ class Rooms {
     const gameRow = dbm.getGame(gameId);
     if (!gameRow) return { error: { code: 'NO_GAME', message: 'Unbekanntes Spiel.' } };
     this._clearTurnTimer(gameId);
+    this._clearTaskTimer(gameId);
     if (this._gmSockets[gameId]) { delete this._gmSockets[gameId]; }
     // Alle im Raum sitzenden Sockets aus der Room + player-Membership entfernen.
     const players = dbm.getPlayers(gameId) || [];
@@ -1723,10 +1789,12 @@ class Rooms {
     const gameRow = req.gameRow;
     dbm.setPaused(gameId, true);
     // (2g#17) Pause stoppt den Zug-Timer + blendet die Restzeit aus.
-    this._clearTurnTimer(gameId);
-    try {
+        this._clearTurnTimer(gameId);
+        this._clearTaskTimer(gameId);
+        try {
       const e2 = G.deserialize(dbm.getGame(gameId).state, D);
       e2.turnDeadline = 0;
+      e2.taskDeadline = 0;
       this._save(gameId, e2);
     } catch (e) {}
     sock.join(this._roomOf(gameId));

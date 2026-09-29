@@ -71,7 +71,7 @@ test('A0: tasksEnabled=false → Kauf setzt KEINE Pending-Aufgabe (Default-Verha
   console.log('A0 ok');
 });
 
-test('A1+A3: tasksEnabled=true → nach Kauf taskPending=true; roll → TASK_PENDING', () => {
+test('A1+A3: tasksEnabled=true → nach Kauf taskPending=true; Zug endet (P1); roll des Käufers → TASK_PENDING', () => {
   const g = makeGame([{ name: 'A', task: 'Mine Asteroiden' }, { name: 'B', task: 'Liefern' }], { settings: { tasksEnabled: true } });
   // A an Feld 1; Landen auf Grundstück z.B. Seraphim (idx je nach Preset).
   const card = findFreeLandIdx(g, 1);
@@ -80,7 +80,11 @@ test('A1+A3: tasksEnabled=true → nach Kauf taskPending=true; roll → TASK_PEN
   g.buy();
   const p0 = g.players[0];
   assert.strictEqual(p0.taskPending, true, 'Kauf setzt taskPending=true');
-  // Wurf verweigert
+  // (P1) Der Zug endet sofort → activeIdx wechselt.
+  assert.notStrictEqual(g.activeIdx, 0, 'Zug endet nach Kauf (P1)');
+  // Wurf des Käufers (wenn er wieder dran ist) verweigert
+  g.activeIdx = 0;
+  g.rolled = false;
   const r = rollExact(g, 1);
   assert.strictEqual(r.err, 'TASK_PENDING', 'Wurf blockiert durch TASK_PENDING');
   // Kauf blockiert (wenn gerade wieder kaufgewürfelt... aber taskPending -> buy false)

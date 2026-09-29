@@ -220,6 +220,7 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
   font-size: 12.5px; }
 .task-banner .t-lbl { color: var(--accent-hi); }
 .task-banner .task-label { font: 600 13px/1.2 ui-monospace, monospace; }
+.task-banner .task-timer { font: 700 13px/1.2 ui-monospace, monospace; color: var(--accent-hi); white-space: nowrap; }
 .preset-field-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .preset-field-row { display: grid; grid-template-columns: 22px 130px 1fr 110px 150px 40px 40px 38px; gap: 8px;
   align-items: center; border: 2px solid var(--line); background: var(--panel-2); padding: 7px 10px; }

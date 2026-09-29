@@ -81,6 +81,13 @@ const DEFAULT_SETTINGS = {
   // (Aufgabenregel) Nach Kauf/Ausbau muss das Team eine Aufgabe erledigen,
   // bevor sein Zug wieder freigeschaltet wird. Default: aus (Verhalten wie bisher).
   tasksEnabled: false,
+  // (Aufgabenregel P4) Timer (ms), den ein beschäftigtes Team am eigenen Zug hat,
+  // um die Aufgabe abzuschließen. Läuft er ohne Abschluss ab, endet der Zug
+  // automatisch (Aufgabe bleibt offen). Default: 10 s.
+  tasksTurnTimerMs: 10000,
+  // (Aufgabenregel P3) Optionale Regel: ein AKZEPTIERTER Handel löst ebenfalls
+  // eine Aufgabe aus (+ Zug-Ende). Nur relevant, wenn tasksEnabled=true.
+  tasksRequireTrade: false,
   // (Piratensystem) Optionale Begegnungs-Mechanik. ALLE Default = aus/inaktiv,
   // sodass ohne Pirates EXAKT bisheriges Verhalten gilt.
   piratesEnabled: false,

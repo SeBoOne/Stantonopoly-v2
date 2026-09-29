@@ -206,9 +206,16 @@
                   </label>
                   <!-- (Aufgabenregel) Nach Kauf/Ausbau muss das Team seine Aufgabe erledigen -->
                   <label class="settings-row chk">
-                    <input id="s-tasks-enabled" type="checkbox" title="Nach jedem Kauf und jedem Ausbau erhält das Team eine ausstehende Aufgabe, die es in Star Citizen erledigen und per Button bestätigen muss, bevor es wieder würfeln/kaufen/bauen darf." />
-                    <span>Aufgabenregel (Kauf/Ausbau → Aufgabe erledigen)</span>
-                  </label>
+                                      <input id="s-tasks-enabled" type="checkbox" title="Nach jedem Kauf und jedem Ausbau erhält das Team eine ausstehende Aufgabe, die es in Star Citizen erledigen und per Button bestätigen muss, bevor es wieder würfeln/kaufen/bauen darf." />
+                                      <span>Aufgabenregel (Kauf/Ausbau → Aufgabe erledigen)</span>
+                                    </label>
+                                    <!-- (Aufgabenregel P4) Beschäftigtes-Team-Timer -->
+                                    <label class="settings-row"><span class="t-lbl">Aufgaben-Timer (s)</span><input id="s-tasks-turn-timer" type="number" min="0" step="1" placeholder="10" title="Zeit in Sekunden, die ein beschäftigtes Team am eigenen Zug hat, um die Aufgabe abzuschließen. Läuft sie ohne Abschluss ab, endet der Zug automatisch (Aufgabe bleibt offen). 0 = aus." /><span class="hint" style="font-size:11px">0 = aus</span></label>
+                                    <!-- (Aufgabenregel P3) Handel erfordert Aufgabe -->
+                                    <label class="settings-row chk">
+                                      <input id="s-tasks-require-trade" type="checkbox" title="Wenn aktiv, löst ein AKZEPTIERTER Handel ebenfalls eine Aufgabe beim Käufer aus (+ Zug-Ende). Nur relevant, wenn die Aufgabenregel aktiv ist." />
+                                      <span>Handel erfordert Aufgabe</span>
+                                    </label>
                 </div>
               </div>
               <!-- (Piratensystem) Piraten-Modus -->
@@ -298,6 +305,7 @@
     <div id="task-banner" class="task-banner hidden" role="status">
       <span class="t-lbl">AUFGABE</span>
       <span class="task-label"></span>
+      <span class="task-timer" id="task-timer"></span>
       <button type="button" id="btn-task-banner-done" class="btn btn-xs btn-ghost">Aufgabe erledigt</button>
     </div>
     <div id="actionbar" class="actionbar">
