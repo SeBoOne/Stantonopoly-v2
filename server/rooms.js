@@ -128,21 +128,45 @@ function buildView({ gameId, game, teams, leaders }) {
       });
       return alive.concat(out).map((e, i) => Object.assign(e, { place: i + 1 }));
     })() : [];
-    return {
-      gameId,
-      game: gameState,
-      presetName,
-      gmName: (gRow && gRow.gmName) ? String(gRow.gmName) : 'GM',
-      teams: teamViews,
-      leaders: leaders || [],
-      started: (game && !game.over && !!game._started) ? true : false,
-      over: !!(game && game.over),
-      paused: !!(gRow && gRow.paused),
-      winnerInfo: (game && game.winnerInfo) || null,
-      ranking,
-      log: (game && game.log) || []
-    };
-  }
+    // (P10) Piraten-Team als eigener Lobby-Eintrag (nur wenn piratesEnabled und
+        // die Engine ein Piratenteam angelegt hat). Der Pirat ist ein einzelnes
+        // Entitäts-Team (kein Spieler-Socket) — der GM hostet/steuert es. Normale
+        // Team-Sockets bekommen diesen Eintrag NICHT (broadcast strippt ihn), damit
+        // das Piratenteam in der Lobby für sie unsichtbar bleibt.
+        let pirate = null;
+        if (game && Array.isArray(game.players)) {
+          const pir = game.players.find((p) => p.role === 'pirate' || p.isPirate);
+          if (pir) {
+            pirate = {
+              id: 'PIRATES',
+              teamId: 'PIRATES',
+              ship: 'PIRATEN',
+              teamName: '🏴‍☠️ Piraten',
+              color: '#7b2f00',
+              leaderId: null,
+              players: [],   // Pirat hat keine Mitglieder (ein Entitäts-Team)
+              votes: {},
+              pos: (typeof pir.pos === 'number') ? pir.pos : 0,
+              budget: (typeof pir.budget === 'number') ? pir.budget : 0
+            };
+          }
+        }
+        return {
+          gameId,
+          game: gameState,
+          presetName,
+          gmName: (gRow && gRow.gmName) ? String(gRow.gmName) : 'GM',
+          teams: teamViews,
+          leaders: leaders || [],
+          pirate,
+          started: (game && !game.over && !!game._started) ? true : false,
+          over: !!(game && game.over),
+          paused: !!(gRow && gRow.paused),
+          winnerInfo: (game && game.winnerInfo) || null,
+          ranking,
+          log: (game && game.log) || []
+        };
+      }
 
 // Prüft, ob ein Socket innerhalb des Raums als Teamleiter/aktiver angesehen wird.
 // teamIdFromSocket: wird vom Aufrufer (index.js) als Socket-Daten geliefert.

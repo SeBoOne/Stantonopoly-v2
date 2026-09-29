@@ -244,15 +244,25 @@ window.stanGroupKey = function (key) {
     mm.tok.innerHTML = '';
     var present = state.players.filter(function (p) { return p.pos == fieldIdx; });
     present.forEach(function (p) {
-      // Jede Team-EIGENE Farbe + eigener Buchstabe (Anfangsbuchstabe des Schiffnamens).
-      var ship = p.ship || p.teamName || '';
-      var letter = (ship.replace(/^team\s+/i, '').trim() || '•').charAt(0).toUpperCase();
-      var t = el('span', 'tok', '');
-      t.textContent = letter;
-      t.title = p.teamName || '';
-      t.style.background = p.color || '#888';
-      mm.tok.appendChild(t);
-    });
+          // (P8) Piraten-Team als eigener, klar erkennbarer Marker (PIR) statt eines
+          // anonymen Buchstaben-Dots — damit das zusätzliche Team im Board sichtbar ist.
+          if (p.isPirate) {
+            var tp = el('span', 'tok tok-pirate', '');
+            tp.textContent = 'PIR';
+            tp.title = p.teamName || 'Piraten';
+            tp.style.background = p.color || '#7b2f00';
+            mm.tok.appendChild(tp);
+            return;
+          }
+          // Jede Team-EIGENE Farbe + eigener Buchstabe (Anfangsbuchstabe des Schiffnamens).
+          var ship = p.ship || p.teamName || '';
+          var letter = (ship.replace(/^team\s+/i, '').trim() || '•').charAt(0).toUpperCase();
+          var t = el('span', 'tok', '');
+          t.textContent = letter;
+          t.title = p.teamName || '';
+          t.style.background = p.color || '#888';
+          mm.tok.appendChild(t);
+        });
   }
 
   // ---------------------------- Marker / Aktives Feld ---------------------

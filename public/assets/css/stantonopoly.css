@@ -379,6 +379,8 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
   color: #12131a; border: 2px solid transparent; border-radius: 50%; }
 .tok-r { background: #ffd27a; } .tok-c { background: #9be3ff; }
 .tok-k { background: #ff9d9d; } .tok-v { background: #b6f0c8; }
+/* (P8) Piraten-Marker: dunkelbraun, heller Text, leicht vergrößert — klar als PIR erkennbar. */
+.tok-pirate { background: #7b2f00; color: #ffd27a; font-weight: 700; font-size: 11px; border-color: #ffd27a; }
 
 /* Hohe Karte (data-tall=1, fitPage): Feld-Akte sichtbar, große Zahlen */
 .cardrow[data-tall="1"] .kcard { flex-basis: 264px; padding: 20px 20px 16px; justify-content: flex-start; gap: 6px; }
@@ -643,6 +645,9 @@ body.view-game .actionbar { display: flex; }
 .lobby-team-head { display: flex; align-items: baseline; gap: 12px; }
 .lobby-team-head h3 { font: 700 24px/1.1 ui-monospace, monospace; margin: 0; }
 .lobby-team-players { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* (P10) Piraten-Team-Karte in der Lobby (nur für GM/Pirat-Socket sichtbar). */
+.lobby-team-pirate { border-color: #7b2f00; background: linear-gradient(180deg, #2a1206, var(--panel)); }
+.lobby-team-pirate .lobby-team-head { color: #ffd27a; font-weight: 700; }
 
 /* Poll/Trade (client.js poll handler) */
 .poll-rows { margin-top: 6px; }
