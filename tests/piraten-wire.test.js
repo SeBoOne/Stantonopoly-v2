@@ -159,14 +159,27 @@ test('P4: team:join mit Piraten-Code → Mitglied von PIRATES; Pirat fällt Urte
     actor.emit('pirate:resolve', { gameId, choice: 'flee' });
     const stFlee = await stFleeP;
     assert.ok(stFlee.game.pirateVerdict, 'Piraten-Urteil (Erwischt/Entwischt) steht offen');
+    // Das fliehende Team ist serverseitig per pirateVerdict.teamIdx verankert
+    // (nicht per Anfangszahl-`actIdx`, der je Vote-Randomisierung variiert).
+    const fleeTeamIdx = stFlee.game.pirateVerdict.teamIdx;
 
     // (2) P4-Kern: Das PIRATES-MITGLIED fällt das Urteil (kein gmCode mehr nötig).
-    const stEscP = once(p, 'state');
+    // Race-sicher: p's eingehende States in einer Variable sammeln und auf Zustands-
+    // Übergänge WARTEN (statt `once` zu registrieren, das den noch unterwegs
+    // befindlichen flee-Broadcast abfangen könnte). Erst wenn p das offene Urteil
+    // sieht, wird das Confirm gesendet; dann bis zur Auflösung warten.
+    let pst = null;
+    p.on('state', (s) => { pst = s; });
+    const tD = Date.now();
+    while ((!pst || !pst.game.pirateVerdict) && Date.now() - tD < 5000) await sleep(20);
+    assert.ok(pst && pst.game.pirateVerdict, 'p (Pirat) sieht das offene Urteil');
     p.emit('pirate:confirm', { gameId, verdict: 'escaped' });
-    const stEsc = await stEscP;
-    assert.ok(!stEsc.game.piratesBusy === undefined || true, 'Urteil verarbeitet');
-    assert.strictEqual(stEsc.game.players[actIdx].fleeing, false, 'Pirat-Mitglied bestätigt Entwischt → Team frei');
-    assert.ok(!stEsc.game.pirateVerdict, 'Urteil erledigt');
+    const tE = Date.now();
+    while ((!pst || pst.game.pirateVerdict || pst.game.players[fleeTeamIdx] === undefined) && Date.now() - tE < 5000) await sleep(20);
+    assert.ok(pst && !pst.game.pirateVerdict, 'Urteil erledigt (p sah die Auflösung)');
+    // Das Feld `fleeing` wird vom Serialisierer bei false als "default" gedroppt
+    // (undefined === gleichbedeutend "nicht fliehend"). Prüfe daher auf NICHT-fliehend.
+    assert.ok(!pst.game.players[fleeTeamIdx].fleeing, 'Pirat-Mitglied bestätigt Entwischt → Team frei');
 
     // (3) GM hat KEINEN Sonder-Pfad mehr: Der GM-Code allein rechtfertigt KEIN Urteil.
     const plain = await connect(url, 'plain');
