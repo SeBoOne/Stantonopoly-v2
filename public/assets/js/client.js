@@ -373,7 +373,11 @@
           buildGroupOwnership: true,
           buildGroupEven: true,
           // (Aufgabenregel) Nach Kauf/Ausbau muss das Team seine Aufgabe erledigen.
-          tasksEnabled: false,
+                    tasksEnabled: false,
+                    // (Aufgabenregel P4) Timer (ms) für ein beschäftigtes Team am eigenen Zug.
+                    tasksTurnTimerMs: 10000,
+                    // (Aufgabenregel P3) Optionale Regel: akzeptierter Handel löst Aufgabe aus.
+                    tasksRequireTrade: false,
           // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s, 0 = aus).
           // Diese Werte sind Game-Pace-Einstellungen und werden beim Start als
           // diceConfig/turnSeconds an den Server übergeben (nicht als Preset-Regel).
@@ -428,6 +432,10 @@
             { const el = $('s-build-group-even'); if (el) el.checked = !!(currentSettings.buildGroupEven && currentSettings.buildGroupOwnership); syncEvenToggle(); }
             // (Aufgabenregel) Kauf/Ausbau setzt eine ausstehende Team-Aufgabe.
             { const el = $('s-tasks-enabled'); if (el) el.checked = !!currentSettings.tasksEnabled; }
+            // (Aufgabenregel P4) Beschäftigtes-Team-Timer (s)
+            { const el = $('s-tasks-turn-timer'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.tasksTurnTimerMs) || 0) / 1000)); }
+            // (Aufgabenregel P3) Handel erfordert Aufgabe
+            { const el = $('s-tasks-require-trade'); if (el) el.checked = !!currentSettings.tasksRequireTrade; }
             // (2h#5/#6) Spielablauf: Würfelmodus + Zug-Timer
             { const el = $('s-dice'); if (el) el.value = currentSettings.diceConfig || '1w6'; }
             { const el = $('s-turnsecs'); if (el) el.value = String(Math.max(0, Math.round(Number(currentSettings.turnSeconds) || 0))); }
@@ -462,6 +470,10 @@
             { const er = $('s-build-group-even'); if (er && currentSettings.buildGroupOwnership) currentSettings.buildGroupEven = !!er.checked; }
             // (Aufgabenregel) Toggle lesen
             { const te_ = $('s-tasks-enabled'); if (te_) currentSettings.tasksEnabled = !!te_.checked; }
+            // (Aufgabenregel P4) Beschäftigtes-Team-Timer (s → ms)
+            { const tt = $('s-tasks-turn-timer'); if (tt) currentSettings.tasksTurnTimerMs = Math.max(0, Math.round(Number(tt.value) || 0) * 1000); }
+            // (Aufgabenregel P3) Handel erfordert Aufgabe
+            { const tr = $('s-tasks-require-trade'); if (tr) currentSettings.tasksRequireTrade = !!tr.checked; }
             // (2h#5/#6) Spielablauf: Würfelmodus (nur 1W6/2W6) + Zug-Timer (s)
             { const de = $('s-dice'); if (de && (de.value === '1w6' || de.value === '2w6')) currentSettings.diceConfig = de.value; }
             { const te = $('s-turnsecs'); if (te) currentSettings.turnSeconds = Math.max(0, Math.round(Number(te.value) || 0)); }
@@ -491,6 +503,10 @@
       if (cur.buildGroupEven !== base.buildGroupEven) out.buildGroupEven = cur.buildGroupEven;
       // (Aufgabenregel)
       if (cur.tasksEnabled !== base.tasksEnabled) out.tasksEnabled = cur.tasksEnabled;
+      // (Aufgabenregel P4) Beschäftigtes-Team-Timer
+      if (cur.tasksTurnTimerMs !== base.tasksTurnTimerMs) out.tasksTurnTimerMs = cur.tasksTurnTimerMs;
+      // (Aufgabenregel P3) Handel erfordert Aufgabe
+      if (cur.tasksRequireTrade !== base.tasksRequireTrade) out.tasksRequireTrade = cur.tasksRequireTrade;
       // (Piratensystem)
       if (cur.piratesEnabled !== base.piratesEnabled) out.piratesEnabled = cur.piratesEnabled;
       if (cur.pirateDice !== base.pirateDice) out.pirateDice = cur.pirateDice;
@@ -1936,7 +1952,10 @@
     // Server-seitig doppelt abgesichert (engine.roll → err FLEEING).
     const fleeingBlock = !!(activeP && activeP.fleeing);
     setBtn('btn-roll', showActions && !rolled && !canBuy && !fleeingBlock, showActions && !rolled && !canBuy && !fleeingBlock);
-    setBtn('btn-next', showActions && !insolventBlock, showActions && rolled && !insolventBlock);
+    // (Aufgabenregel P4) Beschäftigtes Team am Zug: „Nächster Zug“ ist sichtbar,
+    // um den Zug vorzeitig zu beenden (Aufgabe bleibt offen).
+    const canNext = showActions && !insolventBlock && (rolled || taskBlock);
+    setBtn('btn-next', showActions && !insolventBlock, canNext);
 
     // Optionen (jede Rolle im aktiven Spiel): öffnet das rollenabhängige Modale
     // mit "Spiel verlassen" + (Teammitglied) Aufgeben-Abstimmung bzw. (GM) Pausieren.
@@ -2290,6 +2309,19 @@
     banner.classList.remove('hidden');
     const label = banner.querySelector('.task-label');
     if (label) label.textContent = me.task || 'Schiffs-Aufgabe';
+    // (Aufgabenregel P4) Timer nur für das beschäftigte Team am eigenen Zug anzeigen.
+    const timerEl = banner.querySelector('.task-timer');
+    const isMyTurn = st.game && st.game.activeIdx === myIdx;
+    if (timerEl) {
+      if (isMyTurn && st.game.taskDeadline && Number(st.game.taskDeadline) > Date.now()) {
+        const remain = Math.max(0, Math.ceil((Number(st.game.taskDeadline) - Date.now()) / 1000));
+        timerEl.textContent = '⏱ ' + remain + 's';
+        timerEl.classList.remove('hidden');
+      } else {
+        timerEl.textContent = '';
+        timerEl.classList.add('hidden');
+      }
+    }
   }
 
   // ------------------------------------------------------------------
@@ -2579,20 +2611,34 @@
   if (logBtn) logBtn.addEventListener('click', openLogModal);
 
   // Zug-Timer-Anzeige: Boardbar-Restzeit sekündlich aktualisieren (nur in Spielansicht).
-  setInterval(() => {
-    if (!document.body.classList.contains('view-game')) return;
-    const dead = client.lastState && client.lastState.game && client.lastState.game.turnDeadline;
-    const timerEl = document.getElementById('bb-timer');
-    if (!timerEl) return;
-    const stat = timerEl.closest('.bb-stat');
-    if (dead && Number(dead) > Date.now()) {
-      const remain = Math.max(0, Math.ceil((Number(dead) - Date.now()) / 1000));
-      timerEl.textContent = String(remain) + 's';
-      if (stat) stat.classList.remove('hidden');
-    } else if (stat) {
-      stat.classList.add('hidden');
-    }
-  }, 1000);
+    setInterval(() => {
+      if (!document.body.classList.contains('view-game')) return;
+      const dead = client.lastState && client.lastState.game && client.lastState.game.turnDeadline;
+      const timerEl = document.getElementById('bb-timer');
+      if (!timerEl) return;
+      const stat = timerEl.closest('.bb-stat');
+      if (dead && Number(dead) > Date.now()) {
+        const remain = Math.max(0, Math.ceil((Number(dead) - Date.now()) / 1000));
+        timerEl.textContent = String(remain) + 's';
+        if (stat) stat.classList.remove('hidden');
+      } else if (stat) {
+        stat.classList.add('hidden');
+      }
+      // (Aufgabenregel P4) Beschäftigtes-Team-Timer im Task-Banner sekündlich aktualisieren.
+      const tEl = document.getElementById('task-timer');
+      if (tEl) {
+        const g = client.lastState && client.lastState.game;
+        const myIdx = myTeamIdx(client.lastState);
+        const isMyTurn = g && g.activeIdx === myIdx;
+        if (isMyTurn && g && g.taskDeadline && Number(g.taskDeadline) > Date.now()) {
+          tEl.textContent = '⏱ ' + Math.max(0, Math.ceil((Number(g.taskDeadline) - Date.now()) / 1000)) + 's';
+          tEl.classList.remove('hidden');
+        } else if (tEl.textContent) {
+          tEl.textContent = '';
+          tEl.classList.add('hidden');
+        }
+      }
+    }, 1000);
 
   // Automatischer Rejoin: gespeicherten Join-Stand wiederherstellen.
   const saved = loadJoin();

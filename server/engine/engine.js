@@ -143,6 +143,18 @@ function ownerOf(game, fieldIdx) {
   return null;
 }
 
+// (Aufgabenregel P2) Player-Index eines Teams, das für fieldIdx einen SCHWEBENDEN
+// Kauf ausstehend hat (pendingAction.type === 'kauf'), sonst null. Solange ein
+// Kauf schwebt, ist das Feld weder mietbar noch neu kaufbar — der Besitz wird
+// erst bei taskComplete übertragen; bis dahin gehört es niemandem.
+function pendingBuyIdx(game, fieldIdx) {
+  for (let i = 0; i < game.players.length; i++) {
+    const pa = game.players[i].pendingAction;
+    if (pa && pa.type === 'kauf' && Number(pa.fieldIdx) === Number(fieldIdx)) return i;
+  }
+  return null;
+}
+
 function aliveCount(game) {
   let n = 0;
   for (let i = 0; i < game.players.length; i++) if (!game.players[i].bankrupt && !isPirate(game.players[i])) n++;
@@ -281,6 +293,15 @@ function landingEffects(game, p, landing, events) {
   let turnPassed = false; // true = Aufrufer kann direkt nextTurn()
 
   if (landingField.type === 'grundstueck') {
+    // (Aufgabenregel P2) Schwebender Kauf: das Feld gehört noch niemandem und
+    // kassiert keine Miete; es kann auch nicht erneut gekauft werden.
+    const pending = pendingBuyIdx(game, to);
+    if (pending !== null) {
+      log(game, p.name + ' landet auf „' + landingField.name + '“ — das Feld ist in schwebendem Kauf (Besitz wird nach Aufgabe übertragen) → keine Miete.' );
+      events.push('Schwebender Kauf — keine Miete auf „' + landingField.name + '“');
+      turnPassed = true;
+      return { turnPassed, canBuy };
+    }
     const owner = ownerOf(game, to);
     if (owner === null) {
       if (p.budget >= landingField.price) {
@@ -523,6 +544,8 @@ const StantonopolyGame = {
       mortgageChoice: null,   // (2o-A P3) Pending Hypotheken-Übernahme-Wahl des Käufers
       turnSeconds: Math.max(0, Math.round(Number(config.turnSeconds) || 0)), // (2g#17) Zug-Timer in s
       turnDeadline: Number(config.turnDeadline) || 0,                        // Server-Zeitstempel Ablauf
+      // (Aufgabenregel P4) Deadline des beschäftigtes-Team-Timers (Server-Zeitstempel).
+      taskDeadline: Number(config.taskDeadline) || 0,
       log: []
     };
 
@@ -799,35 +822,53 @@ const StantonopolyGame = {
     const idx = p.pos;
     const f = game.fields[idx];
     if (!f || f.type !== 'grundstueck') return false;
+    // (Aufgabenregel P2) Ein Feld mit schwebendem Kauf eines anderen Teams ist nicht kaufbar.
+    if (pendingBuyIdx(game, idx) !== null) return false;
     const owner = ownerOf(game, idx);
     if (owner !== null) return false;
     if (p.budget < f.price) {
       log(game, p.name + ' kann „' + f.name + '“ nicht kaufen (Budget ' + fmt(p.budget) + ' < ' + fmt(f.price) + ').');
       return false;
     }
+    const tasksOn = !!(game.settings && game.settings.tasksEnabled);
+    if (tasksOn) {
+      // (Aufgabenregel P2) Kaufpreis SOFORT abbuchen, Besitz wird erst bei
+      // taskComplete übertragen (bis dahin schwebt der Kauf). Der Zug endet
+      // sofort (P1) — das Team ist ab dann mit seiner Aufgabe beschäftigt.
+      p.budget -= f.price;
+      p.pendingAction = { type: 'kauf', fieldIdx: idx, price: f.price };
+      game.canBuy = false;
+      log(game, p.name + ' kauft „' + f.name + '“ für ' + fmt(f.price) + ' (Zug beendet, Besitz wird nach erledigter Aufgabe aktiv).');
+      this.ledgerPush(game, p, -f.price, 'Kauf „' + f.name + '“');
+      const set = this._setTaskPending(game, p);
+      if (set) this.nextTurn(game);
+      return true;
+    }
+    // tasksEnabled=false: exakt altes Sofort-Verhalten.
     p.budget -= f.price;
     p.properties[idx] = { level: 'ALLEIN' };
     game.canBuy = false;
     log(game, p.name + ' kauft „' + f.name + '“ für ' + fmt(f.price) + '.');
     this.ledgerPush(game, p, -f.price, 'Kauf „' + f.name + '“');
-    // (Aufgabenregel) Nach einem erfolgreichen Kauf bekommt das Team eine
-    // ausstehende Aufgabe, die es erledigen muss, bevor es wieder ziehen darf.
     this._setTaskPending(game, p);
     return true;
   },
 
   // (Aufgabenregel) Markiert ein Team als "Aufgabe ausstehend", wenn die Regel
   // aktiv ist. Wenn bereits eine Aufgabe aussteht, bleibt sie bestehen (kein Stapeln).
+  // Gibt zurück, ob die Aufgabe NEU gesetzt wurde (true).
   _setTaskPending: function (game, player) {
-    if (!(game.settings && game.settings.tasksEnabled)) return;
-    if (!player || player.taskPending) return;
+    if (!(game.settings && game.settings.tasksEnabled)) return false;
+    if (!player || player.taskPending) return false;
     player.taskPending = true;
     log(game, player.name + ' hat jetzt eine ausstehende Aufgabe (' + (player.task || 'Schiffs-Aufgabe') + ') — erst erledigen, dann weiterspielen.');
+    return true;
   },
 
   // (Aufgabenregel) Erledigt die ausstehende Aufgabe (allein per activeIdx oder
   // per Ziel-Spieler-Index). Ein Team darf seine Aufgabe auch während des Zuges
   // eines anderen Teams erledigen — der Zug des anderen bleibt unberührt.
+  // Bei P2 wird hier der schwebende Kauf/Ausbau WIRKSAM (Besitz-Commit).
   taskComplete: function (game, targetIdx) {
     const idx = (Number.isInteger(targetIdx) && targetIdx >= 0 && targetIdx < game.players.length) ? targetIdx : game.activeIdx;
     const p = game.players[idx];
@@ -835,6 +876,27 @@ const StantonopolyGame = {
       return { ok: false, reason: 'no_task' };
     }
     p.taskPending = false;
+    // (Aufgabenregel P2) Schwebende Aktion beim Abschluss wirksam machen.
+    const pa = p.pendingAction;
+    if (pa) {
+      const fi = Number(pa.fieldIdx);
+      if (!p.bankrupt) {
+        if (pa.type === 'kauf') {
+          // Feld muss (noch) frei sein — sonst verfällt die Übertragung.
+          if (ownerOf(game, fi) === null) {
+            p.properties[fi] = { level: 'ALLEIN' };
+            log(game, p.name + ' hat seine Aufgabe erledigt — der Kauf von „' + fieldName(game, fi) + '“ ist jetzt wirksam (Besitz + Miete aktiv).');
+          }
+        } else if (pa.type === 'ausbau' && p.properties[fi] && pa.toLevel) {
+          p.properties[fi].level = pa.toLevel;
+          log(game, p.name + ' hat seine Aufgabe erledigt — der Ausbau von „' + fieldName(game, fi) + '“ auf ' + pa.toLevel + ' ist jetzt wirksam.');
+        }
+      } else {
+        // Bankrott vor Abschluss → Kauf/Ausbau verfällt (Geld bleibt weg).
+        log(game, p.name + ' scheidet aus, bevor die ausstehende Aufgabe abgeschlossen wurde — die Aktion verfällt (Feld bleibt frei, Geld ist weg).');
+      }
+      p.pendingAction = undefined;
+    }
     log(game, p.name + ' hat seine Aufgabe erledigt (' + (p.task || 'Schiffs-Aufgabe') + ').');
     return { ok: true };
   },
@@ -971,11 +1033,22 @@ const StantonopolyGame = {
       return false;
     }
     p.budget -= cost;
+    const tasksOn = !!(game.settings && game.settings.tasksEnabled);
+    if (tasksOn) {
+      // (Aufgabenregel P1/P2) Ausbau-Kosten SOFORT abbuchen, die Stufe wird erst
+      // bei taskComplete wirksam. Der Zug endet sofort (P1).
+      p.pendingAction = { type: 'ausbau', fieldIdx: fieldIdx, price: cost, toLevel: nextLevel };
+      game.canBuy = false;
+      log(game, p.name + ' baut „' + f.name + '“ aus: ' + own.level + ' → ' + nextLevel + ' (Kosten ' + fmt(cost) + ', Zug beendet, wirksam nach erledigter Aufgabe).');
+      this.ledgerPush(game, p, -cost, 'Ausbau „' + f.name + '“ (' + nextLevel + ')');
+      const set = this._setTaskPending(game, p);
+      if (set) this.nextTurn(game);
+      return true;
+    }
+    // tasksEnabled=false: exakt altes Sofort-Verhalten.
     p.properties[fieldIdx].level = nextLevel;
     log(game, p.name + ' baut „' + f.name + '“ aus: ' + own.level + ' → ' + nextLevel + ' (Kosten ' + fmt(cost) + ').');
     this.ledgerPush(game, p, -cost, 'Ausbau „' + f.name + '“ (' + nextLevel + ')');
-    // (Aufgabenregel) Nach einem erfolgreichen Ausbau bekommt das Team eine
-    // ausstehende Aufgabe, die es erledigen muss, bevor es wieder weiter kann.
     this._setTaskPending(game, p);
     return true;
   },
@@ -1001,6 +1074,9 @@ const StantonopolyGame = {
     pl.bankrupt = true;
     pl.budget = 0;
     pl.properties = {};
+    // (Aufgabenregel P2) Bankrott vor Abschluss einer schwebenden Aktion →
+    // Aktion verfällt (schwebender Kauf/Ausbau wird verworfen, Feld bleibt frei).
+    pl.pendingAction = undefined;
     pl.insolvent = false;
     pl.debt = undefined;
     pl.creditorIdx = undefined;
@@ -1440,12 +1516,20 @@ const StantonopolyGame = {
       // buy: Ziel (Besitzer) verkauft an from; sell: from verkauft an Ziel.
       const seller = offer.kind === 'buy' ? target : from;
       const buyer = offer.kind === 'buy' ? from : target;
-      const res = this.sellProperty(game, offer.fieldIdx, game.players.indexOf(buyer), offer.price, game.players.indexOf(seller));
+      const buyerIdx = game.players.indexOf(buyer);
+      const res = this.sellProperty(game, offer.fieldIdx, buyerIdx, offer.price, game.players.indexOf(seller));
       // (2o-A P8) sellProperty lehnt bebauten Verkauf ab (BUILT_NOT_SELLABLE + notify) —
       // dieses Ergebnis darf NICHT verschluckt werden, sonst erscheint das Angebot
       // kommentarlos als „durchgegangen“ und Task B kann den Ablehnungsweg nicht abdecken.
       if (!res || !res.ok) {
         return { ok: false, reason: res.reason, notify: res.notify };
+      }
+      // (Aufgabenregel P3) Optionale Regel „Handel erfordert Aufgabe“: ein
+      // akzeptierter Handel löst bei aktivierter tasksRequireTrade zusätzlich
+      // eine Aufgabe beim KÄUFER aus und beendet dessen Zug, falls er am Zug ist.
+      if (game.settings && game.settings.tasksEnabled && game.settings.tasksRequireTrade) {
+        this._setTaskPending(game, buyer);
+        if (buyerIdx === game.activeIdx) this.nextTurn(game);
       }
       return { ok: true, done: true, offer };
     }
@@ -1585,6 +1669,7 @@ const StantonopolyGame = {
       pirateVerdict: game.pirateVerdict || null,
       turnSeconds: Math.max(0, Math.round(Number(game.turnSeconds) || 0)),
       turnDeadline: typeof game.turnDeadline === 'number' ? game.turnDeadline : 0,
+      taskDeadline: typeof game.taskDeadline === 'number' ? game.taskDeadline : 0,
       log: game.log
     });
   },
@@ -1616,6 +1701,8 @@ const StantonopolyGame = {
           creditorIdx: (typeof p.creditorIdx === 'number') ? p.creditorIdx : undefined,
           // (Aufgabenregel) offene Aufgabe bleibt über Reloads erhalten
           taskPending: !!p.taskPending,
+          // (Aufgabenregel P2) Schwebender Kauf/Ausbau (type, fieldIdx, price, toLevel) bleibt erhalten
+          pendingAction: (p.pendingAction && typeof p.pendingAction === 'object') ? p.pendingAction : undefined,
           // (Piratensystem) Flucht-Zustand nur bei Bedarf setzen (undefined →
           // Key im JSON weggelassen), damit der serialize↔deserialize-Round-Trip
           // für normale Spiele exakt stabil bleibt.
@@ -1647,6 +1734,7 @@ const StantonopolyGame = {
       pirateVerdict: raw.pirateVerdict || null,
       turnSeconds: Math.max(0, Math.round(Number(raw.turnSeconds) || 0)),
       turnDeadline: (typeof raw.turnDeadline === 'number') ? raw.turnDeadline : 0,
+      taskDeadline: (typeof raw.taskDeadline === 'number') ? raw.taskDeadline : 0,
       log: Array.isArray(raw.log) ? raw.log.slice() : []
     };
     return attachMethods(game);
