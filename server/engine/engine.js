@@ -197,6 +197,23 @@ function pirateLapDone(game, teamIdx) {
   return !!(p && p.pirateInteractedThisLap);
 }
 
+// (P1-4) Piraten-Interaktion nach FELDTYP (Punkte 1-4 der User-Meldung).
+// Liefert die Interaktions-Modus für das Piratenfeld (Feldtyp, auf dem die
+// Piraten gerade stehen):
+//   'inactive' — Gefängnis/Frei-Parken: Piraten dort INAKTIV, KEINE Begegnung
+//                auslösbar — nur der normale Feld-Effekt greift (P1/P4).
+//   'replace'  — Ereignis: Die Begegnung VERDRÄNGT den Ereignis-Effekt — kein
+//                Feld-Effekt nach der Begegnung (P2).
+//   'both'     — Steuer: BEIDES — Steuer erheben UND Piraten-Interaktion (P3).
+//   'normal'   — Grundstück/Los (Standard): Begegnung, danach läuft die
+//                normale Feld-Logik nach der Zahlung (bestehendes Design).
+function pirateFieldMode(fieldType) {
+  if (fieldType === 'gefangnis' || fieldType === 'freiparken') return 'inactive';
+  if (fieldType === 'ereignis') return 'replace';
+  if (fieldType === 'steuer') return 'both';
+  return 'normal';
+}
+
 // ---------------------------------------------------------------------
 // (2m-A) Vermögenswert eines Teams: Guthaben + Summe der Grundstückswerte
 // INKL. Ausbauwert. Für Hypotheken-belastete Felder zählt NUR 10 % ihres
@@ -678,7 +695,8 @@ const StantonopolyGame = {
       turnPassed = true;
     } else if (p.bankrupt) {
       turnPassed = true;
-    } else if (pirateHere && !piratesBusy(game) && !pirateLapDone(game, game.activeIdx)) {
+    } else if (pirateHere && pirateFieldMode(landingField.type) !== 'inactive'
+               && !piratesBusy(game) && !pirateLapDone(game, game.activeIdx)) {
       // (Piratensystem) Begegnung: Zug pausiert auf Entscheidung (zahlen/fliehen).
       // Die normale Feld-Logik wird NACH der Auflösung im selben Zug angewandt
       // (resolvePirateEncounter → landingEffects), damit die Runde „normal weiter“
@@ -687,6 +705,9 @@ const StantonopolyGame = {
       // läuft, wird ein neu landendes Team ignoriert (normale Feld-Logik unten).
       // (P9) Bei pirateOncePerLap ignoriert, wenn das Team diesen Durchgang schon
       // interagiert hat (Flag wird beim Los-Pass obiger Zeile zurückgesetzt).
+      // (P1-4) Nur wenn das Piratenfeld interaktionsfähig ist: auf Gefängnis/Frei-
+      // Parken ('inactive') sind die Piraten inaktiv und die Begegnung unterbleibt
+      // ganz (nur der normale Feld-Effekt). Auf Ereignis/Steuer siehe pirateFieldMode.
       const b = beginPirateEncounter(game, game.activeIdx, to);
       events.push({ text: '🏴‍☠️ Piraten! Schutzgeld ' + fmt(b.fee) + ' zahlen oder fliehen?', playerId: b.playerId, kind: 'pirate-encounter', encounter: { fee: b.fee, caughtFee: b.caughtFee } });
       log(game, p.name + ' landet auf dem Piraten-Feld → Begegnung: Schutzgeld ' + fmt(b.fee) + ' zahlen oder fliehen.');
@@ -763,12 +784,38 @@ const StantonopolyGame = {
         name: f ? f.name : ('Feld ' + enc.fieldIdx),
         price: (f && typeof f.price === 'number') ? f.price : undefined
       };
+      const mode = pirateFieldMode(landing.type);
       const events = [];
+      // (P2) Ereignis-Feld: die Begegnung VERDRÄNGT den Ereignis-Effekt — nach der
+      // Schutzgeld-Zahlung wird KEINE Feld-Logik (Ereignis) angewandt; der Zug endet.
+      if (mode === 'replace') {
+        log(game, p.name + ' hat das Ereignis auf „' + landing.name + '“ durch die Piraten-Begegnung verdrängt — kein Ereignis-Effekt.');
+        game.canBuy = false;
+        return { ok: true, action: 'pay', payedFull: paid, canBuy: false, turnPassed: true, events };
+      }
+      // (P3) Steuer + normale Feld-Logik (Grundstück/Los): nach der Begegnung läuft
+      // der Feld-Effekt normal weiter (Steuer wird erhoben, Miete/Kauf möglich).
       const eff = landingEffects(game, p, landing, events);
       game.canBuy = eff.canBuy;
       return { ok: true, action: 'pay', payedFull: paid, canBuy: eff.canBuy, turnPassed: eff.turnPassed, events };
     }
     if (c === 'flee') {
+      const f = game.fields[enc.fieldIdx];
+      const mode = pirateFieldMode(enc.fieldType || (f ? f.type : 'los'));
+      // (P3) Steuer-Feld: auch bei einer Flucht wird die Steuer BEIDES erhoben
+      // (Steuer + Piraten-Interaktion). Auf Ereignis/übrigen Feldern gibt es bei
+      // Flucht keinen zusätzlichen Feld-Effekt.
+      if (mode === 'both') {
+        const landing = {
+          idx: enc.fieldIdx,
+          type: enc.fieldType || (f ? f.type : 'los'),
+          name: f ? f.name : ('Feld ' + enc.fieldIdx),
+          price: (f && typeof f.price === 'number') ? f.price : undefined
+        };
+        const events = [];
+        landingEffects(game, p, landing, events); // erhebt die Steuer (Nebeneffekt via pay)
+        game.canBuy = false;
+      }
       p.fleeing = true;
       p.pirateCaughtFee = enc.caughtFee;
       game.pirateEncounter = null;

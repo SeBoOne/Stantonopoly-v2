@@ -19,6 +19,7 @@ function makeGame(players, opts) {
   return G.createGame({
     data: D,
     players: players.map((p, i) => ({ id: i, name: p.name, ship: p.ship || '', task: p.task || '' })),
+    fields: opts.fields, // optional: eigene Feld-Karten (für Feldtyp-Tests)
     startingCapital: (opts.capital !== undefined) ? opts.capital : D.DEFAULT_CAPITAL,
     diceConfig: { kind: 'frei', freeValue: 0 },
     armisticeEnabled: !!opts.armistice,
@@ -347,4 +348,110 @@ test('DEFAULT_SETTINGS: Piraten sind standardmäßig aus', () => {
   assert.strictEqual(D.DEFAULT_SETTINGS.pirateDice, '1w6');
   assert.strictEqual(D.DEFAULT_SETTINGS.pirateProtectionFee, 250000);
   assert.strictEqual(D.DEFAULT_SETTINGS.pirateCaughtMult, 2);
+});
+
+// ---------------------------------------------------------------------
+// P1-4: Piraten-Interaktion nach FELDTYP (Punkte 1-4 der User-Meldung).
+// Benutzerdefiniertes Feld-Arrangement, damit jede Feldtyp-Kombination
+// deterministisch angetriggert werden kann:
+//   0 los, 1 gefaengnis, 2 freiparken, 3 steuer, 4 ereignis, 5/6 grundstueck
+// ---------------------------------------------------------------------
+const TYPE_BOARD = [
+  { type: 'los', name: 'Orison' },
+  { type: 'gefangnis', name: 'Klescher', fee: 50000, turns: 2 },
+  { type: 'freiparken', name: 'Frei Parken' },
+  { type: 'steuer', name: 'Steuer', fee: 30000 },
+  { type: 'ereignis', name: 'Ereignis', fee: 40000 },
+  { type: 'grundstueck', name: 'Grundstueck A', price: 100000 },
+  { type: 'grundstueck', name: 'Grundstueck B', price: 100000 }
+];
+
+// Team A (idx 0) landet deterministisch auf einem Zielfeld, auf dem die
+// Piraten stehen. Übergebe das Zielfeld-Index.
+function landOnPirateField(fieldIdx, opts) {
+  opts = opts || {};
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { fields: TYPE_BOARD, settings: Object.assign({}, { piratesEnabled: true }, opts.settings) });
+  const pir = pirateOf(g);
+  g.players[0].pos = fieldIdx - 1; // genau 1 Feld vor dem Zielfeld
+  pir.pos = fieldIdx;
+  const before = g.players[0].budget;
+  const res = rollExact(g, 1); // A zieht 1 → landet auf fieldIdx
+  return { g, res, pir, before };
+}
+
+// P1 — Gefängnis-Feld: Piraten dort INAKTIV → KEINE Begegnung (nur Gefängnis-Feld-Effekt).
+test('P1: Pirat auf gefaengnis → Landung löst KEINE Begegnung (nur Gefängnis-Logik)', () => {
+  const { g, res, pir } = landOnPirateField(1);
+  assert.strictEqual(res.to, 1, 'Team landet auf dem Gefängnis-Feld');
+  assert.strictEqual(pir.pos, 1, 'Piraten stehen auf dem Gefängnis-Feld');
+  assert.ok(!res.pirateEncounter, 'KEINE Piraten-Interaktion auf Gefängnis-Feld (P1)');
+  assert.ok(!g.pirateEncounter, 'keine Begegnung gesetzt');
+  assert.strictEqual(g.players[0].jailed, true, 'normale Gefängnis-Logik greift (Team ist im Gefängnis)');
+});
+
+// P4 — Frei-Parken-Feld: Piraten dort INAKTIV → KEINE Begegnung (Frei-Parken-Effekt).
+test('P4: Pirat auf freiparken → Landung löst KEINE Begegnung (Frei-Parken normal)', () => {
+  const { g, res, pir } = landOnPirateField(2);
+  assert.strictEqual(res.to, 2, 'Team landet auf dem Frei-Parken-Feld');
+  assert.strictEqual(pir.pos, 2, 'Piraten stehen auf dem Frei-Parken-Feld');
+  assert.ok(!res.pirateEncounter, 'KEINE Piraten-Interaktion auf Frei-Parken-Feld (P4)');
+  assert.ok(!g.pirateEncounter, 'keine Begegnung gesetzt');
+  assert.deepStrictEqual(res.events, ['Frei Parken'], 'Frei-Parken-Effekt normal');
+});
+
+// P2a — Ereignis-Feld: Begegnung VERDRÄNGT das Ereignis (kein Ereignis-Feld-Effekt).
+test('P2: Pirat auf ereignis → Begegnung statt Ereignis (Ereignis verdrängt)', () => {
+  const { g, res, pir, before } = landOnPirateField(4);
+  assert.strictEqual(res.to, 4, 'Team landet auf dem Ereignis-Feld');
+  assert.strictEqual(pir.pos, 4, 'Piraten stehen auf dem Ereignis-Feld');
+  assert.ok(res.pirateEncounter, 'Begegnung ausgelöst (verdrängt das Ereignis) (P2)');
+  assert.strictEqual(res.turnPassed, false, 'Zug pausiert auf Schutzgeld-Entscheidung');
+  // pay → Schutzgeld abgezogen, ABER KEIN Ereignis-Feld-Effekt (fee 40000 NICHT abgebucht).
+  const r = g.resolvePirateEncounter('pay');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(g.players[0].budget, before - 250000, 'nur Schutzgeld (250000), keine Ereignis-Gebühr (40000)');
+  assert.strictEqual(r.turnPassed, true, 'Zug nach der bezahlten Begegnung beendet');
+  assert.ok(!g.pirateEncounter, 'Begegnung aufgelöst');
+});
+
+// P2b — Ereignis-Feld bei piratesBusy: Ereignis wird GANZ NORMAL getriggert (keine Begegnung).
+test('P2: Pirat auf ereignis + piratesBusy → Ereignis normal (keine Begegnung)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { fields: TYPE_BOARD, settings: { piratesEnabled: true } });
+  const pir = pirateOf(g);
+  g.players[0].pos = 3; pir.pos = 4;
+  // Piraten beschäftigt machen: offener Verdict (oder offene Begegnung eines anderen Teams).
+  g.pirateVerdict = { teamIdx: 1, fee: 250000, caughtFee: 500000 };
+  const before = g.players[0].budget;
+  const res = rollExact(g, 1); // A 3→4 (Ereignis-Feld, Pirat steht dort)
+  assert.strictEqual(res.to, 4);
+  assert.ok(!res.pirateEncounter, 'bei piratesBusy KEINE Begegnung (P2)');
+  assert.ok(!g.pirateEncounter, 'keine Begegnung gesetzt');
+  // Ereignis-Feld-Effekt (fee 40000) läuft NORMAL.
+  assert.strictEqual(g.players[0].budget, before - 40000, 'Ereignis-Gebühr normal abgebucht');
+});
+
+// P3a — Steuer-Feld: BEIDES — Steuer erheben UND Begegnung.
+test('P3: Pirat auf steuer → Steuer + Begegnung BEIDES', () => {
+  const { g, res, pir, before } = landOnPirateField(3);
+  assert.strictEqual(res.to, 3, 'Team landet auf dem Steuer-Feld');
+  assert.strictEqual(pir.pos, 3, 'Piraten stehen auf dem Steuer-Feld');
+  assert.ok(res.pirateEncounter, 'Begegnung ausgelöst (P3)');
+  // pay → Schutzgeld + Steuer werden beide erhoben (250000 + 30000).
+  const r = g.resolvePirateEncounter('pay');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(g.players[0].budget, before - 250000 - 30000, 'Schutzgeld (250000) + Steuer (30000) beide abgebucht');
+  assert.ok(!g.pirateEncounter, 'Begegnung aufgelöst');
+});
+
+// P3b — Steuer-Feld bei piratesBusy: NUR Steuer, KEINE Begegnung.
+test('P3: Pirat auf steuer + piratesBusy → nur Steuer (keine Begegnung)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { fields: TYPE_BOARD, settings: { piratesEnabled: true } });
+  const pir = pirateOf(g);
+  g.players[0].pos = 2; pir.pos = 3;
+  g.pirateVerdict = { teamIdx: 1, fee: 250000, caughtFee: 500000 };
+  const before = g.players[0].budget;
+  const res = rollExact(g, 1); // A 2→3 (Steuer-Feld, Pirat steht dort)
+  assert.strictEqual(res.to, 3);
+  assert.ok(!res.pirateEncounter, 'bei piratesBusy keine Begegnung auf Steuer-Feld (P3)');
+  assert.strictEqual(g.players[0].budget, before - 30000, 'nur die Steuer (30000) wird erhoben');
 });
