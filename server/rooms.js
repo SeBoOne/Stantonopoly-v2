@@ -1762,10 +1762,29 @@ class Rooms {
   }
 
   // Broadcast eines frischen State in den Raum.
+  // (P10) Pro-Socket-Zuschnitt: Der Pirat-Eintrag (st.pirate) wird nur GM-Sockets
+  // (Host/Steuerung des Piraten-Teams) zugestellt; normale Team-Sockets sehen ihn
+  // NICHT (st.pirate = null) — das Piraten-Team bleibt für sie in der Lobby unsichtbar.
+  // Server-authoritativ: wir entscheiden anhand der GM-Socket-Registrierung, nicht anhand
+  // von clientseitigem Zurechtrutschen.
   broadcast(gameId) {
-    const view = this.viewFor(gameId);
-    if (view) this._emit(this._roomOf(gameId), 'state', view);
-    return view;
+    const base = this.viewFor(gameId);
+    if (!base) return null;
+    const room = this._roomOf(gameId);
+    if (!this.io || !this.io.sockets || !this.io.to) {
+      // Fallback ohne Socket-Zugriff (sollte nicht eintreten): shared View wie früher.
+      this._emit(room, 'state', base);
+      return base;
+    }
+    const sockList = this.io.sockets.sockets;
+    sockList.forEach((sock) => {
+      if (!sock || !sock.rooms || !sock.rooms.has(room)) return;
+      const isGm = this._isGmSocket(gameId, sock.id);
+      // Kopie mit gefiltertem Pirat-Status für diesen Empfänger.
+      const payload = Object.assign({}, base, { pirate: isGm ? base.pirate : null });
+      try { sock.emit('state', payload); } catch (e) { /* Socket evtl. abgebaut */ }
+    });
+    return base;
   }
 
   // ------------------------------------------------------------------
