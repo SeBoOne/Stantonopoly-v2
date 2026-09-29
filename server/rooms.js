@@ -116,8 +116,11 @@ function buildView({ gameId, game, teams, leaders }) {
           color: meta.color || '',
           teamName: meta.teamName || p.name || ('Team ' + (i + 1)),
           bankrupt: !!p.bankrupt,
+          // (t_3d729454 P7) Forfeit-Status + echter Wirtschaftsstand im Endresultat.
+          forfeited: !!p.forfeited,
           winner: !!p.winner || (winnerId != null && String(p.id) === String(winnerId)),
-          budget: (typeof p.budget === 'number') ? p.budget : 0
+          budget: (typeof p.budget === 'number') ? p.budget : 0,
+          properties: p.properties || {}
         };
         if (entry.winner) alive.unshift(entry);   // Sieger immer ganz oben
         else if (!p.bankrupt) alive.push(entry);  // aktive Teams danach
@@ -1354,6 +1357,16 @@ class Rooms {
     const teamIdx = this._piOf(engine, me.teamId);
     if (teamIdx < 0 || engine.players[teamIdx].bankrupt) return { error: { code: 'INACTIVE', message: 'Dein Team ist nicht mehr aktiv.' } };
     const memberCount = (dbm.getPlayers(gameId) || []).filter((p) => p.teamId === me.teamId).length;
+
+    // P5: Ein-Einzel-Team (nur 1 Mitglied) → Abstimmung ÜBERSPRUNGEN und sofort
+    // aufgeben (kein Poll, kein Timer, kein Modal). Server-authoritativ.
+    if (memberCount <= 1) {
+      const r = engine.forfeitTeam(teamIdx);
+      if (!r.ok) return { error: { code: 'INACTIVE', message: 'Aufgeben nicht möglich.' } };
+      this.logEngine(gameId, engine, me.name + ' ist allein im Team und gibt SOFORT auf (Einzel-Team, Abstimmung übersprungen).');
+      return this._persistAndReturn(gameId, engine, true);
+    }
+
     const pollMs = (engine.settings && engine.settings.pollMs != null) ? engine.settings.pollMs : 15000;
     engine.forfeitPoll = {
       type: 'forfeit',

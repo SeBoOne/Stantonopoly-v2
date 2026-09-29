@@ -1384,9 +1384,12 @@ const StantonopolyGame = {
     const p = game.players[teamIdx];
     if (!p || p.bankrupt) return { ok: false, reason: 'inactive' };
     p.bankrupt = true;
-    p.budget = 0;
-    p.properties = {};
-    log(game, p.name + ' gibt per Abstimmung auf und scheidet aus (Besitz an die Bank).');
+    // (t_3d729454 P7) Durch Aufgabe ausgeschieden: Das Team fliegt aus der
+    // Sieger-Rotation (bankrupt), aber der ECHTE letzte Wirtschaftsstand
+    // (Rest-Budget + Liegenschaften) bleibt für das Endresultat erhalten —
+    // es wird NICHT auf 0/leer gesetzt.
+    p.forfeited = true;
+    log(game, p.name + ' gibt per Abstimmung auf und scheidet aus (letzter Stand bleibt für das Endresultat erhalten).');
     checkWin(game);
     return { ok: true };
   },
@@ -1692,6 +1695,10 @@ const StantonopolyGame = {
           properties: p.properties || {},
           ledger: Array.isArray(p.ledger) ? p.ledger : [],
           bankrupt: !!p.bankrupt,
+          // (t_3d729454 P7) Forfeit-Status über Reloads erhalten. Nur bei true
+          // setzen (undefined → Key im JSON weggelassen), damit der
+          // serialize↔deserialize-Round-Trip für normale Spiele exakt stabil bleibt.
+          forfeited: p.forfeited ? true : undefined,
           winner: !!p.winner,
           jailed: !!p.jailed,
           jailTurns: Math.max(0, Math.round(Number(p.jailTurns) || 0)),
