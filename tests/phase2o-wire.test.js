@@ -81,7 +81,7 @@ after(() => {
 async function setupGame() {
   const gm = track(await connect('p2o-gm'));
   const createdP = once(gm, 'gameCreated');
-  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   const ev = await createdP;
 
   const teamLeaders = [];
@@ -201,12 +201,13 @@ test('2o Wire P5: Ausbau bei beliehenem Gruppenfeld → error reason GROUP_MORTG
     e.settings.buildGroupEven = false;
     e.activeIdx = 0;
     e.players[0].budget = 9000000;
-    [1, 4, 7, 11, 12].forEach((fid) => { e.players[0].properties[fid] = { level: 'ALLEIN' }; });
-    e.players[0].properties[1].mortgaged = true;
-    e.players[0].properties[1].mortgagedValue = Math.round(D.mortgage(400000));
+    // v1: weiße Farbgruppe = 11,12.
+    [11, 12].forEach((fid) => { e.players[0].properties[fid] = { level: 'ALLEIN' }; });
+    e.players[0].properties[11].mortgaged = true;
+    e.players[0].properties[11].mortgagedValue = Math.round(D.mortgage(300000));
   });
   const errP = onceErr(teams[0]);
-  teams[0].emit('action:build', { gameId, field: 4 });
+  teams[0].emit('action:build', { gameId, field: 12 });
   const err = await errP;
   assert.strictEqual(err.reason, 'GROUP_MORTGAGED');
   assert.ok(err.notify && err.notify.length > 0);

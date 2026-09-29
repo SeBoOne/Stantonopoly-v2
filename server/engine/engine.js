@@ -513,7 +513,7 @@ const StantonopolyGame = {
     // Felder des gewählten Presets; Fallback auf Standard-Preset.
     const fields = (Array.isArray(config.fields) && config.fields.length)
       ? config.fields.map(normalizeField)
-      : (D.PRESETS['Crusader Cluster'] ? D.PRESETS['Crusader Cluster'].fields.map(normalizeField) : []);
+      : (D.PRESETS['Stantonopoly v1'] ? D.PRESETS['Stantonopoly v1'].fields.map(normalizeField) : []);
 
     const players = (config.players || []).map((p) => {
       return {
@@ -546,7 +546,7 @@ const StantonopolyGame = {
     if (mergedSettings.piratesEnabled) {
       const fieldsLen = (Array.isArray(config.fields) && config.fields.length)
         ? config.fields.length
-        : (D.PRESETS['Crusader Cluster'] ? D.PRESETS['Crusader Cluster'].fields.length : 16);
+        : (D.PRESETS['Stantonopoly v1'] ? D.PRESETS['Stantonopoly v1'].fields.length : 16);
       const startPos = Math.min(players.length, Math.max(0, Math.floor(fieldsLen / 2)));
       players.push({
           id: 'PIRATES',
@@ -1791,7 +1791,7 @@ const StantonopolyGame = {
     const game = {
       data: data,
       fields: Array.isArray(raw.fields) ? raw.fields.map(normalizeField)
-        : (D.PRESETS['Crusader Cluster'] ? D.PRESETS['Crusader Cluster'].fields.map(normalizeField) : []),
+        : (D.PRESETS['Stantonopoly v1'] ? D.PRESETS['Stantonopoly v1'].fields.map(normalizeField) : []),
       players: raw.players.map(function (p) {
         const pirFlag = !!(p.isPirate || p.role === 'pirate');
         const o = {

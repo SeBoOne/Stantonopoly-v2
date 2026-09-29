@@ -335,7 +335,7 @@
     ];
 
     let presetList = [];          // [{name, builtin}]
-    let currentPresetName = 'Crusader Cluster';
+    let currentPresetName = 'Stantonopoly v1';
     // (P4) Manager-Status: null solange nicht als Manager authentifiziert.
     // Der Server erzwingt permanent-Speichern nur mit gültigem Manager-Code (socket.data.managerName).
     let managerName = null;
@@ -542,7 +542,7 @@
       const sel = $('cfg-preset');
       if (!sel) return;
       sel.innerHTML = '';
-      (presetList.length ? presetList : [{ name: 'Crusader Cluster', builtin: 1 }]).forEach((p) => {
+      (presetList.length ? presetList : [{ name: 'Stantonopoly v1', builtin: 1 }]).forEach((p) => {
         const opt = document.createElement('option');
         opt.value = p.name;
         opt.textContent = p.name + (p.builtin ? ' (Standard)' : '');
@@ -762,7 +762,7 @@
       renderFieldEditor();
       syncLevelNameInputs();
       syncSettingsInputs();
-      editorSetName('Crusader Cluster');
+      editorSetName('Stantonopoly v1');
       socket.emit('preset:list', {});
       // (P4) Manager-Modus: ohne Manager-Code sind Save/New/Delete im Standardmodus
       // ausgeblendet (nur temporäre Bearbeitung für das aktuelle Spiel möglich).
@@ -821,7 +821,7 @@
       // Events
       const sel = $('cfg-preset');
       if (sel) sel.addEventListener('change', () => {
-        const name = sel.value || 'Crusader Cluster';
+        const name = sel.value || 'Stantonopoly v1';
         editorSetName(name);
         const p = presetList.find((x) => x.name === name);
         if (p && Array.isArray(p.fields) && p.fields.length) {
@@ -970,7 +970,7 @@
       const capital = numVal('cfg-capital', 1000000);
       // (2i #3) GM-Anzeigename (default 'GM')
       const gmName = (($('cfg-gmname') || {}).value || '').trim().slice(0, 40) || 'GM';
-            const preset = strVal('cfg-preset', 'crusader-cluster');
+            const preset = strVal('cfg-preset', 'stantonopoly-v1');
             // Spielregeln-Settings: übernehmen falls von Default abweichend
             readSettingsInputs();
             // (2h#5/#6) Würfelmodus + Zug-Timer kommen aus dem Preset-Editor (Settings-Gruppen),

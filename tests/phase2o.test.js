@@ -35,7 +35,7 @@ function rollExact(game, value) {
   return game.roll();
 }
 
-const GROUP0 = [1, 4, 7, 11, 12]; // band0 (Preis ≤ 400k)
+const GROUP0 = [11, 12]; // v1 weiße Farbgruppe
 
 // ---------------------------------------------------------------------
 // P4: Beliehenes Feld kassiert KEINE Miete
@@ -142,20 +142,20 @@ test('2o P8: unausgebautes Feld verkaufen bleibt erlaubt (Regression)', () => {
 test('2o P5: beliehenes Gruppenfeld → kein Ausbau anderer Gruppenfelder', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: false } });
   GROUP0.forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
-  // Feld 1 beleihen (unausgebaut, ohne Gruppen-Bau → keine GROUP_NOT_DEMOLISHED-Sperre).
-  g.players[0].properties[1].mortgaged = true;
-  g.players[0].properties[1].mortgagedValue = Math.round(D.mortgage(400000));
-  const r = g.build(4);
+  // Feld 11 beleihen (unausgebaut, ohne Gruppen-Bau → keine GROUP_NOT_DEMOLISHED-Sperre).
+  g.players[0].properties[11].mortgaged = true;
+  g.players[0].properties[11].mortgagedValue = Math.round(D.mortgage(300000));
+  const r = g.build(12);
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.reason, 'GROUP_MORTGAGED');
   assert.ok(r.notify && r.notify.length > 0, 'notify-Satz vorhanden');
-  assert.strictEqual(g.players[0].properties[4].level, 'ALLEIN', 'Feld 4 bleibt unausgebaut');
+  assert.strictEqual(g.players[0].properties[12].level, 'ALLEIN', 'Feld 12 bleibt unausgebaut');
 });
 
 test('2o P5: ohne Beliehenheit in der Gruppe ist Ausbau erlaubt (Regression)', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: false } });
   GROUP0.forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
-  assert.strictEqual(g.build(4), true, 'ohne beliehenes Gruppenfeld bauen ok');
+  assert.strictEqual(g.build(12), true, 'ohne beliehenes Gruppenfeld bauen ok');
 });
 
 // ---------------------------------------------------------------------
@@ -164,9 +164,9 @@ test('2o P5: ohne Beliehenheit in der Gruppe ist Ausbau erlaubt (Regression)', (
 test('2o P5: Hypothek auf Gruppenfeld mit ausgebautem Nachbar → abgelehnt (GROUP_NOT_DEMOLISHED)', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: false } });
   GROUP0.forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
-  g.build(1); // Feld 1 auf CYCLONE
-  assert.strictEqual(g.players[0].properties[1].level, 'CYCLONE');
-  const r = g.mortgage(4); // anderes Gruppenfeld beleihen
+  g.build(11); // Feld 11 auf CYCLONE
+  assert.strictEqual(g.players[0].properties[11].level, 'CYCLONE');
+  const r = g.mortgage(12); // anderes Gruppenfeld beleihen
   assert.strictEqual(r.ok, false);
   assert.strictEqual(r.reason, 'GROUP_NOT_DEMOLISHED');
   assert.ok(r.notify && r.notify.length > 0);
@@ -175,7 +175,7 @@ test('2o P5: Hypothek auf Gruppenfeld mit ausgebautem Nachbar → abgelehnt (GRO
 test('2o P5: Hypothek auf Gruppenfeld erlaubt, wenn alle Gebäude der Gruppe abgebaut', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: false } });
   GROUP0.forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
-  assert.strictEqual(g.mortgage(4).ok, true, 'bei komplett abgebauter Gruppe ok');
+  assert.strictEqual(g.mortgage(12).ok, true, 'bei komplett abgebauter Gruppe ok');
 });
 
 // ---------------------------------------------------------------------

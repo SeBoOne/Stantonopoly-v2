@@ -68,7 +68,7 @@ function waitError(client, code, timeoutMs = 4000) {
 
 async function createGame(client, teams = 2) {
   const createdP = once(client, 'gameCreated');
-  client.emit('gm:create', { config: { teams, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  client.emit('gm:create', { config: { teams, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   return createdP;
 }
 
@@ -247,7 +247,7 @@ test('2k p5b: engine normalizeField überträgt group nur für Grundstücke; dat
 test('2k pX: Vollfa. createGame mit 3 Teams, Leader-Vote, GM-Transfer, GM-Leave danach erlaubt', async () => {
   const gm = track(await connect('px-gm'));
   const createdP = once(gm, 'gameCreated');
-  gm.emit('gm:create', { config: { teams: 3, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  gm.emit('gm:create', { config: { teams: 3, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   const ev = await createdP;
   assert.equal(ev.tokens.length, 3, '3 Team-Tokens');
 
@@ -308,7 +308,7 @@ test('2k pX: Vollfa. createGame mit 3 Teams, Leader-Vote, GM-Transfer, GM-Leave 
 test('2k pXb: Spieler-Verlassen → Leader-Nachfolge (resolveTeamLeader) verwaltet', async () => {
   const gm = track(await connect('pxb-gm'));
   const createdP = once(gm, 'gameCreated');
-  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   const ev = await createdP;
 
   const players = {};

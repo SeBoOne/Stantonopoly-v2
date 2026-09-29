@@ -10,7 +10,7 @@ const assert = require('node:assert');
 
 const D = require('../server/engine/data.js');
 const G = require('../server/engine/engine.js');
-const FIELDS = D.PRESETS['Crusader Cluster'].fields;
+const FIELDS = D.PRESETS['Stantonopoly v1'].fields;
 
 // Deterministischer Würfel: 'frei'-Konfig mit festem freeValue.
 function makeGame(players, opts) {
@@ -198,36 +198,36 @@ test('Kaufentscheidung: buy() kauft, skip() lässt offen', () => {
 // ---------------------------------------------------------------------
 test('Ausbau: stufenweise, gleichmäßig in der Farbgruppe (Monopoly-Bauregel), Armistice nur bei Aktivierung', () => {
   const g = makeGame([{ name: 'A' }], { armistice: false, capital: 9000000 });
-  g.players[0].pos = 1;
+  g.players[0].pos = 11;
   rollExact(g, 0);
   g.buy();
   // (2g#12) Monopoly-Bauregel: Ausbau nur in der ganzen Farbgruppe im selben
-  // Besitz (band0 = 1,4,7,11,12) und gleichmäßig (max − min ≤ 1 Stufe).
-  const GROUP = [1, 4, 7, 11, 12];
-  [4, 7, 11, 12].forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
-  // Einseitiger Ausbau: nur Feld 1 eine Stufe hoch ist erlaubt (Differenz 1) …
-  assert.strictEqual(g.build(1), true, 'erster Ausbau ok (Farbgruppe im Besitz)');
+  // Besitz (v1: weiße Gruppe = 11,12) und gleichmäßig (max − min ≤ 1 Stufe).
+  const GROUP = [11, 12];
+  [12].forEach((fid) => { g.players[0].properties[fid] = { level: 'ALLEIN' }; });
+  // Einseitiger Ausbau: nur Feld 11 eine Stufe hoch ist erlaubt (Differenz 1) …
+  assert.strictEqual(g.build(11), true, 'erster Ausbau ok (Farbgruppe im Besitz)');
   // … aber eine Lücke (>1 über der schwächsten Stufe der Gruppe) wird abgelehnt.
-  assert.strictEqual(g.build(1), false, 'Lücke abgelehnt: keine Stufe >1 über der schwächsten der Farbgruppe');
+  assert.strictEqual(g.build(11), false, 'Lücke abgelehnt: keine Stufe >1 über der schwächsten der Farbgruppe');
   // Gleichmäßig nachziehen: Rest der Gruppe auf CYCLONE, dann alle auf STORM, dann BALLISTA.
-  [4, 7, 11, 12].forEach((fid) => { assert.strictEqual(g.build(fid), true, 'CYCLONE Feld ' + fid); });
+  [12].forEach((fid) => { assert.strictEqual(g.build(fid), true, 'CYCLONE Feld ' + fid); });
   ['STORM', 'BALLISTA'].forEach((lvl) => {
     GROUP.forEach((fid) => { assert.strictEqual(g.build(fid), true, lvl + ' Feld ' + fid); });
   });
-  assert.strictEqual(g.players[0].properties[1].level, 'BALLISTA');
-  assert.strictEqual(g.build(1), false, 'Armistice deaktiviert → kein weiterer Ausbau');
+  assert.strictEqual(g.players[0].properties[11].level, 'BALLISTA');
+  assert.strictEqual(g.build(11), false, 'Armistice deaktiviert → kein weiterer Ausbau');
 
   const g2 = makeGame([{ name: 'A' }], { armistice: true, capital: 9000000 });
-  g2.players[0].pos = 1;
+  g2.players[0].pos = 11;
   rollExact(g2, 0);
   g2.buy();
-  [4, 7, 11, 12].forEach((fid) => { g2.players[0].properties[fid] = { level: 'ALLEIN' }; });
+  [12].forEach((fid) => { g2.players[0].properties[fid] = { level: 'ALLEIN' }; });
   ['CYCLONE', 'STORM', 'BALLISTA'].forEach((lvl) => {
     GROUP.forEach((fid) => { assert.strictEqual(g2.build(fid), true, lvl + ' Feld ' + fid); });
   });
   GROUP.forEach((fid) => { assert.strictEqual(g2.build(fid), true, 'Armistice aktiviert → Endstufe (ARMISTICE) Feld ' + fid); });
-  assert.strictEqual(g2.players[0].properties[1].level, 'ARMISTICE');
-  assert.strictEqual(g2.build(1), false, 'Cap erreicht');
+  assert.strictEqual(g2.players[0].properties[11].level, 'ARMISTICE');
+  assert.strictEqual(g2.build(11), false, 'Cap erreicht');
 });
 
 // ---------------------------------------------------------------------
@@ -256,8 +256,8 @@ test('Setup-Constraints: MIN_TEAMS=2, MAX_TEAMS=8', () => {
   assert.strictEqual(D.MAX_TEAMS, 8);
 });
 
-test('Preset "Crusader Cluster": 16 Felder, Orison LOS, Ereignis auf Index 6', () => {
-  const p = D.PRESETS['Crusader Cluster'];
+test('Preset "Stantonopoly v1": 16 Felder, Orison LOS, Ereignis auf Index 6', () => {
+  const p = D.PRESETS['Stantonopoly v1'];
   assert.strictEqual(p.fields.length, 16);
   assert.strictEqual(p.fields[0].type, 'los');
   assert.strictEqual(p.fields[0].name, 'Orison');
@@ -284,9 +284,8 @@ test('Farbgruppen: Preisbänder decken 300k/400k/500k/600k ab', () => {
 // Runde 2m — P13/P14: Monopoly-Bauregel in zwei Regeln; gleichmäßiger
 // Aus- UND Abbau symmetrisch.
 // =====================================================================
-// Crusader Cluster: Grundstücke der günstigeren Bänder (band0) sind
-// 1, 4, 7, 11, 12 (Preis ≤ 400k).
-const GROUP0 = [1, 4, 7, 11, 12];
+// Stantonopoly v1: die weiße Farbgruppe ist 11, 12 (Terra Mills + Gallete Farms).
+const GROUP0 = [11, 12];
 
 function ownWholeGroup(game, playerIdx, groupIds) {
   groupIds.forEach((fid) => { game.players[playerIdx].properties[fid] = { level: 'ALLEIN' }; });
@@ -294,66 +293,65 @@ function ownWholeGroup(game, playerIdx, groupIds) {
 
 test('2m P13: Besitzregel AUS + Gleichmäßig AUS → einzeln ohne Gruppen-Zwang bauen', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: false, buildGroupEven: false } });
-  g.players[0].pos = 1; rollExact(g, 0); g.buy();
-  // Nur Feld 1 besessen — ohne Besitzregel darf darauf trotzdem gebaut werden.
-  assert.strictEqual(g.build(1), true, 'ohne Gruppen-Regeln einzeln bauen ok');
-  assert.strictEqual(g.players[0].properties[1].level, 'CYCLONE');
+  g.players[0].pos = 11; rollExact(g, 0); g.buy();
+  // Nur Feld 11 besessen — ohne Besitzregel darf darauf trotzdem gebaut werden.
+  assert.strictEqual(g.build(11), true, 'ohne Gruppen-Regeln einzeln bauen ok');
+  assert.strictEqual(g.players[0].properties[11].level, 'CYCLONE');
   // ... und sogar einseitig weiter (keine Gleichmäßig-Pflicht).
-  assert.strictEqual(g.build(1), true);
-  assert.strictEqual(g.build(1), true);
-  assert.strictEqual(g.players[0].properties[1].level, 'BALLISTA');
+  assert.strictEqual(g.build(11), true);
+  assert.strictEqual(g.build(11), true);
+  assert.strictEqual(g.players[0].properties[11].level, 'BALLISTA');
 });
 
 test('2m P13: Besitzregel AN + Gleichmäßig AUS → ganze Gruppe nötig, aber ungleichmäßig erlaubt', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: false } });
-  g.players[0].pos = 1; rollExact(g, 0); g.buy();
+  g.players[0].pos = 11; rollExact(g, 0); g.buy();
   // Ohne Rest der Gruppe: Ausbau abgelehnt (Besitzregel).
-  assert.strictEqual(g.build(1), false, 'ohne ganze Gruppe abgelehnt (Besitzregel)');
+  assert.strictEqual(g.build(11), false, 'ohne ganze Gruppe abgelehnt (Besitzregel)');
   ownWholeGroup(g, 0, GROUP0);
-  // Ausbau jetzt erlaubt, und einseitig auf Feld 1 weiter (Gleichmäßig ist AUS).
-  assert.strictEqual(g.build(1), true, 'mit voller Gruppe bauen ok');
-  assert.strictEqual(g.build(1), true, 'ungleichmäßig erlaubt (Gleichmäßig AUS)');
-  assert.strictEqual(g.players[0].properties[1].level, 'STORM');
-  assert.strictEqual(g.players[0].properties[4].level, 'ALLEIN', 'Rest der Gruppe bleibt Standard');
+  // Ausbau jetzt erlaubt, und einseitig auf Feld 11 weiter (Gleichmäßig ist AUS).
+  assert.strictEqual(g.build(11), true, 'mit voller Gruppe bauen ok');
+  assert.strictEqual(g.build(11), true, 'ungleichmäßig erlaubt (Gleichmäßig AUS)');
+  assert.strictEqual(g.players[0].properties[11].level, 'STORM');
+  assert.strictEqual(g.players[0].properties[12].level, 'ALLEIN', 'Rest der Gruppe bleibt Standard');
 });
 
 test('2m P13: Besitz + Gleichmäßig AN → ganzer Besitz UND gleichmäßig', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: true } });
-  g.players[0].pos = 1; rollExact(g, 0); g.buy();
-  assert.strictEqual(g.build(1), false, 'ohne Gruppe abgelehnt');
+  g.players[0].pos = 11; rollExact(g, 0); g.buy();
+  assert.strictEqual(g.build(11), false, 'ohne Gruppe abgelehnt');
   ownWholeGroup(g, 0, GROUP0);
-  assert.strictEqual(g.build(1), true, 'erster Ausbau (Differenz 1)');
-  // Lücke: einseitig nochmal auf Feld 1 → Differenz 2 über dem Rest → abgelehnt.
-  assert.strictEqual(g.build(1), false, 'Lücke abgelehnt (gleichmäßig)');
+  assert.strictEqual(g.build(11), true, 'erster Ausbau (Differenz 1)');
+  // Lücke: einseitig nochmal auf Feld 11 → Differenz 2 über dem Rest → abgelehnt.
+  assert.strictEqual(g.build(11), false, 'Lücke abgelehnt (gleichmäßig)');
   // Rest der Gruppe nachziehen → dann wieder bauen möglich.
-  [4, 7, 11, 12].forEach((fid) => assert.strictEqual(g.build(fid), true, 'CYCLONE Feld ' + fid));
-  assert.strictEqual(g.build(1), true, 'nach gleichmäßig Nachziehen weiter bauen');
+  [12].forEach((fid) => assert.strictEqual(g.build(fid), true, 'CYCLONE Feld ' + fid));
+  assert.strictEqual(g.build(11), true, 'nach gleichmäßig Nachziehen weiter bauen');
 });
 
 test('2m P14: Gleichmäßige-Regel gilt AUCH beim Abbau', () => {
   const g = makeGame([{ name: 'A' }], { capital: 9000000, settings: { buildGroupOwnership: true, buildGroupEven: true } });
-  g.players[0].pos = 1; rollExact(g, 0); g.buy();
+  g.players[0].pos = 11; rollExact(g, 0); g.buy();
   ownWholeGroup(g, 0, GROUP0);
-  // Alle auf CYCLONE, dann Feld 1 auf STORM (Differenz 1 — erlaubt).
-  [1, 4, 7, 11, 12].forEach((fid) => g.build(fid));
-  g.build(1); // Feld 1 → STORM
-  assert.strictEqual(g.players[0].properties[1].level, 'STORM');
-  const mix = ['CYCLONE', 'STORM', 'CYCLONE', 'CYCLONE', 'CYCLONE'].map((lv, i) => lv);
+  // Alle auf CYCLONE, dann Feld 11 auf STORM (Differenz 1 — erlaubt).
+  [11, 12].forEach((fid) => g.build(fid));
+  g.build(11); // Feld 11 → STORM
+  assert.strictEqual(g.players[0].properties[11].level, 'STORM');
   // Sanity: Differenz 1 → Abbau des höchsten Feldes erlaubt.
-  const r1 = g.demolish(1);
+  const r1 = g.demolish(11);
   assert.equal(r1.ok, true, 'höchstes Feld abbauen ok (nach Abbau Differenz 0)');
-  assert.strictEqual(g.players[0].properties[1].level, 'CYCLONE');
+  assert.strictEqual(g.players[0].properties[11].level, 'CYCLONE');
   // Alle wieder gleich CYCLONE; dann REST der Gruppe auf ALLEIN ziehen ist verboten,
   // weil Differenz 2 entstünde — das höchste Feld zuerst entfernen geht nicht tiefer.
-  g.build(1); // zurück nach STORM? Nein — build(1) von CYCLONE→STORM ok (Differenz 1).
-  assert.strictEqual(g.players[0].properties[1].level, 'STORM');
-  // Ein mittleres Feld (4) von CYCLONE auf ALLEIN abzubauen → Differenz 2 (STORM vs ALLEIN) → abgelehnt.
-  const r2 = g.demolish(4);
+  g.build(11); // zurück nach STORM? Nein — build(11) von CYCLONE→STORM ok (Differenz 1).
+  assert.strictEqual(g.players[0].properties[11].level, 'STORM');
+  // Ein mittleres Feld (12) von CYCLONE auf ALLEIN abzubauen → Differenz 2 (STORM vs ALLEIN) → abgelehnt.
+  const r2 = g.demolish(12);
   assert.equal(r2.ok, false, 'ungleichmäßiges Abreißen abgelehnt (even_demolish)');
-  assert.strictEqual(g.players[0].properties[4].level, 'CYCLONE', 'Feld 4 bleibt CYCLONE');
-  // Aber wenn Feld 1 zuerst auf CYCLONE abgebaut wird (gleichmäßig), dann ist alles einheitlich.
-  assert.equal(g.demolish(1).ok, true, 'Feld 1 abbauen → alles CYCLONE (Differenz 0)');
-  // Jetzt einheitlich: Abbau von 4 auf ALLEIN → Differenz 1 → erlaubt.
-  const r3 = g.demolish(4);
+  assert.strictEqual(g.players[0].properties[12].level, 'CYCLONE', 'Feld 12 bleibt CYCLONE');
+  // Aber wenn Feld 11 zuerst auf CYCLONE abgebaut wird (gleichmäßig), dann ist alles einheitlich.
+  assert.equal(g.demolish(11).ok, true, 'Feld 11 abbauen → alles CYCLONE (Differenz 0)');
+  // Jetzt einheitlich: Abbau von 12 auf ALLEIN → Differenz 1 → erlaubt.
+  const r3 = g.demolish(12);
   assert.equal(r3.ok, true, 'im Gleichstand angrenzend abbauen ok');
 });

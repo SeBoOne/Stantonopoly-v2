@@ -138,7 +138,7 @@ after(() => {
 test('2m-A Wire: laufendes Spiel wird nach Inaktivität automatisch pausiert', async () => {
   const gm = track(await connect('p2m-gm'));
   const createdP = once(gm, 'gameCreated');
-  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   const ev = await createdP;
 
   // Je Team ein Spieler beitreten, damit gm:start möglich ist.
@@ -173,7 +173,7 @@ test('2m-A Wire: laufendes Spiel wird nach Inaktivität automatisch pausiert', a
 test('2m-A Wire: lange pausiertes Spiel wird automatisch beendet, Sieger = reichstes Team', async () => {
   const gm = track(await connect('p2m-end-gm'));
   const createdP = once(gm, 'gameCreated');
-  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  gm.emit('gm:create', { config: { teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   const ev = await createdP;
 
   const teamSocks = [];

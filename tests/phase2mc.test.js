@@ -61,7 +61,7 @@ function waitState(client, predicate, timeoutMs = 6000) {
 
 async function createGame(client, teams = 2) {
   const createdP = once(client, 'gameCreated');
-  client.emit('gm:create', { config: { teams, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster' } });
+  client.emit('gm:create', { config: { teams, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1' } });
   return createdP;
 }
 

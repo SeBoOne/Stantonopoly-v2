@@ -146,20 +146,20 @@ test('Preset anlegen / listen / bearbeiten / löschen (builtin geschützt)', asy
   assert.strictEqual(u.data.preset.fields[1].name, 'Testfeld2');
   assert.strictEqual(u.data.preset.fields[1].group, 'blau');
   // Builtin-Löschung verboten
-  const b = await http('DELETE', '/admin/presets/' + encodeURIComponent('Crusader Cluster'), undefined, token);
+  const b = await http('DELETE', '/admin/presets/' + encodeURIComponent('Stantonopoly v1'), undefined, token);
   assert.strictEqual(b.status, 403, 'builtin 403');
   // Builtin jetzt überschreibbar (builtin-Flag bleibt) — Standard anpassbar
-  const savedBuiltin = await http('POST', '/admin/presets', { name: 'Crusader Cluster', fields }, token);
+  const savedBuiltin = await http('POST', '/admin/presets', { name: 'Stantonopoly v1', fields }, token);
   assert.strictEqual(savedBuiltin.status, 200, 'builtin überschreiben erlaubt');
   assert.strictEqual(savedBuiltin.data.preset.builtin, true, 'builtin-Flag bleibt gesetzt');
   assert.strictEqual(savedBuiltin.data.preset.fields[1].name, 'Testfeld', 'builtin-Felder übernommen');
   // Deaktivieren/Aktivieren (statt löschen, builtin-freundlich)
-  const dis = await http('POST', '/admin/presets/' + encodeURIComponent('Crusader Cluster') + '/set-enabled', { enabled: false }, token);
+  const dis = await http('POST', '/admin/presets/' + encodeURIComponent('Stantonopoly v1') + '/set-enabled', { enabled: false }, token);
   assert.strictEqual(dis.status, 200);
   assert.strictEqual(dis.data.enabled, false);
-  const afterDis = (await http('GET', '/admin/presets', undefined, token)).data.presets.find((p) => p.name === 'Crusader Cluster');
+  const afterDis = (await http('GET', '/admin/presets', undefined, token)).data.presets.find((p) => p.name === 'Stantonopoly v1');
   assert.strictEqual(afterDis.enabled, false, 'Preset deaktiviert');
-  const re = await http('POST', '/admin/presets/' + encodeURIComponent('Crusader Cluster') + '/set-enabled', { enabled: true }, token);
+  const re = await http('POST', '/admin/presets/' + encodeURIComponent('Stantonopoly v1') + '/set-enabled', { enabled: true }, token);
   assert.strictEqual(re.data.enabled, true, 'wieder aktiviert');
   // Löschen (eigen) ok
   const d = await http('DELETE', '/admin/presets/' + encodeURIComponent(name), undefined, token);

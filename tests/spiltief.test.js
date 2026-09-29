@@ -97,7 +97,7 @@ async function setupGame(prefix) {
   const createdP = once(gm, 'gameCreated');
   gm.emit('gm:create', {
     config: {
-      teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Crusader Cluster'
+      teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false, preset: 'Stantonopoly v1'
     }
   });
   const ev = await createdP;
@@ -509,9 +509,9 @@ test('Spieltieftest 4: Ausbau über alle Stufen', async () => {
   if (Object.keys(myProps).length === 0) {
     console.log('Kein eigenes Grundstück zum Ausbauen vorhanden.');
     /* Wir können trotzdem prüfen: Baukosten-Tabelle für jedes Feld im Preset */
-    console.log('Build-cost verification for Crusader Cluster preset:');
+    console.log('Build-cost verification for Stantonopoly v1 preset:');
     const D = require(path.join(__dirname, '..', 'server', 'engine', 'data.js'));
-    for (const fld of D.PRESETS['Crusader Cluster'].fields) {
+    for (const fld of D.PRESETS['Stantonopoly v1'].fields) {
       if (fld.type === 'grundstueck') {
         const prices = {};
         for (const lvl of ['CYCLONE', 'STORM', 'BALLISTA']) {

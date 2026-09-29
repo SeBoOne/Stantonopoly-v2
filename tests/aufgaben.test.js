@@ -19,7 +19,7 @@ const assert = require('node:assert');
 
 const D = require('../server/engine/data.js');
 const G = require('../server/engine/engine.js');
-const FIELDS = D.PRESETS['Crusader Cluster'].fields;
+const FIELDS = D.PRESETS['Stantonopoly v1'].fields;
 
 function makeGame(players, opts) {
   opts = opts || {};

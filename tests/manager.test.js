@@ -108,7 +108,7 @@ test('P4a: preset:save/prest:delete verweigert ohne Manager (FORBIDDEN)', async 
   assert.ok(!dbm.getPreset('anon-test'), 'kein Preset angelegt');
   // Delete ebenso
   const errD = once(c, 'error').catch(() => ({}));
-  c.emit('preset:delete', { name: 'Crusader Cluster' });
+  c.emit('preset:delete', { name: 'Stantonopoly v1' });
   const ed = await errD;
   assert.strictEqual(ed.code, 'FORBIDDEN');
   c.disconnect(true);
@@ -173,7 +173,7 @@ test('P4b: manager:auth → save ok; builtin per Socket NIE überschreibbar; Log
 
   // builtin per Socket NICHT überschreiben (nur Admin)
   const e3 = once(c, 'error').catch(() => ({}));
-  c.emit('preset:save', { name: 'Crusader Cluster', fields: [{ type: 'los', name: 'MUTED' }] });
+  c.emit('preset:save', { name: 'Stantonopoly v1', fields: [{ type: 'los', name: 'MUTED' }] });
   const e3r = await e3;
   assert.strictEqual(e3r.code, 'FORBIDDEN', 'builtin nur über Admin');
 

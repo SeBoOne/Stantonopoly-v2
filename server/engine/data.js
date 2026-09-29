@@ -225,26 +225,36 @@ const StantonopolyData = {
 
   // Karten-Presets; Reihenfolge der fields: Index 0-15 (id = Index)
   PRESETS: {
-    'Crusader Cluster': {
-      name: 'Crusader Cluster',
-      levelNames: Object.assign({}, DEFAULT_LEVEL_NAMES),
+    // Default-Preset: Stantonopoly v1 (ersetzt "Crusader Cluster").
+    // Felder tragen die Farbgruppe (group) — `tabelle` (Mietstufen) wird in
+    // normalizeField automatisch aus dem Preis ergänzt.
+    'Stantonopoly v1': {
+      name: 'Stantonopoly v1',
+      levelNames: {
+        ALLEIN: 'Standard',
+        CYCLONE: 'Cyclone AA',
+        STORM: 'Storm AA',
+        BALLISTA: 'Ballista',
+        ARMISTICE: 'Armistice Zone'
+      },
+      settings: { bankSellEnabled: false, tasksEnabled: true },
       fields: [
-        { type: 'los', name: 'Orison' },                                    // 0
-        { type: 'grundstueck', name: 'Seraphim', price: 400000, tabelle: tabelleFor(400000) },                        // 1
-        { type: 'grundstueck', name: 'Shubin Mining SCD-1', price: 500000, tabelle: tabelleFor(500000) },           // 2
-        { type: 'grundstueck', name: 'Kudre Ore', price: 500000, tabelle: tabelleFor(500000) },                     // 3
-        { type: 'grundstueck', name: 'Brios Breaker Yard', price: 400000, tabelle: tabelleFor(400000) },            // 4
-        { type: 'grundstueck', name: 'Arc Mining 141', price: 500000, tabelle: tabelleFor(500000) },                // 5
-        { type: 'ereignis', name: 'Covalex Hub Gundo', fee: 125000 },                                                      // 6
-        { type: 'grundstueck', name: 'Miner Lament', price: 300000, tabelle: tabelleFor(300000) },                  // 7
-        { type: 'grundstueck', name: 'Grim Hex', price: 500000, tabelle: tabelleFor(500000) },                     // 8
-        { type: 'grundstueck', name: 'NT-999-XX', price: 600000, tabelle: tabelleFor(600000) },                    // 9
-        { type: 'grundstueck', name: 'Deakins Research', price: 500000, tabelle: tabelleFor(500000) },             // 10
-        { type: 'grundstueck', name: 'Terra Mills HydroFarm', price: 300000, tabelle: tabelleFor(300000) },        // 11
-        { type: 'grundstueck', name: 'Gallete Family Farms', price: 300000, tabelle: tabelleFor(300000) },         // 12
-        { type: 'grundstueck', name: 'Hickes Research', price: 500000, tabelle: tabelleFor(500000) },              // 13
-        { type: 'grundstueck', name: 'Security Post Kareah', price: 600000, tabelle: tabelleFor(600000) },         // 14
-        { type: 'grundstueck', name: 'Comm Array ST2-55', price: 600000, tabelle: tabelleFor(600000) }             // 15
+        { type: 'los', name: 'Orison' },                                                        // 0
+        { type: 'grundstueck', name: 'Seraphim', price: 400000, group: 'pink' },                // 1
+        { type: 'grundstueck', name: 'Shubin Mining SCD-1', price: 500000, group: 'gold' },     // 2
+        { type: 'grundstueck', name: 'Kudre Ore', price: 500000, group: 'gold' },               // 3
+        { type: 'grundstueck', name: 'Brios Breaker Yard', price: 400000, group: 'schwarz' },   // 4
+        { type: 'grundstueck', name: 'Arc Mining 141', price: 500000, group: 'gold' },          // 5
+        { type: 'ereignis', name: 'Covalex Hub Gundo', fee: 125000 },                           // 6
+        { type: 'grundstueck', name: 'Miner Lament', price: 300000, group: 'schwarz' },         // 7
+        { type: 'grundstueck', name: 'Grim Hex', price: 500000, group: 'rot' },                 // 8
+        { type: 'grundstueck', name: 'NT-999-XX', price: 600000, group: 'rot' },                // 9
+        { type: 'grundstueck', name: 'Deakins Research', price: 500000, group: 'gruen' },       // 10
+        { type: 'grundstueck', name: 'Terra Mills HydroFarm', price: 300000, group: 'weiss' },  // 11
+        { type: 'grundstueck', name: 'Gallete Family Farms', price: 300000, group: 'weiss' },   // 12
+        { type: 'grundstueck', name: 'Hickes Research', price: 500000, group: 'gruen' },        // 13
+        { type: 'grundstueck', name: 'Security Post Kareah', price: 600000, group: 'blau' },    // 14
+        { type: 'grundstueck', name: 'Comm Array ST2-55', price: 600000, group: 'blau' }         // 15
       ]
     }
   }

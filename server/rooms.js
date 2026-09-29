@@ -100,7 +100,7 @@ function buildView({ gameId, game, teams, leaders }) {
     over: game.over,
     winnerInfo: game.winnerInfo,
     // fields kommen aus der Serialisierung (Preset-Felder je Spiel) — Fallback:
-    fields: (game.fields && game.fields.length) ? game.fields : (G.D.PRESETS['Crusader Cluster'].fields || [])
+    fields: (game.fields && game.fields.length) ? game.fields : (G.D.PRESETS['Stantonopoly v1'].fields || [])
   } : null;
 
   let presetName = 'Eigene Karte';
@@ -534,7 +534,7 @@ class Rooms {
         const dbPreset = dbm.getPreset(presetName);
         fieldsSource = dbPreset ? dbPreset.fields : null;
       }
-      if (!fieldsSource) fieldsSource = D.PRESETS['Crusader Cluster'].fields;
+      if (!fieldsSource) fieldsSource = D.PRESETS['Stantonopoly v1'].fields;
     }
     // levelNames für die Ausbaustufen: bevorzugt vom Client (Preset-Editor),
     // sonst vom gewählten Preset (builtin oder DB), sonst Default.
@@ -569,7 +569,7 @@ class Rooms {
     // Spielname: gewählter Preset-Name oder Default (für Spieleliste/Fortsetzen).
     const gameName = (config.gameName && String(config.gameName).trim())
       ? String(config.gameName).trim()
-      : ((config.preset && (D.PRESETS[config.preset] || dbm.getPreset(config.preset))) ? config.preset : 'Crusader Cluster');
+      : ((config.preset && (D.PRESETS[config.preset] || dbm.getPreset(config.preset))) ? config.preset : 'Stantonopoly v1');
     dbm.createGame({ gameId, gmCode, state: engine.serialize(), started: 0, over: 0, name: gameName, gmName });
 
     sock.join(this._roomOf(gameId));
