@@ -122,14 +122,114 @@
                 <label class="levelnames-row"><span class="t-lbl">Stufe 3</span><input id="ad-lvl-STORM" type="text" maxlength="24" /></label>
                 <label class="levelnames-row"><span class="t-lbl">Stufe 4</span><input id="ad-lvl-BALLISTA" type="text" maxlength="24" /></label>
                 <label class="levelnames-row"><span class="t-lbl">Stufe 5 (Armistice)</span><input id="ad-lvl-ARMISTICE" type="text" maxlength="24" /></label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+                              </div>
+                            </div>
+                            <div class="settings-editor">
+                              <div class="settings-head">Spielregeln <span class="hint">(Multiplikatoren in %, z. B. 50 = 0,50)</span></div>
+                              <div class="settings-grid">
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Mietstufen</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row"><span class="t-lbl">Miete Stufe 1</span><input id="ad-s-rent-ALLEIN" type="number" min="0" step="1" placeholder="10" title="Basis-Miete pro Zug auf unverbauten Grundstücken (10 = 10 % des Kaufpreises)" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Miete Stufe 2</span><input id="ad-s-rent-CYCLONE" type="number" min="0" step="1" placeholder="50" title="Anteil des Kaufpreises, den der Besitzer von einem Besucher pro Zug kassiert, wenn das Feld Stufe 2 (Cyclone) erreicht ist (50 = 50 %)" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Miete Stufe 3</span><input id="ad-s-rent-STORM" type="number" min="0" step="1" placeholder="100" title="Anteil des Kaufpreises bei Stufe 3 (Storm) — der Besucher zahlt diesen Prozentsatz pro Zug (100 = 100 %)" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Miete Stufe 4</span><input id="ad-s-rent-BALLISTA" type="number" min="0" step="1" placeholder="200" title="Anteil des Kaufpreises bei Stufe 4 (Ballista) — der Besucher zahlt diesen Prozentsatz pro Zug (200 = 200 %)" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Miete Stufe 5</span><input id="ad-s-rent-ARMISTICE" type="number" min="0" step="1" placeholder="300" title="Anteil des Kaufpreises bei Stufe 5 (Armistice) — der Besucher zahlt diesen Prozentsatz pro Zug (300 = 300 %)" /></label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Baukosten</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row"><span class="t-lbl">Bau Stufe 2</span><input id="ad-s-build-CYCLONE" type="number" min="0" step="1" placeholder="25" title="Kosten in aUEC, um ein Grundstück von Stufe 1 auf Stufe 2 (Cyclone) auszubauen" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Bau Stufe 3</span><input id="ad-s-build-STORM" type="number" min="0" step="1" placeholder="50" title="Kosten in aUEC, um ein Grundstück von Stufe 2 auf Stufe 3 (Storm) auszubauen" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Bau Stufe 4</span><input id="ad-s-build-BALLISTA" type="number" min="0" step="1" placeholder="100" title="Kosten in aUEC, um ein Grundstück von Stufe 3 auf Stufe 4 (Ballista) auszubauen" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Bau Stufe 5</span><input id="ad-s-build-ARMISTICE" type="number" min="0" step="1" placeholder="150" title="Kosten in aUEC, um ein Grundstück von Stufe 4 auf Stufe 5 (Armistice) auszubauen" /></label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Hypothek &amp; Entlastung</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row"><span class="t-lbl">Hypothek (Anteil)</span><input id="ad-s-mortgage-mult" type="number" min="0" max="100" step="1" placeholder="75" title="Prozentsatz des Kaufpreises, den man bei einer Hypothek erhält (75 = 75 % des Kaufpreises)" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Entlastung (+% auf Hypothek)</span><input id="ad-s-unmortgage-rate" type="number" min="0" step="1" placeholder="10" title="Zuschlag in % beim Rückkauf einer Hypothek (z. B. 10 % = man zahlt 82,5 % des Kaufpreises statt 75 %)" /></label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Bank &amp; Abbau</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row"><span class="t-lbl">Bank-Verkauf (Anteil)</span><input id="ad-s-bank-payout" type="number" min="0" max="100" step="1" placeholder="75" title="Prozentsatz des Kaufpreises, den die Bank beim Zwangsverkauf zahlt (75 = 75 % des Kaufpreises)" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Abbau-Rückerstattung</span><input id="ad-s-demolish-refund" type="number" min="0" max="100" step="1" placeholder="50" title="Prozentsatz der Baukosten, den man zurückbekommt, wenn man Gebäude abbaut (50 = 50 %)" /></label>
+                                    <label class="settings-row chk"><input id="ad-s-bank-sell" type="checkbox" checked title="Erlaubt, dass Grundstücke mit Gebäuden nicht an andere Spieler, sondern nur an die Bank verkauft werden können" /> <span>Verkauf an die Bank erlauben</span></label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Timer</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row"><span class="t-lbl">Versteigerung (s)</span><input id="ad-s-auction-ms" type="number" min="1" step="1" placeholder="15" title="Zeit in Sekunden, die Spieler für eine Versteigerung eines Feldes haben" /></label>
+                                    <label class="settings-row"><span class="t-lbl">Abstimmung (s)</span><input id="ad-s-poll-ms" type="number" min="1" step="1" placeholder="15" title="Zeit in Sekunden, die Spieler für eine Abstimmung/Abstimmungsphase haben" /></label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Spielablauf</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row"><span class="t-lbl">Würfeln</span>
+                                      <select id="ad-s-dice">
+                                        <option value="1w6">1W6</option>
+                                        <option value="2w6">2W6</option>
+                                      </select>
+                                    </label>
+                                    <label class="settings-row"><span class="t-lbl">Zug-Timer (s)</span><input id="ad-s-turnsecs" type="number" min="0" step="5" placeholder="0" title="Maximale Zugdauer in Sekunden. 0 = aus (default). Läuft der Timer ab, wird der Zug automatisch weitergegeben." /><span class="hint" style="font-size:11px">0 = aus</span></label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Armistice &amp; Bauregel</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row chk">
+                                      <input id="ad-s-armistice" type="checkbox" title="Aktiviert die letzte Ausbaustufe Armistice, sodass alle Felder auf Stufe 5 (Armistice Zone) ausgebaut werden können" />
+                                      <span>Armistice (letzte Ausbaustufe) aktivieren</span>
+                                    </label>
+                                    <label class="settings-row chk">
+                                      <input id="ad-s-build-group-owned" type="checkbox" checked title="Ausbau nur, wenn man alle Felder der selben Farbgruppe besitzt (Monopoly-Besitzregel)." />
+                                      <span>Monopoly-Besitzregel (nur bei voller Farbgruppe bauen)</span>
+                                    </label>
+                                    <label class="settings-row chk">
+                                      <input id="ad-s-build-group-even" type="checkbox" checked title="Alle Felder einer Farbgruppe gleichmäßig aus- UND abbauen (max. 1 Stufe Unterschied). Setzt die Besitzregel voraus." />
+                                      <span>Gleichmäßige Bebauung (Besitzregel erforderlich)</span>
+                                    </label>
+                                    <label class="settings-row chk">
+                                      <input id="ad-s-tasks-enabled" type="checkbox" title="Nach jedem Kauf und jedem Ausbau erhält das Team eine ausstehende Aufgabe, die es in Star Citizen erledigen und per Button bestätigen muss, bevor es wieder würfeln/kaufen/bauen darf." />
+                                      <span>Aufgabenregel (Kauf/Ausbau → Aufgabe erledigen)</span>
+                                    </label>
+                                    <label class="settings-row"><span class="t-lbl">Aufgaben-Timer (s)</span><input id="ad-s-tasks-turn-timer" type="number" min="0" step="1" placeholder="10" title="Zeit in Sekunden, die ein beschäftigtes Team am eigenen Zug hat, um die Aufgabe abzuschließen. Läuft sie ohne Abschluss ab, endet der Zug automatisch (Aufgabe bleibt offen). 0 = aus." /><span class="hint" style="font-size:11px">0 = aus</span></label>
+                                    <label class="settings-row chk">
+                                      <input id="ad-s-tasks-require-trade" type="checkbox" title="Wenn aktiv, löst ein AKZEPTIERTER Handel ebenfalls eine Aufgabe beim Käufer aus (+ Zug-Ende). Nur relevant, wenn die Aufgabenregel aktiv ist." />
+                                      <span>Handel erfordert Aufgabe</span>
+                                    </label>
+                                  </div>
+                                </div>
+                                <div class="settings-group">
+                                  <div class="settings-group-title">Piraten</div>
+                                  <div class="settings-grid">
+                                    <label class="settings-row chk">
+                                      <input id="ad-s-pirates-enabled" type="checkbox" title="Fügt ein zusätzliches (nicht gewinnbares) Team „Piraten“ hinzu, das über das Board zieht und den Teams Schutzgeld/Flucht-Begegnungen aufzwingt." />
+                                      <span>Piraten aktivieren (zusätzliches Team)</span>
+                                    </label>
+                                    <label class="settings-row"><span class="t-lbl">Piraten-Würfel</span>
+                                      <select id="ad-s-pirate-dice">
+                                        <option value="1w6">1W6</option>
+                                        <option value="2w6">2W6</option>
+                                      </select>
+                                    </label>
+                                    <label class="settings-row"><span class="t-lbl">Schutzgeld</span><input id="ad-s-pirate-fee" type="number" min="0" step="1000" placeholder="250000" title="Höhe des Schutzgelds, das ein Team bei einer Begegnung zahlen kann (aUEC)." /></label>
+                                    <label class="settings-row"><span class="t-lbl">Erwischt-Faktor</span><input id="ad-s-pirate-caught-mult" type="number" min="1" step="1" placeholder="2" title="Faktor, mit dem das Schutzgeld multipliziert wird, wenn das Team beim Fluchtversuch erwischt wird (z. B. 2 = doppelt)." /></label>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>          </div>
+                        </div>
 
-      <!-- ============ Manager-Codes ============ -->
-      <section id="view-managers" class="view">
+                              <!-- ============ Manager-Codes ============ -->
+                                    <section id="view-managers" class="view">
         <div class="frame">
           <div class="frame-notch" aria-hidden="true"></div>
           <div class="frame-head"><span class="eyebrow">ADMIN · MANAGER</span><h2>Manager-Codes</h2></div>
