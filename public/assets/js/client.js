@@ -1332,9 +1332,24 @@
           pcard.appendChild(phead);
           const pWrap = document.createElement('div');
           pWrap.className = 'lobby-team-players';
-          const pnote = document.createElement('span');
-          pnote.textContent = 'Piraten-Team (vom GM gesteuert)';
-          pWrap.appendChild(pnote);
+          const pplayers = Array.isArray(st.pirate.players) ? st.pirate.players : [];
+          if (pplayers.length) {
+            const pleaderId = st.pirate.leaderId || null;
+            pplayers.forEach((p) => {
+              const pid = p.playerId != null ? p.playerId : p.id;
+              const pname = p.name || ('Spieler ' + pid);
+              const isLeader = pleaderId != null && String(pid) === String(pleaderId);
+              const row = document.createElement('div');
+              row.className = 'lobby-player' + (isLeader ? ' leader' : '');
+              row.textContent = pname + (isLeader ? ' (Piraten-Leiter)' : '');
+              pWrap.appendChild(row);
+            });
+          } else {
+            const pnote = document.createElement('span');
+            // (P4) Beitretbares Team: Eintritt per Piraten-Einladungscode (GM verteilt ihn).
+            pnote.textContent = 'Piraten-Team — beitretbar per Piraten-Einladungscode (Code verteilt der GM). Noch keine Piraten-Mitglieder.';
+            pWrap.appendChild(pnote);
+          }
           pcard.appendChild(pWrap);
           list.appendChild(pcard);
         }
@@ -2413,12 +2428,15 @@
     });
   }
 
-  // Urteil: NUR der GM (Host) übernimmt die Piraten-Rolle und bestätigt,
-  // ob das fliehende Team erwischt wurde oder entwischt ist (trust-based).
+  // Urteil: (P4) Ein PIRATES-Team-Mitglied (Spieler, die per Piraten-Code
+  // beigetreten sind) übernimmt die Piraten-Rolle und bestätigt, ob das
+  // fliehende Team erwischt wurde oder entwischt ist (trust-based). Der GM
+  // hat KEINEN Sonder-Pfad mehr.
   function maybeShowPirateVerdict(st) {
     const vd = st.game && st.game.pirateVerdict;
     if (!vd) { seenPirateVerdict = ''; return; }
-    if (!client.isGM) return;
+    // Nur Piraten-Mitglieder fällen das Urteil (eigenes Team).
+    if (String(client.teamId || '') !== 'PIRATES') return;
     const key = String(vd.teamIdx);
     if (seenPirateVerdict === key) return;
     seenPirateVerdict = key;
@@ -2431,8 +2449,8 @@
       confirmText: 'Erwischt',
       cancelText: 'Entwischt',
       confirmClass: 'btn-danger',
-      onConfirm: () => socket.emit('pirate:confirm', { gameId: client.gameId, gmCode: client.gmCode, verdict: 'caught' }),
-      onCancel: () => socket.emit('pirate:confirm', { gameId: client.gameId, gmCode: client.gmCode, verdict: 'escaped' })
+      onConfirm: () => socket.emit('pirate:confirm', { gameId: client.gameId, verdict: 'caught' }),
+      onCancel: () => socket.emit('pirate:confirm', { gameId: client.gameId, verdict: 'escaped' })
     });
   }
 

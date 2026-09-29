@@ -75,6 +75,10 @@ io.on('connection', (socket) => {
         gmCode: ret.gmCode,
         tokens: ret.tokens
       });
+      // (P3) Lobby-State sofort an den (GM-)Raum broadcasten, damit das
+      // Piraten-Team — und jedes andere Team — direkt nach gm:create in der
+      // Lobby sichtbar ist (kein Reload / kein erster Join nötig).
+      rooms.broadcast(ret.gameId);
     } catch (e) {
       error('SERVER', String((e && e.message) || e));
     }
