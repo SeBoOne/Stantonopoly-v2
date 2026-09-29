@@ -44,13 +44,17 @@
     wrap.className = 'modal-overlay';
 
     // Overlay-Klick schließt (nur wenn direkt auf das Overlay geklickt wird,
-    // nicht auf das Panel selbst).
-    wrap.addEventListener('click', (ev) => {
-      if (ev.target === wrap) { closeModal({ runCancel: true }); }
-    });
-    // ESC schließt.
-    const escH = (ev) => { if (ev.key === 'Escape') { closeModal({ runCancel: true }); } };
-    document.addEventListener('keydown', escH);
+    // nicht auf das Panel selbst). Bei locked-Modals (Entscheidungs-Modals wie
+    // Schutzgeld/Freikauf) wird das unterbunden — nur die Buttons schließen.
+    let escH = null;
+    if (!opts.locked) {
+      wrap.addEventListener('click', (ev) => {
+        if (ev.target === wrap) { closeModal({ runCancel: true }); }
+      });
+      // ESC schließt (nur bei nicht-locked Modals).
+      escH = (ev) => { if (ev.key === 'Escape') { closeModal({ runCancel: true }); } };
+      document.addEventListener('keydown', escH);
+    }
 
     const panel = document.createElement('div');
         panel.className = 'modal-panel';
@@ -115,7 +119,8 @@
     client.__modalConfirm = opts.onConfirm;
     client.__modalKind = opts.kind || '';   // Kennung (z.B. 'pirateVerdict') für gezieltes Schließen
     // ESC-Handler wieder entfernen, wenn das nächste Modal kommt oder geschlossen wird.
-    window.__modalEscH = escH;
+    // Bei locked-Modals gibt es keinen ESC-Handler (escH ist nicht definiert).
+    window.__modalEscH = opts.locked ? null : escH;
     if (opts.onOpen) opts.onOpen();
   }
 
@@ -2516,7 +2521,7 @@
     maybeShowInsolvencyWarning(st);
     renderForfeitPollUI(st);
     renderTaskBanner(st);
-    renderPirateBanner(st);
+    maybeShowPirateMove(st);
     maybeShowPirateEncounter(st);
     maybeShowPirateVerdict(st);
   };
@@ -2555,23 +2560,74 @@
   let seenPirateEnc = '';
   let seenPirateVerdict = '';
 
-  // Weltweites Banner, solange der Piraten-Modus in diesem Spiel aktiv ist.
-  function renderPirateBanner(st) {
-    let el = $('pirate-banner');
-    // (P7) Banner nur, solange die Piraten tatsächlich aktiv sind (nach einem
-    // Aufgeben / letzter-Leave ist das Piraten-Team entfernt → Banner aus).
-    const piratesAlive = !!(st.game && Array.isArray(st.game.players) &&
-      st.game.players.some((p) => (p.role === 'pirate' || p.isPirate) && !p.bankrupt));
-    const on = !!(st.game && st.game.settings && st.game.settings.piratesEnabled) && piratesAlive;
-    if (!on) { if (el) el.remove(); return; }
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'pirate-banner';
-      el.className = 'pirate-banner';
-      el.textContent = '🏴‍☠️ Piraten aktiv! Es zieht ein zusätzliches Piraten-Team über das Board — Schutzzahlung oder Flucht bei Begegnung.';
-      const bar = $('boardbar');
-      (bar || document.body).appendChild(el);
+// (P5) KEIN permanentes Piraten-Banner mehr. Stattdessen: bei jeder Piraten-
+  // Positionsänderung ein kurzes animiertes Warn-Overlay einblenden, das Feld
+  // fokussieren, auf das die Piraten gewandert sind, und danach zur normalen
+  // Ansicht (aktives Team-Feld) zurückkehren. Nach Verlassen/Rejoin überlebt
+  // kein Alt-Banner (es wird nie dauerhaft erzeugt).
+  let lastPiratePos = null;
+  let lastPirateGameId = null;
+  let pirateWarnTimer = null;
+  let pirateFocusCard = null;
+
+  function findPirateIdx(st) {
+    const players = (st.game && Array.isArray(st.game.players)) ? st.game.players : [];
+    for (let i = 0; i < players.length; i++) {
+      if (players[i].isPirate || players[i].role === 'pirate') return i;
     }
+    return -1;
+  }
+
+  function maybeShowPirateMove(st) {
+    const gameId = (st && st.gameId) || client.gameId;
+    // Spielwechsel (Verlassen + Rejoin in ein anderes Spiel): Positions-Tracking
+    // zurücksetzen, damit kein spurious Flash und keine Alt-Fokussierung aufblitzt.
+    if (lastPirateGameId !== gameId) {
+      lastPirateGameId = gameId;
+      lastPiratePos = null;
+      clearPirateFocus();
+    }
+    const pirIdx = findPirateIdx(st);
+    if (pirIdx < 0) { lastPiratePos = null; clearPirateFocus(); return; }
+    const pir = st.game.players[pirIdx];
+    const pos = (typeof pir.pos === 'number') ? pir.pos : null;
+    if (pos == null) { lastPiratePos = null; clearPirateFocus(); return; }
+    // Erster Blick (Spielstart/Rejoin): nur merken, keine Animation.
+    if (lastPiratePos === null) { lastPiratePos = pos; return; }
+    if (lastPiratePos === pos) return; // keine Bewegung
+    lastPiratePos = pos;
+    showPirateMoveFlash(st, pos);
+  }
+
+  // Entfernt die Hervorhebung und den Flash-Banner unabhängig vom Timer, damit
+  // beim Überschreiben (zwei Piratenbewegungen im Fenster) oder beim Spielwechsel
+  // keine .is-pirate-focus-Klasse dauerhaft hängen bleibt.
+  function clearPirateFocus() {
+    if (pirateWarnTimer) { clearTimeout(pirateWarnTimer); pirateWarnTimer = null; }
+    if (pirateFocusCard) { pirateFocusCard.classList.remove('is-pirate-focus'); pirateFocusCard = null; }
+    const old = $('pirate-flash');
+    if (old) old.remove();
+  }
+
+  function showPirateMoveFlash(st, pos) {
+    clearPirateFocus();
+    const flash = document.createElement('div');
+    flash.id = 'pirate-flash';
+    flash.className = 'pirate-flash';
+    flash.textContent = '🏴‍☠️ Piraten sind aktiv!';
+    document.body.appendChild(flash);
+    // Piraten-Feld fokussieren (scrollen + hervorheben).
+    if (typeof window.scrollToCard === 'function') window.scrollToCard(pos);
+    const row = document.getElementById('board-row');
+    const card = row ? row.querySelector('.kcard[data-field-id="' + pos + '"]') : null;
+    if (card) { card.classList.add('is-pirate-focus'); pirateFocusCard = card; }
+    // Nach der Animation zurück zur normalen Ansicht (aktives Team-Feld).
+    pirateWarnTimer = setTimeout(() => {
+      if (flash.parentNode) flash.parentNode.removeChild(flash);
+      if (pirateFocusCard) { pirateFocusCard.classList.remove('is-pirate-focus'); pirateFocusCard = null; }
+      if (typeof window.gotoActive === 'function') window.gotoActive();
+      pirateWarnTimer = null;
+    }, 1800);
   }
 
   // Begegnung: nur das betroffene Team (Leader) entscheidet zahl/fliehen.
@@ -2588,6 +2644,9 @@
     openModal({
       title: '🏴‍☠️ Piraten-Begegnung',
       icon: '🏴‍☠️',
+      // (P6) Entscheidungs-Modal: NUR über die Buttons schließbar (kein Overlay-Klick/ESC),
+      // damit kein versehentlicher 'flee'-Send entsteht.
+      locked: true,
       body: '<p>Dein Team steht auf <strong>' + esc(fieldName) + '</strong> — und die Piraten auch!</p>' +
         '<ul><li><strong>Schutzgeld zahlen:</strong> ' + fmtUAEC(enc.fee) + ' aUEC — du setzt die Runde normal fort.</li>' +
         '<li><strong>Flucht versuchen:</strong> deine Runde endet, du hast bis zu deinem nächsten Zug Zeit zu fliehen. Wirst du erwischt, fällst du <strong>' + fmtUAEC(enc.caughtFee) + ' aUEC</strong> Strafgeld.</li></ul>',
@@ -2724,6 +2783,9 @@
     openModal({
       title: '🕳️ Du sitzt im Gefängnis',
       icon: '⛓',
+      // (P6) Entscheidungs-Modal: NUR über die Buttons schließbar (kein Overlay-Klick/ESC),
+      // damit kein versehentlicher 'jailstay'-Send entsteht.
+      locked: true,
       body: '<p>Feld <strong>' + esc((game.fields && game.fields[p.pos] && game.fields[p.pos].name) || ('Feld ' + p.pos)) + '</strong></p>' +
         '<ul><li>Lösegeld: <strong>' + fmtUAEC(bail) + '</strong> aUEC</li>' +
         '<li>Freikaufen = sofort weiter; sonst überspringst du die nächsten ' + Math.max(1, p.jailTurns || 1) + ' Zug/Züge.</li></ul>',
@@ -3191,4 +3253,16 @@
   }
 
   console.log('[client.js] client.js initialisiert.');
+
+  // (P5/P6) Test-Hook für CDP-Verifikation: expose die Entscheidungs-/Piraten-
+  // Funktionen, damit die Browser-DOM-Abnahme sie direkt ansteuern kann.
+  window.__stpTest = {
+    client,
+    openModal,
+    closeModal,
+    maybeShowPirateMove,
+    showPirateMoveFlash,
+    maybeShowPirateEncounter,
+    maybeShowJailChoice
+  };
 })();

@@ -542,4 +542,7 @@ window.stanGroupKey = function (key) {
   window.initBoard = initBoard;
   window.renderBoard = renderBoard;
   window.setScaleInfo = setScaleInfo;
+  // (P5) Für die animierte Piraten-Feldfokussierung aus client.js nutzbar machen.
+  window.scrollToCard = scrollToCard;
+  window.gotoActive = gotoActive;
 })();
