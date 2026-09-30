@@ -346,7 +346,6 @@ io.on('connection', (socket) => {
     'action:forfeit': 'actionForfeit',
     'forfeit:vote': 'forfeitVote',
     'action:sell': 'actionSell',
-    'action:auction': 'actionAuction',
     'trade:make': 'offerMake',
     'trade:respond': 'offerRespond',
     'auction:start': 'auctionStart',

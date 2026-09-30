@@ -495,7 +495,6 @@ function attachMethods(game) {
   // (Bot-Pirat) KEIN forfeitPirates — das Piraten-Team kann nicht mehr aufgeben.
   game.sellProperty = function (fieldIdx, buyerIdx, price) { return StantonopolyGame.sellProperty(game, fieldIdx, buyerIdx, price); };
   game.resolveMortgageChoice = function (buyerIdx, choice) { return StantonopolyGame.resolveMortgageChoice(game, buyerIdx, choice); };
-  game.auctionField = function (fieldIdx, bids) { return StantonopolyGame.auctionField(game, fieldIdx, bids); };
   game.makeOffer = function (opts) { return StantonopolyGame.makeOffer(game, opts); };
   game.respondOffer = function (offerId, accept) { return StantonopolyGame.respondOffer(game, offerId, accept); };
   game.startAuction = function (opts) { return StantonopolyGame.startAuction(game, opts); };
@@ -1754,28 +1753,11 @@ const StantonopolyGame = {
   },
 
   // ------------------------------------------------------------------
-  // Versteigerung: Bank verauktioniert ein Feld, alle Bankrott-losen
-  // Teams bieten nacheinander; Höchstbote gewinnt.
+  // (Entfernt: game.auctionField — Bank-Auktion herrenloser Felder. Sebo-Regel:
+  // nur EIGENE Felder sind versteigerbar; der einzige Aufrufer actionAuction war
+  // ein toter Legacy-Socket-Alias, siehe rooms.js. Das aktive Auktions-System
+  // nutzt startAuction/resolveAuction.)
   // ------------------------------------------------------------------
-  auctionField: function (game, fieldIdx, bids) {
-    const f = game.fields[fieldIdx];
-    if (!f) return { ok: false, reason: 'bad_field' };
-    if (ownerOf(game, fieldIdx)) return { ok: false, reason: 'owned' };
-    // bids: [[playerIdx, amount], …] — Höchstbote gewinnt
-    let best = null;
-    (bids || []).forEach(([pi, amt]) => {
-      const pl = game.players[pi];
-      if (!pl || pl.bankrupt) return;
-      const a = Math.round(Number(amt));
-      if (a > 0 && a <= pl.budget && (!best || a > best.amount)) best = { pi, player: pl, amount: a };
-    });
-    if (!best) return { ok: false, reason: 'no_winners' };
-    best.player.budget -= best.amount;
-    best.player.properties[fieldIdx] = { level: 'ALLEIN' };
-    log(game, best.player.name + ' ersteigert „' + f.name + '“ für ' + fmt(best.amount) + '.');
-    this.ledgerPush(game, best.player, -best.amount, 'Versteigerung „' + f.name + '“');
-    return { ok: true, fieldIdx, winnerIdx: best.pi, price: best.amount };
-  },
 
   serialize: function (game) {
     return JSON.stringify({

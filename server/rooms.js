@@ -1671,30 +1671,6 @@ class Rooms {
     return ret;
   }
 
-  actionAuction({ gameId, field, sock }) {
-    // Leader startet eine Bank-Versteigerung eines herrenlosen Feldes
-    // (Monopoly: Feld, das beim Landen nicht gekauft wurde, geht in die Auktion).
-    const req = this._requireLeaderOfTeam({ gameId, sock });
-    if (req.error) return req;
-    const tga = this._taskGuard(req);
-    if (tga) return tga;
-    const fieldIdx = Number(field);
-    if (!Number.isInteger(fieldIdx)) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
-    const f = req.engine.fields[fieldIdx];
-    if (!f) return { error: { code: 'BAD_FIELD', message: 'Ungültiges Feld.' } };
-    // Automatische Reservegebote: jedes aktive Team bietet 50% des Feldwerts.
-    const base = (typeof f.price === 'number') ? Math.round(f.price / 2) : 1000;
-    const bids = req.engine.players.map((p, i) => {
-      if (p.bankrupt) return null;
-      return [i, Math.min(base, p.budget)];
-    }).filter((b) => b && b[1] > 0);
-    const r = req.engine.auctionField(fieldIdx, bids);
-    if (!r.ok) return { error: { code: 'ECON', message: 'Versteigerung nicht möglich (' + r.reason + ').' } };
-    const ret = this._persistAndReturn(gameId, req.engine, true);
-    ret.auction = r;
-    return ret;
-  }
-
   // ------------------------------------------------------------------
   // Beobachter (nur lesen, Raum-Join)
   // ------------------------------------------------------------------

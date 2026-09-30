@@ -2552,6 +2552,7 @@
     maybeShowInsolvencyWarning(st);
     renderForfeitPollUI(st);
     renderTaskBanner(st);
+    maybeShowMortgageChoice(st);
     maybeShowPirateMove(st);
     maybeShowPirateEncounter(st);
     maybeShowPirateVerdict(st);
@@ -2764,6 +2765,57 @@
         const yes = $('poll-yes'); const no = $('poll-no');
         if (yes) yes.addEventListener('click', () => { closeModal({ runCancel: false }); socket.emit('forfeit:vote', { gameId: client.gameId, agree: 1 }); });
         if (no) no.addEventListener('click', () => { closeModal({ runCancel: false }); socket.emit('forfeit:vote', { gameId: client.gameId, agree: -1 }); });
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // (2o-A P3) Hypotheken-Übernahme-Wahl: Nach dem Kauf/Ersteigerung eines
+  // beliehenen Grundstücks setzt der Server ein Pending-Feld game.mortgageChoice
+  // (engine-Player-Index des Käufers = buyerIdx). Der KÄUFER wird gefragt:
+  //   'keep'  = 10 % Zins zahlen und beliehen lassen,
+  //   'clear' = sofort voll entlasten (Hypothek + Zins in einem Betrag).
+  // Nur der Leader des Käufer-Teams beantwortet das (action:mortgageChoice).
+  // Einmalig pro Pending-Instanz; das Modal taucht nicht wieder auf, sobald
+  // der Server das Feld auf null setzt (Entscheidung getroffen).
+  // ------------------------------------------------------------------
+  let seenMortgageChoiceKey = '';
+  function maybeShowMortgageChoice(st) {
+    const mc = (st && st.game && st.game.mortgageChoice) || null;
+    if (!mc || !st.started || st.over) { seenMortgageChoiceKey = ''; return; }
+    // Käufer-Team über den Engine-Player auflösen (buyerIdx = Index in players[]).
+    const players = (st.game && Array.isArray(st.game.players)) ? st.game.players : [];
+    const buyer = (mc.buyerIdx != null && players[mc.buyerIdx]) ? players[mc.buyerIdx] : null;
+    if (!buyer) { seenMortgageChoiceKey = ''; return; }
+    const teamKey = (buyer.id != null ? buyer.id : buyer.teamId);
+    const leaders = leaderMap(st && st.leaders);
+    const leaderId = leaders[teamKey] != null ? leaders[teamKey] : null;
+    const amBuyerLeader = client.playerId != null && leaderId != null && String(leaderId) === String(client.playerId);
+    if (!amBuyerLeader) return; // anderes Team → nicht antworten (aber Modal nicht unterdrücken)
+    // Einmalig pro Pending-Feld (verhindert Modal-Spam bei jedem State-Broadcast).
+    const key = mc.fieldIdx + ':' + (mc.buyerIdx || 0) + ':' + (mc.fullClear || 0);
+    if (seenMortgageChoiceKey === key) return;
+    seenMortgageChoiceKey = key;
+    const fname = (st.game.fields && st.game.fields[mc.fieldIdx] && st.game.fields[mc.fieldIdx].name)
+      ? st.game.fields[mc.fieldIdx].name : ('Feld ' + mc.fieldIdx);
+    const interest = mc.interest != null ? fmtUAEC(mc.interest) : '—';
+    const full = mc.fullClear != null ? fmtUAEC(mc.fullClear) : '—';
+    openModal({
+      title: '🏦 Beliehenes Grundstück übernommen',
+      icon: '🏦',
+      body: '<p>Dein Team hat <strong>' + esc(fname) + '</strong> übernommen — es ist noch <strong>beliehen</strong>.</p>' +
+        '<p>Wie möchtest du vorgehen?</p>' +
+        '<div class="mort-choice-rows" style="margin-top:6px">' +
+        '<button type="button" class="btn btn-xs btn-ok" id="mc-clear">💠 Sofort entlasten · ' + full + '</button>' +
+        '<button type="button" class="btn btn-xs" id="mc-keep">🔒 Beliehen lassen · Zins ' + interest + '</button>' +
+        '</div>' +
+        '<div class="hint" style="margin-top:6px"><b>Entlasten</b> zahlt die ganze Hypothek (inkl. Zins) in einem — danach gehört dir das Feld schuldenfrei. <b>Beliehen lassen</b> zahlst du nur den Zins und kannst später entlasten.</div>',
+      confirmText: null,
+      cancelText: 'Später',
+      onOpen: () => {
+        const clearBtn = $('mc-clear'); const keepBtn = $('mc-keep');
+        if (clearBtn) clearBtn.addEventListener('click', () => { closeModal({ runCancel: false }); socket.emit('action:mortgageChoice', { gameId: client.gameId, choice: 'clear' }); });
+        if (keepBtn) keepBtn.addEventListener('click', () => { closeModal({ runCancel: false }); socket.emit('action:mortgageChoice', { gameId: client.gameId, choice: 'keep' }); });
       }
     });
   }
