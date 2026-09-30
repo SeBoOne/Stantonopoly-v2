@@ -4,7 +4,7 @@
   "description": "Stantonopoly V2 — Server-authoritatives Multiplayer-Monopoly (SC/Drake-Look).",
   "private": true,
   "type": "commonjs",
-  "license": "MIT",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "server/index.js",
   "engines": {
     "node": ">=22.5.0"
