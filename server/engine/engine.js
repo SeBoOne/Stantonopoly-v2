@@ -491,7 +491,6 @@ function attachMethods(game) {
   game.mortgage = function (fieldIdx) { return StantonopolyGame.mortgage(game, fieldIdx); };
   game.unmortgage = function (fieldIdx) { return StantonopolyGame.unmortgage(game, fieldIdx); };
   game.demolish = function (fieldIdx) { return StantonopolyGame.demolish(game, fieldIdx); };
-  game.forfeit = function () { return StantonopolyGame.forfeit(game); };
   game.forfeitTeam = function (teamIdx) { return StantonopolyGame.forfeitTeam(game, teamIdx); };
   // (Bot-Pirat) KEIN forfeitPirates — das Piraten-Team kann nicht mehr aufgeben.
   game.sellProperty = function (fieldIdx, buyerIdx, price) { return StantonopolyGame.sellProperty(game, fieldIdx, buyerIdx, price); };
@@ -1494,19 +1493,8 @@ const StantonopolyGame = {
   },
 
   // ------------------------------------------------------------------
-  // Aufgeben: Team scheidet freiwillig aus (wie Bankrott). Besitz wird
-  // an die Bank zurückgegeben. (Monopoly: aufgeben = Bankrott.)
-  // ------------------------------------------------------------------
-  forfeit: function (game) {
-    const p = game.players[game.activeIdx];
-    if (game.over || p.bankrupt) return { ok: false, reason: 'inactive' };
-    p.bankrupt = true;
-    p.budget = 0;
-    p.properties = {};
-    log(game, p.name + ' gibt auf und scheidet aus (Besitz geht an die Bank).');
-    checkWin(game);
-    return { ok: true };
-  },
+  // (Entfernt: game.forfeit() — rooms nutzt ausschließlich forfeitTeam(teamIdx);
+  // forfeit war ein toter Alias auf den aktive Spieler ohne expliziten Index.)
 
   // Team (per playerIdx) zum Aufgeben zwingen — genutzt von der Aufgeben-Abstimmung
   // (die Mitglieder-Ebene verwaltet rooms.js). Der aktive Spieler des Teams scheidet aus,

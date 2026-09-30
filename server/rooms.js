@@ -49,18 +49,6 @@ function genUniqueCode(kind, len) {
   return code;
 }
 
-// Engine-Spieler (Team) aus dem State oben erzeugen — Engine nutzt 'id' intern;
-// wir übergeben name="Team <Schiff>" für Anzeige in Serialisierung.
-function playerFor(team, startingCapital) {
-  return {
-    id: team.teamId,
-    name: team.teamName || ('Team ' + team.ship),
-    ship: team.ship,
-    task: null,
-    budget: startingCapital
-  };
-}
-
 // Vollständiger State-View, der an Clients broadcastet wird.
 // `game` = deserialisierter Engine-Zustand.
 
@@ -74,11 +62,23 @@ function buildView({ gameId, game, teams, leaders }) {
   // Die Engine hängt das Piratenteam als LETZTEN Player an → Index-Alignment zu
   // den normalen team-Zeilen bleibt erhalten, wenn PIRATES aus der Liste entfällt.
   const normalTeams = (teams || []).filter((t) => String(t.teamId) !== 'PIRATES' && String(t.teamId).toUpperCase() !== 'PIRATES');
+  // N+1-Vermeidung: Spieler + Votes des Spiels EINMAL laden und gruppieren
+  // statt pro Team (buildView läuft bei jedem State-Broadcast).
+  const allPlayers = dbm.getPlayers(gameId) || [];
+  const allVotes = dbm.getVotesAll(gameId) || [];
+  const playersByTeam = new Map(); // teamId -> player[]
+  allPlayers.forEach((p) => { const k = p.teamId; if (!playersByTeam.has(k)) playersByTeam.set(k, []); playersByTeam.get(k).push(p); });
+  const votesByTeam = new Map();   // teamId -> { candidateId: n }
+  allVotes.forEach((v) => {
+    const k = v.teamId;
+    if (!votesByTeam.has(k)) votesByTeam.set(k, {});
+    const m = votesByTeam.get(k);
+    m[v.candidateId] = (m[v.candidateId] || 0) + 1;
+  });
   const teamViews = normalTeams.map((t, ti) => {
     const enginePlayer = (game && game.players && game.players[ti]) || {};
     // Votes pro Kandidat für dieses Team (Live-Stimmenzahlen)
-    const vc = {};
-    (dbm.getVotes(gameId, t.teamId) || []).forEach((v) => { vc[v.candidateId] = (vc[v.candidateId] || 0) + 1; });
+    const vc = votesByTeam.get(t.teamId) || {};
     return {
       id: t.teamId,
       teamId: t.teamId,
@@ -87,14 +87,13 @@ function buildView({ gameId, game, teams, leaders }) {
       teamName: t.teamName || ('Team ' + t.ship),
       color: t.color,
       leaderId: t.leaderId || null,
-      players: (dbm.getPlayers(gameId) || [])
-        .filter((p) => p.teamId === t.teamId)
+      players: (playersByTeam.get(t.teamId) || [])
         .map((p) => ({ playerId: p.id, id: p.id, name: p.name })),
       votes: vc
     };
   });
   const gameState = game ? {
-    ...game.serialize() && JSON.parse(game.serialize()),
+    ...JSON.parse(game.serialize()),
     // Anreicherung vom Server (client.js erwartet tensional activeIdx etc.)
     activeIdx: game.activeIdx,
     over: game.over,
@@ -143,13 +142,12 @@ function buildView({ gameId, game, teams, leaders }) {
         // verborgen (P10-Pro-Socket-Zuschnitt in broadcast()).
         let pirate = null;
         if (game && Array.isArray(game.players)) {
-          // (P7) Ein aufgegebenes/entferntes Piraten-Team (bankrupt) wird NICHT
-          // mehr als aktives Piraten-Team angezeigt (st.pirate = null) — die
-          // Piraten-Mechanik ist dann beendet.
+          // (Bot-Pirat) Piraten bleiben IMMER aktiv (kein Aufgeben/Entfernen);
+          // ein bankrotter Pirat ist rein defensiv kein aktiver Eintrag (st.pirate).
           const pir = game.players.find((p) => (p.role === 'pirate' || p.isPirate) && !p.bankrupt);
           if (pir) {
             const pirRow = (teams || []).find((t) => String(t.teamId) === 'PIRATES');
-            const pirMembers = (dbm.getPlayers(gameId) || []).filter((p) => String(p.teamId) === 'PIRATES')
+            const pirMembers = (playersByTeam.get('PIRATES') || [])
               .map((p) => ({ playerId: p.id, id: p.id, name: p.name }));
             pirate = {
               id: 'PIRATES',
@@ -1931,9 +1929,13 @@ class Rooms {
     const gameRow = dbm.getGame(gameId);
     if (!gameRow) return null;
     const teams = dbm.getTeams(gameId);
+    // team-Index einmalig → leaderId-Lookup ohne N+1 getTeam pro Spieler.
+    const teamBy = new Map(teams.map((t) => [t.teamId, t]));
     const leaders = dbm.getPlayers(gameId)
-      .map((p) => ({ playerId: p.id, teamId: p.teamId, leaderId: dbm.getTeam(gameId, p.teamId) ?
-        (dbm.getTeam(gameId, p.teamId).leaderId) : null }))
+      .map((p) => {
+        const tm = teamBy.get(p.teamId);
+        return { playerId: p.id, teamId: p.teamId, leaderId: tm ? tm.leaderId : null };
+      })
       .filter((l) => l.leaderId);
     let game = null;
     let started = !!gameRow.started;
@@ -1961,10 +1963,12 @@ class Rooms {
       return base;
     }
     const sockList = this.io.sockets.sockets;
+    // Spieler einmal laden → pro Socket nur noch In-Memory-Lookup (statt SQL-Query).
+    const playerBySock = new Map((dbm.getPlayers(gameId) || []).map((p) => [p.id, p]));
     sockList.forEach((sock) => {
       if (!sock || !sock.rooms || !sock.rooms.has(room)) return;
       const isGm = this._isGmSocket(gameId, sock.id);
-      const pl = dbm.getPlayer(sock.id);
+      const pl = playerBySock.get(sock.id);
       const isPirateMember = !!pl && String(pl.teamId) === 'PIRATES';
       const deliverPirate = isGm || isPirateMember;
       // Kopie mit gefiltertem Pirat-Status für diesen Empfänger.

@@ -53,7 +53,7 @@ io.on('connection', (socket) => {
     if (ret.error) {
       // Reiche die volle Fehler-Nutzlast weiter (z.B. emptyTeams für P12-Abfrage).
       const err = ret.error;
-      error(err.code, err.message, err && typeof err === 'object' ? err : undefined);
+      error(err.code, err.message, typeof err === 'object' ? err : undefined);
       return;
     }
     if (ret.gameId) {

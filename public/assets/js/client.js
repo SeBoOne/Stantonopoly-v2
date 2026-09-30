@@ -201,9 +201,6 @@
       return JSON.parse(raw);
     } catch (e) { return null; }
   }
-  function clearJoin() {
-    try { localStorage.removeItem(LS_KEY); } catch (e) {}
-  }
 
   // GM-Zustand sichern, damit ein Neuladen des GM denselben Bildschirm wiederholt.
   const GM_KEY = 'stantonopoly.gm.v1';
@@ -219,9 +216,6 @@
       if (!raw) return null;
       return JSON.parse(raw);
     } catch (e) { return null; }
-  }
-  function clearGM() {
-    try { localStorage.removeItem(GM_KEY); } catch (e) {}
   }
 
   const TEAM_COLORS = ['#2ecc71', '#95a5a6', '#f1c40f', '#e74c3c', '#3498db', '#e67e22'];
@@ -272,13 +266,6 @@
     // Bestehende Inputs (falls Setup bereits gerendert) anbinden.
     document.querySelectorAll('[data-ship]').forEach((i) => { i.setAttribute('list', 'sc-datalist-ships'); });
     document.querySelectorAll('.preset-field-row [data-fname]').forEach((i) => { i.setAttribute('list', 'sc-datalist-locs'); });
-  }
-
-  function refitScAutocomplete() {
-    // Nach jedem Neu-Rendern des Setup/Editors die neu erzeugten Inputs anbinden
-    // (datalists bleiben im DOM; refit ist idempotent).
-    scAutocompleteApplied = false;
-    applyScAutocomplete();
   }
 
   (async function loadScCatalog() {
@@ -735,13 +722,6 @@
       });
     }
 
-    function loadPresetByName(name) {
-      socket.emit('preset:list', {}); // aktualisiert
-      currentPresetName = name;
-      editorSetName(name);
-      showNotify('Preset geladen: ' + name);
-    }
-
     // Settings aus einem (Preset-)Objekt übernehmen (Default-Merge; Daten sind Dezimal)
     function applyPresetSettings(p) {
       const src = (p && p.settings && typeof p.settings === 'object') ? p.settings : {};
@@ -1188,21 +1168,6 @@
     return { gameId, code };
   }
 
-  function onJoinClick(ev) {
-    if (ev && ev.preventDefault) ev.preventDefault();
-    const codeRaw = $('join-code') ? $('join-code').value : '';
-    const name = $('join-name') ? $('join-name').value : '';
-    if (!codeRaw.trim() || !name.trim()) {
-      showNotify('Bitte Einladungscode und Name eingeben.');
-      return;
-    }
-    const { gameId, code } = parseInvite(codeRaw);
-    client.playerName = name.trim();
-    client.gameId = gameId || null;
-    console.log('[client.js] team:join senden', { gameId, code, playerName: name.trim() });
-    socket.emit('team:join', { gameId, code, playerName: name.trim() });
-  }
-
   // „Spiel beitreten“ als Modal (statt eigener Standalone-Ansicht). Code + Name;
   // Beobachten geht über die Spiele-Liste (ohne Code) — kein separates Feld mehr.
   function openJoinModal() {
@@ -1497,8 +1462,8 @@
   function toBoardData(st) {
     const game = (st && st.game) || {};
     const teams = (st && Array.isArray(st.teams)) ? st.teams : [];
-    // (P7) Ein aufgegebenes Piraten-Team (bankrupt) wird NICHT mehr als Token
-    // auf dem Brett gezeichnet — die Piraten-Figur ist entfernt.
+    // Ein bankrotter Pirat ist rein defensiv kein aktiver Token (Piraten können
+    // heute nicht mehr aufgeben, der Guard schadet nicht und ist nur Sicherheit).
     const players = (game.players || []).filter((p) => !((p.role === 'pirate' || p.isPirate) && p.bankrupt)).map((p, i) => {
       const meta = teams[i] || {};
       const ship = meta.ship || meta.shipName || '';
@@ -1676,10 +1641,6 @@
     const players = (st.game && Array.isArray(st.game.players)) ? st.game.players : [];
     for (let i = 0; i < players.length; i++) if (players[i].properties && players[i].properties[fieldIdx]) return i;
     return null;
-  }
-
-  function ownerSet(st, fieldIdx) {
-    return (st.game && Array.isArray(st.game.players) ? st.game.players : []).some((pl) => pl.properties && pl.properties[fieldIdx]);
   }
 
   // ------------- Angebote & Versteigerung (eingehend) -------------
@@ -2401,14 +2362,6 @@
   function onTaskClick() {
     console.log('[client.js] task:complete senden', { gameId: client.gameId });
     socket.emit('task:complete', { gameId: client.gameId });
-  }
-  function onBuildClick() {
-    // Ausbau läuft über die Econ-Bar (eigenes Feld-Dropdown).
-    const sel = $('econ-field');
-    const field = sel && sel.value !== '' && Number(sel.value) >= 0 ? sel.value : null;
-    if (field == null) { showNotify('Bitte zuerst dein Feld in der Wirtschaftsleiste wählen.'); return; }
-    console.log('[client.js] action:build senden', { gameId: client.gameId, field });
-    socket.emit('action:build', { gameId: client.gameId, field });
   }
   function onNextClick() {
     console.log('[client.js] action:nextTurn senden', { gameId: client.gameId });

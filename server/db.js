@@ -157,10 +157,8 @@ const stmts = {
   getPlayers: db.prepare('SELECT * FROM players WHERE gameId = ?'),
   getPlayer: db.prepare('SELECT * FROM players WHERE id = ?'),
   getPlayerByToken: db.prepare('SELECT * FROM players WHERE token = ?'),
-  updatePlayerSock: db.prepare('UPDATE players SET id = ? WHERE token = ?'),
   deletePlayer: db.prepare('DELETE FROM players WHERE gameId = ? AND id = ?'),
   deleteVotesForPlayer: db.prepare('DELETE FROM votes WHERE gameId = ? AND (voterId = ? OR candidateId = ?)'),
-  getPlayerByGameId: db.prepare('SELECT * FROM players WHERE gameId = ? ORDER BY rowid'),
   insertVote: db.prepare('INSERT OR REPLACE INTO votes (gameId, teamId, voterId, candidateId) VALUES (?, ?, ?, ?)'),
   getVotes: db.prepare('SELECT * FROM votes WHERE gameId = ? AND teamId = ?'),
   clearVotes: db.prepare('DELETE FROM votes WHERE gameId = ? AND teamId = ?'),
@@ -298,6 +296,10 @@ function addVote({ gameId, teamId, voterId, candidateId }) {
 
 function getVotes(gameId, teamId) {
   return stmts.getVotes.all(gameId, teamId);
+}
+
+function getVotesAll(gameId) {
+  return db.prepare('SELECT * FROM votes WHERE gameId = ?').all(gameId);
 }
 
 function clearVotes(gameId, teamId) {
@@ -481,6 +483,7 @@ module.exports = {
   remapPlayerSock,
   addVote,
   getVotes,
+  getVotesAll,
   clearVotes,
   addCode,
   getCode,
