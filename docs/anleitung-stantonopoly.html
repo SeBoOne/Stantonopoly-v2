@@ -164,6 +164,15 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 
   <h3>4. Teamleader der Piraten</h3>
   <p>Wie bei normalen Teams stimmen die Piraten einen <b>Teamleader</b> ab (oder der GM ernennt einen). Der Piraten-Leader führt die Team-Aktionen aus, z.&nbsp;B. das Urteil fällen ob <b>erwischt</b> oder <b>entwischt</b>. Es sollte also jemand sein der es leichter hat parallel zu Star Citizen hier die entscheidung einzugeben</p>
+
+  <h3>5. Bot-Pirat: wenn niemand das Piratenteam spielt</h3>
+  <p>Ist das Piratensystem aktiv, aber <b>keinem einzigen Spieler ist das Piratenteam beigetreten</b>, übernimmt ein <b>Bot</b> die Piraten. Das Urteil (Erwischt/Entwischt) wird dann <b>automatisch und zufällig</b> gefällt — niemand muss warten.</p>
+  <ul>
+    <li>⚖️ <b>Wahrscheinlichkeit „Erwischt":</b> startet bei <b>40%</b> und steigt mit dem <b>Besitzanteil</b> des fliehenden Teams an allen kaufbaren Feldern der Karte bis <b>max. 65%</b>. Wer mehr besitzt, wird also wahrscheinlicher erwischt (je kaufbares Feld linear mehr bis zur Obergrenze).</li>
+    <li>🤖 <b>Der Bot erwartet keine Eingabe</b> — sobald ein Team flieht, entscheidet er sofort.</li>
+    <li>👤 <b>Sobald ein Spieler dem Piratenteam beitritt</b>, übernimmt er die Kontrolle und der Bot schaltet sich ab — die Entscheidung liegt dann wieder beim Piraten(team)leader wie oben beschrieben.</li>
+  </ul>
+  <div class="note"><b>Piratentipp:</b> Der Bot löst <b>zeitloses Warten</b>, wenn keine Piraten da sind. Es lohnt also immer, mindestens einen Spieler ins Piratenteam zu holen, wenn ihr als Gruppe die Entscheidungen selbst treffen wollt.</div>
 </section>
 
 <!-- ================= TEAMLEITER ================= -->
