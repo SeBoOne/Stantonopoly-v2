@@ -75,17 +75,17 @@ systemctl enable --now stantonopoly
 ### Weg 2 — Vorgebautes Docker-Image
 
 Das Image wird bei jedem Push auf `main` und bei jedem Tag automatisch gebaut und auf
-der **GitHub Container Registry** veröffentlicht (`ghcr.io/<owner>/stantonopoly-multiplayer`;
+der **GitHub Container Registry** veröffentlicht (`ghcr.io/<owner>/stantonopoly-v2`;
 Tags: `latest`, Semver, SHA).
 
 ```bash
-docker pull ghcr.io/<owner>/stantonopoly-multiplayer:latest
+docker pull ghcr.io/<owner>/stantonopoly-v2:latest
 docker run -d \
   --name stantonopoly \
   --restart unless-stopped \
   -p 8000:8000 \
   -v stantonopoly-data:/app/data \
-  ghcr.io/<owner>/stantonopoly-multiplayer:latest
+  ghcr.io/<owner>/stantonopoly-v2:latest
 ```
 
 Oder mit Docker Compose (siehe `docker-compose.yml`):

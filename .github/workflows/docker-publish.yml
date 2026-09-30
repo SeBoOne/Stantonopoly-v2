@@ -17,7 +17,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}   # = <owner>/stantonopoly-multiplayer
+  IMAGE_NAME: ${{ github.repository }}   # = SeBoOne/Stantonopoly-v2 → ghcr.io/seboone/stantonopoly-v2
 
 # WICHTIG: GHCR-Push braucht explizite Berechtigung. Ohne `packages: write`
 # erhält der GITHUB_TOKEN im Workflow nur `contents: read` → docker login gelingt,

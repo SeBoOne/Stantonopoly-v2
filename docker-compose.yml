@@ -4,7 +4,7 @@
 services:
   stantonopoly:
     # Aus bereits gebautem/gezogenem Image:
-    image: ghcr.io/SEBOONE/stantonopoly-multiplayer:latest
+    image: ghcr.io/SEBOONE/stantonopoly-v2:latest
     # Oder aus dem lokalen Dockerfile bauen (einmalig):
     # build: .
     container_name: stantonopoly
