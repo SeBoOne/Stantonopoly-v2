@@ -1,0 +1,33 @@
+# Abhängigkeiten
+node_modules/
+
+# Laufzeit-Daten & Secrets — nie ins Image
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+.env.*
+
+# VCS & Editor
+.git/
+.gitignore
+.worktrees/
+.idea/
+.vscode/
+
+# Tests & QA-Abgüsse (nicht im Image)
+tests/
+dogfood-out/
+screenshots/
+.verify/
+.shots/
+*.test.js
+*.md
+
+# Devwatch / lokale Artefakte
+.devservices.json
+*.log
+*.pid
+.clock

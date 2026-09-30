@@ -12,6 +12,7 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test 'tests/*.test.js'",
+    "test:ci": "node --test tests/admin-setup.test.js tests/admin.test.js tests/aufgaben-feinheiten.test.js tests/aufgaben.test.js tests/aufgaben-timer.test.js tests/auth.test.js tests/engine.test.js tests/forfeitAbstimmung.test.js tests/kombinationen.test.js tests/manager.test.js tests/multi.test.js tests/phase1d.test.js tests/phase2i.test.js tests/phase2k.test.js tests/phase2mc.test.js tests/phase2md.test.js tests/phase2m.test.js tests/phase2o.test.js tests/phase2o-wire.test.js tests/piraten.test.js tests/piraten-ui-wire.test.js tests/piraten-wire.test.js tests/scwiki.test.js tests/socket.test.js",
     "test:engine": "node --test tests/engine.test.js",
     "test:multi": "node --test tests/multi.test.js",
     "test:socket": "node --test tests/socket.test.js",

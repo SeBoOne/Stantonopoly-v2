@@ -1,0 +1,24 @@
+# Stantonopoly V2 — Docker Compose Beispiel
+# Universal (jeder Docker-Host). Der Server is behind a reverse proxy selbst.
+# Env-Variable PORT steuert den Listener; STANTONOPOLY_DB sitzt im Volume.
+services:
+  stantonopoly:
+    # Aus bereits gebautem/gezogenem Image:
+    image: ghcr.io/SEBOONE/stantonopoly-multiplayer:latest
+    # Oder aus dem lokalen Dockerfile bauen (einmalig):
+    # build: .
+    container_name: stantonopoly
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      # Optional: Admin-Zugang vorkonfigurieren statt Erst-Setup-Formular:
+      # STANTONOPOLY_ADMIN_USER: "admin"
+      # STANTONOPOLY_ADMIN_PASS_HASH: "salt:hash"
+    volumes:
+      # SQLite + WAL dauerhaft speichern (Container-Upgrade verlustfrei).
+      - stantonopoly-data:/app/data
+
+volumes:
+  stantonopoly-data:
