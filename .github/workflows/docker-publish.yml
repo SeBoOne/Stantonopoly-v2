@@ -19,6 +19,15 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}   # = <owner>/stantonopoly-multiplayer
 
+# WICHTIG: GHCR-Push braucht explizite Berechtigung. Ohne `packages: write`
+# erhält der GITHUB_TOKEN im Workflow nur `contents: read` → docker login gelingt,
+# aber `docker push` scheitert mit "permission_denied: token does not match scopes".
+# (Genau das schlug Run 36753607868.)
+permissions:
+  contents: read          # zum Auschecken des Repos
+  packages: write         # zum Pushen des Images nach ghcr.io
+  id-token: write         # für OIDC (kann später für GHCR-Trust genutzt werden)
+
 jobs:
   build-and-test:
     name: Install, testen, Image bauen
