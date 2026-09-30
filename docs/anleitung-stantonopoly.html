@@ -60,6 +60,7 @@ td b{color:var(--fg)}
 .badge-inline{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;border:1px solid var(--accent);color:var(--accent-hi);padding:.15rem .5rem;border-radius:2px}
 .badge-pirate{border-color:var(--pirat);color:var(--pirat)}
 .badge-norm{border-color:var(--fg-faint);color:var(--fg-faint)}
+.badge-opt{border-color:var(--ok);color:var(--ok);font-size:.68rem}
 
 footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color:var(--fg-faint);font-family:var(--mono);font-size:.75rem;letter-spacing:.1em}
 </style>
@@ -78,6 +79,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <a href="#pirat">🏴‍☠️ Pirat</a>
   <a href="#teamleiter">👑 Teamleiter</a>
   <a href="#manager">🛠️ Manager</a>
+  <a href="#preset">♟ Preset-Editor</a>
   <a href="#gm">🎤 Game Master</a>
 </nav>
 
@@ -127,6 +129,17 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 
   <h3>6. Zug beenden</h3>
   <p>Nach deiner Aktion klicke <b>NÄCHSTER ZUG</b>, um ans nächste Team zu übergeben. Das Ziel: das <b>letzte Team mit Vermögen gewinnen</b>.</p>
+
+  <h3>7. Optionale Regeln im Spiel</h3>
+  <p>Nicht jedes Spiel sieht gleich aus: Manche Regeln sind im <b>Preset</b> an- oder abschaltbar und gelten nur, wenn sie für dieses Spiel aktiv sind:</p>
+  <ul>
+    <li>🌐 <b>Armistice-Felder</b> <span class="badge-opt">OPTIONAL</span> — Schutz-/Ruhe-Felder (Bonus/Neutral), nur wenn im Preset aktiv.</li>
+    <li>🛠️ <b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span> — zusätzliche Aufgaben zum Erledigen/Bestätigen.</li>
+    <li>🏴‍☠️ <b>Piratensystem</b> <span class="badge-opt">OPTIONAL</span> — ein Piraten-Team, das Schutzgeld kassiert.</li>
+    <li>🏦 <b>Verkauf an die Bank</b> <span class="badge-opt">OPTIONAL</span> — eigene Felder direkt an die Bank verkaufen.</li>
+    <li>🧱 <b>Bauregel (Farbreihe)</b> <span class="badge-opt">OPTIONAL</span> — Ausbauen nur in der ganzen Farbreihe und gleichmäßig.</li>
+  </ul>
+  <div class="note">Wo was einstellbar ist, erklärt der Abschnitt <b><a href="#preset" style="color:var(--accent-hi)">♟ Preset-Editor</a></b>.</div>
 </section>
 
 <!-- ================= PIRAT ================= -->
@@ -188,10 +201,10 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <table>
     <tr><th>Aktion</th><th>Erklärung</th></tr>
     <tr><td><b>Würfeln</b></td><td>Du würfelst für das Team und bewegst eure Figur.</td></tr>
-    <tr><td><b>Ausbauen</b></td><td>Dein Feld in der Wirtschaft auswählen → Ausbaustufe erhöhen (Miete steigt).</td></tr>
+    <tr><td><b>Ausbauen</b> <span class="badge-opt">OPTIONAL</span></td><td>Dein Feld in der Wirtschaft auswählen → Ausbaustufe erhöhen (Miete steigt). Nur möglich, wenn die <b>Bauregel</b> im Preset aktiv ist — die bestimmt auch, ob man nur die ganze Farbreihe bauen darf.</td></tr>
     <tr><td><b>Hypothek / Abbau</b></td><td>Feld beleihen oder abreißen (Sanierung bei Geldnot).</td></tr>
-    <tr><td><b>Handel / Auktion</b></td><td>Feld Verkauf anbieten, Kauf anbieten, auf Angebote antworten, versteigern.</td></tr>
-    <tr><td><b>Aufgaben</b></td><td>Abschluss einer Aufgabe bestätigen.</td></tr>
+    <tr><td><b>Handel / Auktion</b></td><td>Feld Verkauf anbieten, Kauf anbieten, auf Angebote antworten, versteigern. <b>Verkauf an die Bank</b> nur, wenn im Preset aktiv.</td></tr>
+    <tr><td><b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span></td><td>Abschluss einer Aufgabe bestätigen — nur wenn die <b>Aufgabenregel</b> im Preset aktiv ist.</td></tr>
   </table>
 
   <h3>3. Wirtschaft im Blick</h3>
@@ -227,13 +240,74 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   </ul>
 </section>
 
+<!-- ================= PRESET-EDITOR ================= -->
+<section id="preset">
+  <h2><span class="ic">♟</span> Preset-Editor</h2>
+  <div class="role-tag">Ein Preset bündelt Spielkarte + Regeln. Hier stellst du beides ein — von den Feldern bis zu jeder optionalen Regel.</div>
+
+  <h3>1. Was ist ein Preset?</h3>
+  <p>Ein Preset ist eine <b>komplett vorgefertigte Spielkonfiguration</b>: die <b>Feldreihe</b> (Karte) plus alle <b>Regel-Einstellungen</b>. Beim „Spiel erstellen" wählst du ein Preset aus (z.&nbsp;B. „Stantonopoly v1") und erhältst damit die Standard-Karte und Standard-Regeln dieses Presets.</p>
+
+  <h3>2. So öffnest du den Editor</h3>
+  <p>Beim <b>Spiel-Erstellen</b> klickst du <b>„⚙ Karte &amp; Regeln bearbeiten"</b>. Ohne Manager-Code arbeiten alle im <b>Standardmodus</b>: Deine Änderungen gelten <b>nur für das Spiel, das du gerade erstellst</b>. Gibst du einen <b>Manager-Code</b> ein (siehe Abschnitt Manager), kannst du Presets auch <b>dauerhaft speichern</b>.</p>
+  <figure>
+    <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
+    <figcaption>Der Preset-Editor: Die Feldliste oben, darunter die Regel-Gruppen. Oben die <b>Manager-Bar</b> („MANAGER → Code → AKTIVIEREN").</figcaption>
+  </figure>
+
+  <h3>3. Die Karte bearbeiten (Felder)</h3>
+  <p>Oben im Editor siehst du die <b>Feldliste</b>. Jedes Feld hat einen <b>Typ</b>, <b>Namen</b>, <b>Preis</b> und eine <b>Farbgruppe</b>. Per <b>↑ / ↓</b> verschiebst du die Position, per <b>×</b> löschst du ein Feld.</p>
+  <table>
+    <tr><th>Feldtyp</th><th>Bedeutung</th><th>Einstellbar</th></tr>
+    <tr><td><b>LOS</b></td><td>Startfeld mit Bonus beim Überqueren.</td><td>Name, BONUS-Betrag (ab „Stantonopoly v1" frei wählbar).</td></tr>
+    <tr><td><b>Grundstück</b></td><td>Kaufbares Feld (wie im Monopoly).</td><td>Name, Kaufpreis, Farbgruppe.</td></tr>
+    <tr><td><b>Ereignis</b></td><td>Ereignis-/Schicksalsfeld.</td><td>Name (Effekt wird aus der Ereignisliste bezogen).</td></tr>
+    <tr><td><b>Steuer</b></td><td>Ziehen erhebt Steuer.</td><td>Name.</td></tr>
+    <tr><td><b>Gefängnis</b></td><td>Freikauf zahlen oder Aussetzen.</td><td>Name.</td></tr>
+    <tr><td><b>Frei Parken</b></td><td>Neutrales Feld.</td><td>Name.</td></tr>
+  </table>
+  <div class="note"><b>Wichtig:</b> In jedem Preset gibt es <b>genau ein LOS-Feld</b>, und es ist <b>immer das erste Feld</b>. Der Editor setzt das automatisch richtig.</div>
+
+  <h3>4. Die Regeln — alles was du einstellen kannst</h3>
+  <p>Im unteren Teil des Editors findest du die Regel-Gruppen. Spielregeln, die nur optional aktiv sind, sind im Editor per <b>Schalter/Häkchen</b> an- und abschaltbar — in dieser Anleitung sind sie mit <span class="badge-opt">OPTIONAL</span> gekennzeichnet. Was in dieser Anleitung als fest beschrieben ist (z.&nbsp;B. „der Teamleader würfelt"), gilt nur, solange die zugehörige Option aktiv ist.</p>
+
+  <table>
+    <tr><th>Gruppe / Option</th><th>Was es steuert</th><th>Status</th></tr>
+    <tr><td><b>Würfel</b></td><td>Würfel-Konfiguration (z.&nbsp;B. 1W6, 2W6, freier Wert).</td><td>Standard</td></tr>
+    <tr><td><b>Zugzeit</b></td><td>Zeit pro Teamzug in Sekunden (Timer).</td><td>Standard</td></tr>
+    <tr><td><b>Mieten (Ausbaustufen)</b></td><td>Mietmultiplikator je Ausbaustufe (ALLEIN, CYCLONE, STORM, BALLISTA, ARMISTICE).</td><td>Standard</td></tr>
+    <tr><td><b>Baukosten</b></td><td>Kosten pro Ausbaustufe.</td><td>Standard</td></tr>
+    <tr><td><b>Hypothek / Entlasten</b></td><td>Satz für das Beleihen und das Entlasten eines Feldes.</td><td>Standard</td></tr>
+    <tr><td><b>Abbau / Rückerstattung</b></td><td>Was du beim Abriss (Abbau) eines Feldes zurückbekommst.</td><td>Standard</td></tr>
+    <tr><td><b>Verkauf an die Bank</b></td><td>Eigene Felder direkt an die Bank verkaufen (Bank-Auszahlung).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Auktion</b></td><td>Zeitdauer einer Versteigerung.</td><td>Standard</td></tr>
+    <tr><td><b>Abstimmung</b></td><td>Zeitdauer von Abstimmungen (z.&nbsp;B. Team-Aufgabe).</td><td>Standard</td></tr>
+    <tr><td><b>Armistice</b></td><td>Schutz-/Ruhe-Zone-Feld im Spiel (Bonus/Neutral).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Bauregel (Farbreihe)</b></td><td>Ausbauen nur in der ganzen Farbreihe und gleichmäßig (Monopoly-Bauregel).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Aufgaben</b></td><td>Aufgabenregel aktiv (Aufgaben abschließen/bestätigen).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Aufgaben-Timer</b></td><td>Zeitlimit pro Aufgabe.</td><td>nur bei Aufgaben</td></tr>
+    <tr><td><b>Aufgaben brauchen Handel</b></td><td>Aufgaben setzen eine Handels-Aktion voraus.</td><td>nur bei Aufgaben</td></tr>
+    <tr><td><b>Piratensystem</b></td><td>Piraten-Team im Spiel.</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Piraten-Würfel</b></td><td>Eigene Würfelregel der Piraten.</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Schutzgeld</b></td><td>Betrag, den Teams bei einer Piraten-Begegnung zahlen.</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Strafgeld (Erwischt)</b></td><td>Multiplikator für die „Erwischt"-Flucht (Strafgeld).</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Piraten-Wartezeit</b></td><td>Wie viele Teamzüge die Piraten auf einem Feld warten, ehe sie weiterziehen.</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Piraten einmal pro Runde</b></td><td>Ein Team wird pro Durchgang nur einmal von den Piraten angegangen.</td><td><span class="badge-opt">OPTIONAL</span> (nur bei Piraten)</td></tr>
+  </table>
+
+  <div class="note"><b>Der Knüpfpunkt:</b> Viele „Regeln" in dieser Anleitung (Armistice-Felder, Aufgaben, Bauregel, Piratensystem, Bank-Verkauf) sind <b>nicht immer aktiv</b> — sie sind im Preset an-/abschaltbar. Wenn von ihnen die Rede ist, gilt: <b>aktiv im Preset = Regel greift; aus = Teil entfällt.</b></div>
+
+  <h3>5. Farbgruppen und Ausbaustufen</h3>
+  <p>Die <b>Farbgruppe</b> eines Grundstücks bestimmt, wie es aussieht und (bei aktiver Bauregel) ob es ausbaufähig ist. Die <b>Ausbaustufen</b> (ALLEIN → CYCLONE → STORM → BALLISTA → ARMISTICE) bestimmen, wie stark Miete und Baukosten wachsen — du stellst je Stufe den Multiplikator ein.</p>
+</section>
+
 <!-- ================= GM ================= -->
 <section id="gm">
   <h2><span class="ic">🎤</span> Game Master (GM)</h2>
   <div class="role-tag">Du organisierst das Spiel: erstellen, Codes verteilen, starten, pausieren, Abschluss.</div>
 
   <h3>1. Ein Spiel erstellen</h3>
-  <p>Klicke <b>„Spiel erstellen"</b>, wähle die Anzahl Teams (2–8), ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1"), und gib eine <b>Schiffsausstattung</b> je Team an. Optional im Preset-Editor: Piratensystem, Aufgabenregel usw.</p>
+  <p>Klicke <b>„Spiel erstellen"</b>, wähle die Anzahl Teams (2–8), ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1"), und gib eine <b>Schiffsausstattung</b> je Team an. Optional im Preset-Editor (<a href="#preset" style="color:var(--accent-hi)">♟</a>) schaltest du Regeln an/aus: Piratensystem <span class="badge-opt">OPT</span>, Aufgaben <span class="badge-opt">OPT</span>, Armistice <span class="badge-opt">OPT</span>, Bank-Verkauf <span class="badge-opt">OPT</span>, Bauregel <span class="badge-opt">OPT</span>.</p>
   <figure>
     <img src="anleitung-img/guide-setup.png" alt="Setup-Maske">
     <figcaption>Die Setup-Maske: Teams wählen, GM-Name, Preset, Schiffe je Team. So kommst du zur Lobby.</figcaption>
