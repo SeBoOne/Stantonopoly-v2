@@ -526,9 +526,9 @@ test('P8 (statisch): Client rendert Piratenteam-Panel statt Beobachter + blendet
   assert.ok(piratePanelIdx < beobachterIdx, 'Piraten-Zweig steht VOR dem Beobachter-Fallback');
   // (b) Das Piraten-Panel labelt als Piratenteam mit Marker 🏴‍☠️.
   assert.ok(/🏴‍☠️/.test(src), 'Piraten-Team wird mit dem Piraten-Marker 🏴‍☠️ labelt');
-  // (c) Wirtschaft/Handel/Auktion-Panels rendern nur für normale Teams (idx<0 → früh return/hidden).
-  assert.ok(/function renderEconBar[\s\S]{0,600}if \(idx < 0 \|\| !st\.started/.test(src), 'renderEconBar versteckt für Nicht-Team (Piraten: idx=-1 → ausgeblendet)');
-  assert.ok(/function renderTradePanel[\s\S]{0,600}if \(idx < 0 \|\| !st\.started/.test(src), 'renderTradePanel (Handel/Auktion) versteckt für Nicht-Team (Piraten)');
+  // (c) Wirtschaft/Handel/Auktion-Panels rendern nur für Leader (idx<0/O!amILeader → hidden).
+  assert.ok(/function renderEconBar[\s\S]{0,700}!amILeader\(st\)/.test(src), 'renderEconBar versteckt für Nicht-Leader (Piraten/Beobachter/Mitglieder: ausgeblendet)');
+  assert.ok(/function renderTradePanel[\s\S]{0,700}trade-drawer[\s\S]{0,200}amILeader\(st\)/.test(src), 'renderTradePanel (Handel/Auktion) versteckt für Nicht-Leader via trade-drawer-Toggle');
   assert.strictEqual(/Piraten ziehen lassen/.test(src), true, 'Piraten-Aktion „Piraten ziehen lassen“ ist im Client vorhanden');
 });
 
