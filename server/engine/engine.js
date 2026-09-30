@@ -511,6 +511,7 @@ function attachMethods(game) {
   game.advancePirate = function () { return StantonopolyGame.advancePirate(game); };
   game.resolvePirateEncounter = function (choice) { return StantonopolyGame.resolvePirateEncounter(game, choice); };
   game.pirateEventConfirm = function (verdict) { return StantonopolyGame.pirateEventConfirm(game, verdict); };
+  game.pirateBotVerdict = function (teamIdx, rng) { return StantonopolyGame.pirateBotVerdict(game, teamIdx, rng); };
   // (2m-A) Vermögenswert-Helper (Server-Auto-Beenden)
   game.teamWealth = function (playerIdx) { return teamWealth(game, playerIdx); };
   game.richestTeamIdx = function () { return richestTeamIdx(game); };
@@ -856,6 +857,30 @@ const StantonopolyGame = {
       return { ok: true, action: 'flee', caughtFee: enc.caughtFee, turnEnded: true };
     }
     return { ok: false, reason: 'bad_choice' };
+  },
+
+  // ------------------------------------------------------------------
+  // (Piratensystem Bot) Entscheidet ein Flucht-Urteil automatisch, wenn KEIN
+  // echtes Piraten-Mitglied online ist. Basis „Erwischt" = 40%, steigt mit dem
+  // Besitzanteil des fliehenden Teams an allen kaufbaren Feldern bis max. 65%
+  // (0% Besitz → 40%, 100% Besitz → 65%). rng injizierbar für deterministische Tests.
+  // ------------------------------------------------------------------
+  pirateBotVerdict: function (game, teamIdx, rng) {
+    const vd = game && game.pirateVerdict;
+    if (!vd || vd.teamIdx !== teamIdx) return { ok: false, reason: 'no_verdict' };
+    const p = game.players[teamIdx];
+    if (!p || p.bankrupt) { game.pirateVerdict = null; return { ok: false, reason: 'inactive' }; }
+    // Besitzanteil an allen kaufbaren Grundstücken der Karte.
+    const buyables = game.fields.filter((f) => f.type === 'grundstueck').length || 1;
+    const owned = Object.keys(p.properties || {}).length;
+    const share = Math.min(1, owned / buyables);
+    const caughtProb = 0.40 + 0.25 * share; // 40% → 65%
+    const r = (typeof rng === 'function' ? rng() : Math.random());
+    const verdict = (r < caughtProb) ? 'caught' : 'escaped';
+    log(game, '🏴‍☠️ [Bot] Kein Piraten-Mitglied online — Urteil per Wahrscheinlichkeit (' +
+      Math.round(caughtProb * 100) + '% erwischt, Besitzanteil ' + Math.round(share * 100) + '%): ' +
+      (verdict === 'caught' ? 'ERWISCHT' : 'ENTWISCHT') + '.');
+    return StantonopolyGame.pirateEventConfirm(game, verdict);
   },
 
   // ------------------------------------------------------------------

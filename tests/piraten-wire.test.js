@@ -218,8 +218,10 @@ test('Wire/AC4: Piraten-Begegnung → flee beendet Runde (Würfeln gesperrt) →
   const gameId = created.gameId;
   const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
   const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
+  const pirateCode = created.tokens.find((t) => t.isPirate).code;
   const a = await connect(url, 'A'); const b = await connect(url, 'B');
   const d = await connect(url, 'D'); const e = await connect(url, 'E');
+  const p = await connect(url, 'Pirat');
   const join = (client, code, name) => new Promise((resolve) => {
     const pj = once(client, 'joined');
     client.emit('team:join', { gameId, code, playerName: name });
@@ -227,6 +229,9 @@ test('Wire/AC4: Piraten-Begegnung → flee beendet Runde (Würfeln gesperrt) →
   });
   await join(a, inv0, 'A'); await join(b, inv0, 'B');
   await join(d, inv1, 'D'); await join(e, inv1, 'E');
+  // (BOT-Regel) Ein echtes Piraten-Mitglied verhindert den Bot — das Urteil bleibt
+  // OFFEN (kein automatisches Fällen), sodass 'automatisch erwischt' weiter gültig ist.
+  await join(p, pirateCode, 'Pirat');
   const vote = (client, pid) => client.emit('vote:leader', { gameId, playerId: pid });
   vote(a, a.id); await sleep(30); vote(b, a.id); await sleep(40);
   vote(d, d.id); await sleep(30); vote(e, d.id); await sleep(40);
@@ -289,7 +294,7 @@ test('Wire/AC4: Piraten-Begegnung → flee beendet Runde (Würfeln gesperrt) →
   assert.strictEqual(stAuto.game.players[actIdx].budget, 1500000 - 200000, 'Strafgeld 2×100000 automatisch gezahlt');
   assert.strictEqual(stAuto.game.players[actIdx].pos, posAfterErr, 'abgelehnter Wurf hat die Position nicht verändert');
   } finally {
-    [gm, a, b, d, e].forEach((c_) => c_.disconnect());
+    [gm, a, b, d, e, p].forEach((c_) => c_.disconnect());
     srv.stop();
   }
 });
@@ -525,4 +530,75 @@ test('P8 (statisch): Client rendert Piratenteam-Panel statt Beobachter + blendet
   assert.ok(/function renderEconBar[\s\S]{0,600}if \(idx < 0 \|\| !st\.started/.test(src), 'renderEconBar versteckt für Nicht-Team (Piraten: idx=-1 → ausgeblendet)');
   assert.ok(/function renderTradePanel[\s\S]{0,600}if \(idx < 0 \|\| !st\.started/.test(src), 'renderTradePanel (Handel/Auktion) versteckt für Nicht-Team (Piraten)');
   assert.strictEqual(/Piraten ziehen lassen/.test(src), true, 'Piraten-Aktion „Piraten ziehen lassen“ ist im Client vorhanden');
+});
+
+// =====================================================================
+// Bot-Pirat (Wire): Ohne echtes Piraten-Mitglied wird das Flucht-Urteil
+// sofort automatisch gefällt (nicht offen gelassen). Der fliehende Leader
+// erhält nach 'flee' zeitnah ein aufgelöstes Verdict (fleeing=false).
+// =====================================================================
+test('BOT: Flucht ohne Piraten-Mitglied → Urteil auto-aufgelöst (kein wartendes Verdict)', async () => {
+  const srv = startServer();
+  const url = 'http://localhost:' + srv.port;
+  const gm = await connect(url, 'gm');
+  const created = await createGame(gm, {
+    teams: 2, capital: 1500000, diceConfig: '1w6', armistice: false,
+    settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 }
+  });
+  const gameId = created.gameId;
+  // KEIN Piraten-Mitglied beitreten — nur normale Teams.
+  const inv0 = created.tokens.find((t) => t.ship === 'Redeemer').code;
+  const inv1 = created.tokens.find((t) => t.ship === 'Hammerhead').code;
+  const a = await connect(url, 'A'); const b = await connect(url, 'B');
+  const d = await connect(url, 'D'); const e = await connect(url, 'E');
+  const join = (cl, code, name) => new Promise((res) => { const pj = once(cl, 'joined'); cl.emit('team:join', { gameId, code, playerName: name }); pj.then(res); });
+  await join(a, inv0, 'A'); await join(b, inv0, 'B'); await join(d, inv1, 'D'); await join(e, inv1, 'E');
+  try {
+    const vote = (cl, pid) => cl.emit('vote:leader', { gameId, playerId: pid });
+    vote(a, a.id); await sleep(30); vote(b, a.id); await sleep(30);
+    vote(d, d.id); await sleep(30); vote(e, d.id); await sleep(50);
+    gm.emit('gm:start', { gameId, gmCode: created.gmCode });
+    let stA = null; a.on('state', (s) => { stA = s; });
+    const t0 = Date.now(); while ((!stA || !stA.started) && Date.now() - t0 < 5000) await sleep(20);
+    assert.ok(stA && stA.started, 'Spiel gestartet');
+    const actIdx = stA.game.activeIdx;
+    const actor = (actIdx === 0) ? a : d;
+    const other = (actIdx === 0) ? d : a;
+    // Deterministisch aufs Piraten-Feld: Pirat-Position + aktives Team nachführen.
+    const pirIdx = stA.game.players.findIndex((p) => p.role === 'pirate' || p.isPirate);
+    const pirPos = stA.game.players[pirIdx].pos;
+    const actPos = stA.game.players[actIdx].pos;
+    const fieldsLen = stA.game.fields.length;
+    const delta = ((pirPos - actPos) % fieldsLen + fieldsLen) % fieldsLen;
+    gm.emit('gm:deploy', { gameId, gmCode: created.gmCode, configPatch: { diceConfig: { kind: 'frei', freeValue: delta } } });
+    await sleep(80);
+    const stRollP = once(actor, 'state');
+    actor.emit('action:roll', { gameId });
+    const stRoll = await stRollP;
+    assert.ok(stRoll.game.pirateEncounter, 'Begegnung ausgelöst');
+    // Flucht wählen → BOT muss das Urteil sofort auflösen (kein offenes Verdict bleiben).
+    let stFlee = null;
+    const stFleeP = once(actor, 'state');
+    actor.emit('pirate:resolve', { gameId, choice: 'flee' });
+    stFlee = await stFleeP;
+    // Nach flee + Broadcast: Das fliehende Team darf NICHT mehr als fliehend offen sein,
+    // es sei denn das Verdict wurde gerade gesetzt und der nächste Broadcast löst es.
+    // Warte bis fleeing zurückgesetzt ODER Verdict weg (Bot-Auflösung zeitnah).
+    const tE = Date.now();
+    let resolved = false;
+    while (Date.now() - tE < 4000) {
+      const cur = stFlee;
+      const pl = cur.game.players[actIdx];
+      const openVerdict = cur.game.pirateVerdict;
+      if ((!pl.fleeing) || (!openVerdict && pl.fleeing === false)) { resolved = true; break; }
+      // erneut state abwarten (Broadcast nach Bot-Auflösung)
+      const nx = await once(actor, 'state', 2000).catch(() => null);
+      if (!nx) break; stFlee = nx;
+    }
+    console.log('BOT wire: resolved=', resolved, 'fleeing=', stFlee && stFlee.game.players[actIdx].fleeing, 'verdict=', !!(stFlee && stFlee.game.pirateVerdict));
+    assert.ok(resolved, 'Bot hat das Flucht-Urteil aufgelöst (kein ewig offenes Verdict ohne Piraten)');
+  } finally {
+    [gm, a, b, d, e].forEach((c_) => c_.disconnect());
+    srv.stop();
+  }
 });

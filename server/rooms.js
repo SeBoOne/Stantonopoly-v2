@@ -1239,6 +1239,22 @@ class Rooms {
     if (c !== 'pay' && c !== 'flee') return { error: { code: 'BAD_CHOICE', message: 'Ungültige Begegnungs-Wahl.' } };
     const r = req.engine.resolvePirateEncounter(c);
     if (!r.ok) return { error: { code: 'PIRATE', message: 'Begegnung nicht auflösbar (' + r.reason + ').' } };
+    // (Bot-Pirat) Nach einer FLUCHT: Wenn kein echtes Piraten-Mitglied online ist,
+    // fällt der Bot das Urteil (Erwischt/Entwischt) sofort mit der
+    // Wahrscheinlichkeits-Regel (40% Basis → max 65% je Team-Besitzanteil).
+    if (r.action === 'flee') {
+      const pirateMembers = (dbm.getPlayers(gameId) || []).filter((p) => String(p.teamId) === 'PIRATES');
+      if (!pirateMembers.length) {
+        // Fliehendes Team = das im Verdict verankerte (resolvePirateEncounter setzt
+        // pirateVerdict.teamIdx; nextTurn kann es bei Mehr-Team-Spielen aber schon
+        // verbraucht/aufgelöst haben — dann greift der Auto-Erwischt-Pfad).
+        const fledIdx = req.engine.pirateVerdict && req.engine.pirateVerdict.teamIdx != null
+          ? req.engine.pirateVerdict.teamIdx : null;
+        if (fledIdx != null) {
+          req.engine.pirateBotVerdict(fledIdx);
+        }
+      }
+    }
     const ret = this._persistAndReturn(gameId, req.engine, true);
     ret.pirate = r;
     return ret;

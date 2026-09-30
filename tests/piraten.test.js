@@ -517,3 +517,60 @@ test('P7: Piraten-Aufgeben persistiert über Round-Trip (kein neues aktives Pira
   assert.strictEqual(pirateOf(g2), null, 'nach Reload weiterhin kein aktiver Pirat');
   assert.ok(g2.players.some((p) => p.role === 'pirate' && p.bankrupt), 'entfernte Piraten-Entität persistiert');
 });
+
+// =====================================================================
+// Bot-Pirat: Erwischt/Entwischt-Wahrscheinlichkeit nach Team-Besitzanteil.
+// Basis 40% Erwischt, steigt mit Besitzanteil an allen kaufbaren Feldern bis 65%.
+// =====================================================================
+// Begegnung auf einem Grundstück auslösen: Pirat an Feld 1, Team 0 auf 0, Wurf 1.
+function landEncounter(g) {
+  const pir = pirateOf(g);
+  g.players[0].pos = 0; pir.pos = 1; g.activeIdx = 0; g.rolled = false; g.canBuy = false;
+  return rollExact(g, 1); // Team 0 zieht 1 → Feld 1 (Pirat dort)
+}
+
+test('BOT: Flucht ohne Piraten-Mitglied → Bot-Urtel setzt fleeing zurück (caught bei rng 0)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateProtectionFee: 100000, pirateCaughtMult: 2 } });
+  const roll = landEncounter(g);
+  assert.ok(roll.pirateEncounter, 'Begegnung');
+  const fr = g.resolvePirateEncounter('flee');
+  assert.strictEqual(fr.action, 'flee');
+  const vdIdx = g.pirateVerdict.teamIdx;
+  const r = g.pirateBotVerdict(vdIdx, () => 0); // r=0 < 40% → caught
+  assert.strictEqual(r.verdict, 'caught', 'rng 0 → erwischt');
+  assert.strictEqual(g.players[vdIdx].fleeing, false, 'Flucht beendet');
+});
+
+test('BOT: rng=0.99 → escaped (fleeing aufgehoben)', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
+  landEncounter(g); g.resolvePirateEncounter('flee');
+  const vdIdx = g.pirateVerdict.teamIdx;
+  const r = g.pirateBotVerdict(vdIdx, () => 0.99);
+  assert.strictEqual(r.verdict, 'escaped', 'rng 0.99 → entwischt');
+  assert.strictEqual(g.players[vdIdx].fleeing, false);
+});
+
+test('BOT: 0% Besitz → 40% Erwischt; 100% Besitz → 65% (Wahrscheinlichkeitsgrenzen)', () => {
+  // Helfer: Spiel mit Flee-Verdict (teamIdx 0), optionaler Besitzzuweisung.
+  function flight(assignAll) {
+    const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
+    if (assignAll) g.fields.forEach((f, i) => { if (f.type === 'grundstueck') g.players[0].properties[i] = { level: 'ALLEIN' }; });
+    landEncounter(g);
+    const fr = g.resolvePirateEncounter('flee');
+    assert.strictEqual(fr.action, 'flee');
+    const v = g.pirateVerdict;
+    assert.ok(v && v.teamIdx === 0, 'Verdict teamIdx 0');
+    return g;
+  }
+  // 0% Besitz (nichts assigniert) → prob 0.40: 0.399 < 0.40 → caught
+  let g = flight(false);
+  assert.strictEqual(g.pirateBotVerdict(0, () => 0.399).verdict, 'caught', '40% Grenze unten: 0.399 < 0.40 → caught');
+  g = flight(false);
+  assert.strictEqual(g.pirateBotVerdict(0, () => 0.401).verdict, 'escaped', '0.401 >= 0.40 → escaped');
+  // 100% Besitz (alle Grundstücke) → prob 0.65: 0.64 < 0.65 → caught
+  g = flight(true);
+  assert.strictEqual(g.pirateBotVerdict(0, () => 0.64).verdict, 'caught', '65% Grenze unten: 0.64 < 0.65 → caught');
+  g = flight(true);
+  assert.strictEqual(g.pirateBotVerdict(0, () => 0.66).verdict, 'escaped', '0.66 >= 0.65 → escaped trotz Volllbesitz');
+  assert.ok(g.fields.filter((f) => f.type === 'grundstueck').length > 0, 'Karte hat kaufbare Felder');
+});

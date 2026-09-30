@@ -1422,6 +1422,21 @@
     return -1;
   }
 
+  // (P1) Bin ICH der Teamleader meines Teams? leaderMap + client.playerId abgleichen.
+  // Wirtschaft/Handel/Auktion-Panels sind nur für den Leader sichtbar.
+  function amILeader(st) {
+    if (client.role === 'gm') return false; // GM ist kein Teamleader
+    const leaders = leaderMap(st && st.leaders);
+    const idx = myTeamIdx(st);
+    if (idx < 0) return false;
+    const t = (st && Array.isArray(st.teams)) ? st.teams[idx] : null;
+    if (!t) return false;
+    const teamKey = t.id != null ? t.id : t.teamId;
+    const leaderId = leaders[teamKey] != null ? leaders[teamKey]
+      : (leaders[t.teamId] != null ? leaders[t.teamId] : null);
+    return leaderId != null && client.playerId != null && String(leaderId) === String(client.playerId);
+  }
+
   function toBoardData(st) {
     const game = (st && st.game) || {};
     const teams = (st && Array.isArray(st.teams)) ? st.teams : [];
@@ -1542,8 +1557,9 @@
       // (P8) Piraten (und Beobachter) haben KEINE Wirtschaft: den gesamten
       // Wirtschaft-Drawer ausblenden (nicht nur den leeren Body), damit die
       // Kategorie „Wirtschaft“ für das Piratenteam komplett unterdrückt ist.
+      // (P1) Auch normale (nicht-Leader) Mitglieder sehen das Wirtschaft-Panel nicht.
       const econDrawer = $('econ-drawer');
-      if (idx < 0 || !st.started || st.over) {
+      if (idx < 0 || !st.started || st.over || !amILeader(st)) {
         if (econDrawer) econDrawer.classList.add('hidden');
         return;
       }
@@ -1617,8 +1633,9 @@
     const offers = Array.isArray(st.game && st.game.offers) ? st.game.offers : [];
     const auction = (st.game && st.game.auction) || null;
     // Trade-Panel ist IMMER sichtbar (im aktiven Spiel), auch ohne Angelegenheiten
-    // → Platzhalter, damit sich das Layout nicht verschiebt.
-    if (idx < 0 || !st.started || st.over) { panel.classList.add('hidden'); return; }
+    // → Platzhalter, damit sich das Layout nicht verschiebt. (P1) Nur der Teamleader
+    // sieht es; normale Mitglieder bekommen das Panel ausgeblendet.
+    if (idx < 0 || !st.started || st.over || !amILeader(st)) { panel.classList.add('hidden'); return; }
     panel.classList.remove('hidden');
     // Nur Angebote, die MEIN Team betreffen (targetIdx===idx oder fromIdx===idx)
     const mine = offers.filter((o) => o.targetIdx === idx || o.fromIdx === idx);
