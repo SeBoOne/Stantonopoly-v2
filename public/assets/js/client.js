@@ -1630,13 +1630,15 @@
     const panel = $('trade-panel');
     if (!panel) return;
     const idx = myTeamIdx(st);
+    // (P1) Nur der Teamleader sieht Handel & Auktion — den ganzen DRAWER (Container)
+    // ausblenden (nicht nur den Body), damit die Kopfzeile „HANDEL & AUKTION" auch
+    // für normale Mitglieder/Beobachter/Piraten verschwindet.
+    const drawer = $('trade-drawer');
+    const showTrade = idx >= 0 && st.started && !st.over && amILeader(st);
+    if (drawer) drawer.classList.toggle('hidden', !showTrade);
+    else if (!showTrade) { panel.classList.add('hidden'); return; }
     const offers = Array.isArray(st.game && st.game.offers) ? st.game.offers : [];
     const auction = (st.game && st.game.auction) || null;
-    // Trade-Panel ist IMMER sichtbar (im aktiven Spiel), auch ohne Angelegenheiten
-    // → Platzhalter, damit sich das Layout nicht verschiebt. (P1) Nur der Teamleader
-    // sieht es; normale Mitglieder bekommen das Panel ausgeblendet.
-    if (idx < 0 || !st.started || st.over || !amILeader(st)) { panel.classList.add('hidden'); return; }
-    panel.classList.remove('hidden');
     // Nur Angebote, die MEIN Team betreffen (targetIdx===idx oder fromIdx===idx)
     const mine = offers.filter((o) => o.targetIdx === idx || o.fromIdx === idx);
     // (2i #11) Hervorhebung: Angebot betrifft mich → ich; Versteigerung → alle Teams.
