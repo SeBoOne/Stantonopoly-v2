@@ -86,20 +86,26 @@ async function fetchShipNames(opts) {
 // ---------------------------------------------------------------------------
 const LOCATION_TYPES = ['Moon', 'Planet', 'Outpost', 'Asteroid', 'Settlement', 'Manmade'];
 
-async function fetchLocationNames(opts) {
-  // Komma-Liste: Die API akzeptiert mehrere Classifications komma-getrennt.
-  const filter = LOCATION_TYPES.join(',');
-  const data = await fetchAllPages(BASE + '/api/locations', { 'filter[type_classification]': filter, 'page[size]': String(PAGE_SIZE) }, opts);
+// Pure Filter-Funktion: aus einer Liste von Location-Objekten die erlaubten
+// Namens-Kandidaten extrahieren (Sebo-Regel: quantum_travel==null / hide_in_starmap
+// / block_travel ausschließen). Separat exportiert, damit hermetisch testbar.
+function locationAllowedNames(items) {
   const names = [];
-  for (const loc of data) {
+  for (const loc of items) {
     if (!loc || typeof loc.name !== 'string' || !loc.name.trim()) continue;
-    // Ausschließen laut Sebo-Regel.
     if (loc.quantum_travel == null) continue;              // nicht per QT erreichbar
     if (loc.hide_in_starmap === true) continue;             // in Starmap verborgen
     if (loc.block_travel === true) continue;                // Reise blockiert
     names.push(loc.name);
   }
-  return { names };
+  return names;
+}
+
+async function fetchLocationNames(opts) {
+  // Komma-Liste: Die API akzeptiert mehrere Classifications komma-getrennt.
+  const filter = LOCATION_TYPES.join(',');
+  const data = await fetchAllPages(BASE + '/api/locations', { 'filter[type_classification]': filter, 'page[size]': String(PAGE_SIZE) }, opts);
+  return { names: locationAllowedNames(data) };
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +135,7 @@ module.exports = {
   fetchAllPages,
   fetchShipNames,
   fetchLocationNames,
+  locationAllowedNames,
   syncAll,
   LOCATION_TYPES
 };
