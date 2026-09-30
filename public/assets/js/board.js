@@ -82,7 +82,15 @@ window.stanGroupKey = function (key) {
     var n = m ? m[level] : null;
     return n || LEVEL_NAMES_DEFAULT[level] || level;
   }
-  function losBonus() { return FALLBACK_LOS_BONUS; }
+  function losBonus() {
+    // Anzeige-Fix: Der echte Los-Bonus aus dem Feld-State (first field = LOS),
+    // nicht der hartkodierte Fallback. Fallback nur, wenn gar kein Feld/Preset.
+    if (state.fields && state.fields.length) {
+      var los = state.fields[0];
+      if (los && typeof los.bonus === 'number') return los.bonus;
+    }
+    return FALLBACK_LOS_BONUS;
+  }
   function liveSettings() {
     var s = (state.data && state.data.settings && typeof state.data.settings === 'object') ? state.data.settings : {};
     return {

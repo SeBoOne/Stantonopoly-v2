@@ -136,6 +136,26 @@ function normalizeField(f) {
   return out;
 }
 
+// (Preset-Regel) Es gibt genau EIN Los-Feld pro Preset, und es ist immer Feld 0.
+// Entfernt weitere LOS-Felder und stellt sicher, dass Feld 0 ein Los ist.
+function singleLos(fields) {
+  if (!Array.isArray(fields) || !fields.length) return fields;
+  const f = fields.slice();
+  // Erstes Vorkommen von LOS an Feld 0 bringen (falls Feld 0 keins ist).
+  if (f[0].type !== 'los') {
+    const losIdx = f.findIndex((x) => x.type === 'los');
+    if (losIdx === -1) {
+      // Kein Los vorhanden → Feld 0 wird zum Los (neutraler Start, Bonus aus Default).
+      f[0] = { type: 'los', name: f[0].name || 'Los', bonus: (typeof f[0].bonus === 'number' ? f[0].bonus : 500000) };
+    } else {
+      const losF = f.splice(losIdx, 1)[0];
+      f.splice(0, 0, losF); // gewünschtes Los an den Anfang
+    }
+  }
+  // Ab jetzt: genau die Felder behalten, nur das erste Feld darf LOS sein.
+  return f.filter((x, i) => i === 0 || x.type !== 'los');
+}
+
 function ownerOf(game, fieldIdx) {
   for (let i = 0; i < game.players.length; i++) {
     if (game.players[i].properties[fieldIdx] !== undefined) return game.players[i];
@@ -511,9 +531,11 @@ const StantonopolyGame = {
       ? config.startingCapital
       : data.DEFAULT_CAPITAL;
     // Felder des gewählten Presets; Fallback auf Standard-Preset.
-    const fields = (Array.isArray(config.fields) && config.fields.length)
-      ? config.fields.map(normalizeField)
-      : (D.PRESETS['Stantonopoly v1'] ? D.PRESETS['Stantonopoly v1'].fields.map(normalizeField) : []);
+    const fields = singleLos(
+      (Array.isArray(config.fields) && config.fields.length)
+        ? config.fields.map(normalizeField)
+        : (D.PRESETS['Stantonopoly v1'] ? D.PRESETS['Stantonopoly v1'].fields.map(normalizeField) : [])
+    );
 
     const players = (config.players || []).map((p) => {
       return {
