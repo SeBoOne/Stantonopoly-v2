@@ -1041,10 +1041,13 @@ class Rooms {
         this._armTurnTimer(gameId);
     // (Aufgabenregel P4) Beschäftigtes-Team-Timer nach jeder Aktion neu bewerten.
     this._armTaskTimer(gameId);
-    // Frisch persistierten State (inkl. turnDeadline des soeben armierten Timers) zurückgeben.
+    // Frisch persistierten State (inkl. turnDeadline des soeben armierten Timers)
+    // zurückgeben. _armTurnTimer/_armTaskTimer haben die DB bereits über einen
+    // separaten Deserialize+_save aktualisiert — daher ist fresh.state aktuell.
     const fresh = dbm.getGame(gameId);
-    let retState = engine.serialize();
-    if (fresh && fresh.state) retState = fresh.state;
+    let retState = fresh && fresh.state;
+    // Nur wenn der DB-Read nichts liefert (extrem selten), Fallback auf Serialize.
+    if (!retState) retState = engine.serialize();
     return { ok: true, gameId, state: retState };
   }
 

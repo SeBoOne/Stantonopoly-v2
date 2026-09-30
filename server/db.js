@@ -27,6 +27,16 @@ if (!fs.existsSync(DB_DIR)) {
 
 const db = new DatabaseSync(DB_PATH);
 
+// ---------------------------------------------------------------------------
+// Performance/Robustheit-Pragmas (empfohlen für Single-Writer / WAL):
+//  - WAL: Reads und Writes laufen teilkombiniert, Absturzsicherer mitten im
+//    Schreiben (beständige Wheelie-Stelle). erzeugt -wal/-shm Dateien.
+//  - busy_timeout: bei kurzen Lock-Überlappungen (z. B. parallele Sync-Abfrage)
+//    warten statt sofort mit SQLITE_BUSY zu scheitern.
+//  - synchronous=FULL ist SQLite-Default und bleibt: maximale Crash-Konsistenz.
+// ---------------------------------------------------------------------------
+db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous=FULL;`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS games (
     gameId     TEXT PRIMARY KEY,
