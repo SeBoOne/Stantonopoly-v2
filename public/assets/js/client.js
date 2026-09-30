@@ -324,7 +324,7 @@
     const navInfo = $('nav-info');
     if (navInfo) navInfo.addEventListener('click', openInfoModal);
     // Landing-Hero-Buttons (Sichtcheck-Block 2 #9): „＋ Spiel erstellen“ → Setup,
-    // „🎟 Mit Code beitreten“ → Join-Modal.
+    // „<i class="bi bi-ticket" aria-hidden="true"></i> Mit Code beitreten“ → Join-Modal.
     const navSetup2 = $('nav-setup2');
     const navJoin2 = $('nav-join2');
     if (navSetup2) navSetup2.addEventListener('click', () => showView('setup'));
@@ -338,7 +338,7 @@
     const origin = location.origin;
     openModal({
       title: 'Stantonopoly V2',
-      icon: '⛧',
+      icon: '<i class="bi bi-info-circle-fill" aria-hidden="true"></i>',
       body:
         '<div class="info-hero">' +
         '<div class="info-brand">STANTONOPOLY · FAN-PROJEKT</div>' +
@@ -1209,7 +1209,7 @@
     };
     openModal({
       title: 'Spiel beitreten',
-      icon: '🎟️',
+      icon: '<i class="bi bi-ticket" aria-hidden="true"></i>',
       body: '<p>Mit dem <strong>Einladungscode</strong> einem Team eines laufenden Spiels beitreten:</p>' +
         '<div class="join-modal-row"><span>Code</span><input id="join-code" type="text" spellcheck="false" placeholder="z. B. CDE-1234" autocomplete="off" /></div>' +
         '<div class="join-modal-row"><span>Name</span><input id="join-name" type="text" maxlength="24" placeholder="Pilot/in" autocomplete="off" /></div>' +
@@ -1401,7 +1401,8 @@
           pcard.className = 'lobby-team lobby-team-pirate';
           const phead = document.createElement('div');
           phead.className = 'lobby-team-head';
-          phead.textContent = (st.pirate.teamName || '🏴‍☠️ Piraten') + ' — ' + (st.pirate.ship || 'PIRATEN');
+          const _npName = st.pirate.teamName ? esc(st.pirate.teamName) : '<i class="bi bi-flag-fill" aria-hidden="true"></i> Piraten';
+          phead.innerHTML = _npName + ' — ' + esc(st.pirate.ship || 'PIRATEN');
           pcard.appendChild(phead);
           const pWrap = document.createElement('div');
           pWrap.className = 'lobby-team-players';
@@ -1495,7 +1496,7 @@
       const ship = meta.ship || meta.shipName || '';
       const isPirate = !!(p.role === 'pirate' || p.isPirate);
       return {
-        teamName: isPirate ? '🏴‍☠️ PIRATEN' : (meta.teamName || (ship ? 'Team ' + ship : 'Team ' + (i + 1))),
+        teamName: isPirate ? 'PIRATEN' : (meta.teamName || (ship ? 'Team ' + ship : 'Team ' + (i + 1))),
         ship,
         isPirate,
         pos: p.pos,
@@ -1581,7 +1582,7 @@
     box.classList.remove('hidden');
     const ledger = Array.isArray(p.ledger) ? p.ledger : [];
     if (!ledger.length) {
-      box.innerHTML = '<div class="cashflow-head">💰 Cashflow (letzte Buchungen)</div>' +
+      box.innerHTML = '<div class="cashflow-head"><i class="bi bi-cash-coin" aria-hidden="true"></i> Cashflow (letzte Buchungen)</div>' +
         '<div class="cf-empty">Noch keine Buchungen — hier erscheint dein Geld-Ein- und -Ausgang.</div>';
       return;
     }
@@ -1591,7 +1592,7 @@
       return '<div class="cf-row ' + sign + '"><span class="cf-amt">' + (amt >= 0 ? '+' : '−') + fmtUAEC(Math.abs(amt)) + '</span>' +
         '<span class="cf-txt">' + esc(e.why || '') + '</span></div>';
     }).join('');
-    box.innerHTML = '<div class="cashflow-head">💰 Cashflow (letzte Buchungen)</div>' + rows;
+    box.innerHTML = '<div class="cashflow-head"><i class="bi bi-cash-coin" aria-hidden="true"></i> Cashflow (letzte Buchungen)</div>' + rows;
   }
 
   function esc(t) { return String(t == null ? '' : t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
@@ -1633,7 +1634,7 @@
 
     let html = '';
     // Eigene Felder: Hypothek / Entlasten / Ausbau / Abbau / Aufgeben / An Bank verkaufen
-    if (p.insolvent) html += '<div class="econ-warn">⚠️ Zahlungsrückstand! Saniere oder dein Team scheidet beim nächsten Zug aus.</div>';
+    if (p.insolvent) html += '<div class="econ-warn"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Zahlungsrückstand! Saniere oder dein Team scheidet beim nächsten Zug aus.</div>';
     html += '<div class="econ-row"><span>Mein Feld</span><select id="econ-field">' +
       (ownOpts || '<option value="-1">— keins —</option>') + '</select></div>';
     html += '<div class="econ-row" id="econ-btnrow"></div>';
@@ -1643,7 +1644,7 @@
         '<button type="button" class="btn btn-xs" id="econ-sell">↔ Angebot</button></div>';
     }
     if (ownFields.length) {
-      html += '<div class="econ-row"><button type="button" class="btn btn-xs" id="econ-auction">🔨 Meine Versteigerung</button></div>';
+      html += '<div class="econ-row"><button type="button" class="btn btn-xs" id="econ-auction"><i class="bi bi-hammer" aria-hidden="true"></i> Meine Versteigerung</button></div>';
     }
     // Fremde Felder: EIN Dropdown mit allen fremden Grundstücken + Betrag + Angebot
     // (statt einer Zeile pro Feld, damit lange Karten/Teams übersichtlich bleiben).
@@ -1657,7 +1658,7 @@
       html += '<div class="econ-row"><span>Kauf anbieten</span>' +
         '<select id="econ-buyfield">' + buyOpts + '</select>' +
         '<input id="econ-buyprice" type="number" min="1" step="1000" placeholder="Betrag" style="width:84px" />' +
-        '<button type="button" class="btn btn-xs" id="econ-buyoffer">🛒 Angebot</button></div>';
+        '<button type="button" class="btn btn-xs" id="econ-buyoffer"><i class="bi bi-cart" aria-hidden="true"></i> Angebot</button></div>';
     }
     bar.innerHTML = html;
     wireEconBtns(st);
@@ -1691,7 +1692,7 @@
     // Eingehende Angebote (angedeutet sind mich zur Entscheidung)
     const inbound = mine.filter((o) => o.targetIdx === idx);
     if (inbound.length) {
-      html += '<div class="trade-head">📩 Angebote an dich</div>';
+      html += '<div class="trade-head"><i class="bi bi-envelope" aria-hidden="true"></i> Angebote an dich</div>';
       inbound.forEach((o) => {
         const f = st.game.fields[o.fieldIdx];
         const verb = o.kind === 'buy' ? ('will dein Feld kaufen') : ('bietet dir seinen Kauf an');
@@ -1718,7 +1719,7 @@
       const remaining = Math.max(0, auction.endsAt - Date.now());
       const isOwner = auction.ownerIdx === idx;
       const myHighest = auction.highest && auction.highest.playerIdx === idx;
-      html += '<div class="trade-head">🔨 Auktion: <strong>' + esc(f ? f.name : '') + '</strong></div>';
+      html += '<div class="trade-head"><i class="bi bi-hammer" aria-hidden="true"></i> Auktion: <strong>' + esc(f ? f.name : '') + '</strong></div>';
       html += '<div class="trade-row"><span>Höchstgebot: ' + (auction.highest ? (esc(st.game.players[auction.highest.playerIdx].name) + ' · ' + fmtUAEC(auction.highest.amount)) : '—') + ' · Rest: ' + Math.round(remaining / 1000) + 's</span></div>';
       if (isOwner) {
         html += '<div class="trade-row">' +
@@ -1730,7 +1731,7 @@
       }
     }
     if (!html) {
-      html = '<div class="trade-head">🤝 Handel &amp; Versteigerung</div>' +
+      html = '<div class="trade-head"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Handel &amp; Versteigerung</div>' +
         '<div class="trade-empty">Keine offenen Angebote oder Versteigerungen aktuell.</div>';
     }
     panel.innerHTML = html;
@@ -1830,10 +1831,10 @@
         if (own && !mortgaged && !built) {
           // Hypothek nur, wenn NICHT schon beliehen UND nicht ausgebaut. Info + Bestätigung.
           const loan = Math.round(price * MORTGAGE_SHOW);
-          buttons.push({ id: 'econ-mortgage', label: '🔒 Hypothek', cls: 'btn-xs', act: () => {
+          buttons.push({ id: 'econ-mortgage', label: '<i class="bi bi-lock" aria-hidden="true"></i> Hypothek', cls: 'btn-xs', act: () => {
             openModal({
               title: 'Hypothek aufnehmen',
-              icon: '🔒',
+              icon: '<i class="bi bi-lock" aria-hidden="true"></i>',
               body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> (' + esc(econName(own.level)) + ')</p>' +
                 '<ul><li>Du erhältst: <strong>' + fmtUAEC(loan) + '</strong> aUEC</li>' +
                 '<li>Pfand: Feld erzielt keine Miete mehr (bis Entlastung)</li>' +
@@ -1848,10 +1849,10 @@
           // Entlasten nur, wenn schon beliehen. Info + Bestätigung.
           const loan = own.mortgagedValue || Math.round(price * MORTGAGE_SHOW);
           const pay = Math.round(loan * UNMORTGAGE_SHOW);
-          buttons.push({ id: 'econ-remortgage', label: '🔓 Entlasten', cls: 'btn-xs', act: () => {
+          buttons.push({ id: 'econ-remortgage', label: '<i class="bi bi-unlock" aria-hidden="true"></i> Entlasten', cls: 'btn-xs', act: () => {
             openModal({
               title: 'Hypothek entlasten',
-              icon: '🔓',
+              icon: '<i class="bi bi-unlock" aria-hidden="true"></i>',
               body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong></p>' +
                 '<ul><li>Rückzahlung (Darlehen + Zins): <strong>' + fmtUAEC(pay) + '</strong> aUEC</li>' +
                 '<li>Danach kassiert das Feld wieder Miete.</li></ul>',
@@ -1867,10 +1868,10 @@
           const armOn = !!(st.game && st.game.armisticeEnabled);
           if (nextLvl !== 'ARMISTICE' || armOn) {
             const buildCost = Math.round(price * (BUILD_MULT[nextLvl] || 0));
-            buttons.push({ id: 'econ-build', label: '🔨 Ausbauen → ' + econName(nextLvl), cls: 'btn-xs', act: () => {
+            buttons.push({ id: 'econ-build', label: '<i class="bi bi-hammer" aria-hidden="true"></i> Ausbauen → ' + econName(nextLvl), cls: 'btn-xs', act: () => {
               openModal({
                 title: 'Ausbau auf ' + econName(nextLvl),
-                icon: '🔨',
+                icon: '<i class="bi bi-hammer" aria-hidden="true"></i>',
                 body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> (' + esc(econName(own.level)) + ' → <strong>' + esc(econName(nextLvl)) + '</strong>)</p>' +
                   '<ul><li>Baukosten: <strong>' + fmtUAEC(buildCost) + '</strong> aUEC</li>' +
                   '<li>Neue Miete für Gegner: <strong>' + fmtUAEC(rentForClient(price, nextLvl)) + '</strong> aUEC</li></ul>',
@@ -1904,10 +1905,10 @@
           const amt = Math.round(price * BANK_SHOW);
           const bankSellOk = (typeof ECON_SETTINGS.bankSellEnabled !== 'boolean') || ECON_SETTINGS.bankSellEnabled === true;
           if (bankSellOk) {
-            buttons.push({ id: 'econ-banksell', label: '🏦 An Bank', cls: 'btn-xs btn-danger', act: () => {
+            buttons.push({ id: 'econ-banksell', label: '<i class="bi bi-bank" aria-hidden="true"></i> An Bank', cls: 'btn-xs btn-danger', act: () => {
               openModal({
                 title: 'Feld an die Bank verkaufen',
-                icon: '🏦',
+                icon: '<i class="bi bi-bank" aria-hidden="true"></i>',
                 body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> (' + esc(econName(own.level)) + ')</p>' +
                   '<ul><li>Erlös: <strong>' + fmtUAEC(amt) + '</strong> aUEC</li>' +
                   '<li>Dauerhaft — nicht umkehrbar. Aktion nur ausführen, wenn nötig.</li></ul>',
@@ -1919,10 +1920,10 @@
           }
         }
         if (own && !built) {
-          buttons.push({ id: 'econ-auction-me', label: '🔨 Versteigern', cls: 'btn-xs', act: () => {
+          buttons.push({ id: 'econ-auction-me', label: '<i class="bi bi-hammer" aria-hidden="true"></i> Versteigern', cls: 'btn-xs', act: () => {
             openModal({
               title: 'Feld versteigern',
-              icon: '🔨',
+              icon: '<i class="bi bi-hammer" aria-hidden="true"></i>',
               body: '<p>Feld <strong>' + esc(f ? f.name : ('Feld ' + fidx)) + '</strong> an alle Teams versteigern? (<strong>' + fmtUAEC(price) + '</strong> Basis)</p>' +
                 '<ul><li>Max. 15 Sekunden, Höchstgebot gewinnt.</li><li>Du kannst vorzeitig akzeptieren/abbrechen.</li></ul>',
               confirmText: 'Auktion starten',
@@ -1977,7 +1978,7 @@
     const idx = myTeamIdx(st);
     const teams = Array.isArray(st.teams) ? st.teams : [];
     // (P8/P9) Piraten-Teammitglied: eigenes Team-Panel mit Piraten-Marker
-    // (🏴‍☠️) statt fälschlichem „Beobachter“. Zeigt Leader/Mitglieder + das
+    // (<i class="bi bi-flag-fill" aria-hidden="true"></i>) statt fälschlichem „Beobachter“. Zeigt Leader/Mitglieder + das
     // Leader-Transfer-UI (die Wirtschaft/Handel/Auktion-Panels bleiben für
     // Piraten ausgeblendet — diese rendern nur für normale Teams in st.teams).
     if (client.teamId != null && String(client.teamId).toUpperCase() === 'PIRATES') {
@@ -1998,8 +1999,8 @@
       'Rolle: ' + (client.role || '—'),
       'Budget: ' + budget,
       'Position: ' + (p.pos != null ? p.pos : '—'),
-      (p.jailed ? '⛓ IM GEFÄNGNIS (überspringt ' + (p.jailTurns || 0) + ' Zug/Züge)' : ''),
-      (p.fleeing ? '🏴‍☠️ AUF DER FLUCHT — diese Runde wird nicht gewürfelt (Piraten-Urteil ausstehend)' : ''),
+      (p.jailed ? '<i class="bi bi-link-45deg" aria-hidden="true"></i> IM GEFÄNGNIS (überspringt ' + (p.jailTurns || 0) + ' Zug/Züge)' : ''),
+      (p.fleeing ? '<i class="bi bi-flag-fill" aria-hidden="true"></i> AUF DER FLUCHT — diese Runde wird nicht gewürfelt (Piraten-Urteil ausstehend)' : ''),
     ].filter((l) => l !== '');
     let leaderUI = '';
     // Nur der aktuelle Teamleiter kann die Rolle (ohne Vote) an ein anderes
@@ -2040,7 +2041,7 @@
   }
 
   // (P8/P9) Piraten-Team-Panel: rendert das aktive Piraten-Team als eigene
-  // Mannschaft mit Piraten-Marker 🏴‍☠️ (KEIN „Beobachter“) und zeigt den
+  // Mannschaft mit Piraten-Marker <i class="bi bi-flag-fill" aria-hidden="true"></i> (KEIN „Beobachter“) und zeigt den
   // Piraten-Leader + das Leader-Transfer-UI (Leader-Semantik). Nach einem
   // Piraten-Aufgeben / letzter-Leave (st.pirate = null) wird „beendet“ angezeigt.
   function renderPiratePlayerPanel(panel, st) {
@@ -2051,11 +2052,11 @@
       ? String(st.pirate.leaderId)
       : (leaders['PIRATES'] != null ? String(leaders['PIRATES']) : null);
     const amLeader = client.playerId != null && pirateLeaderId != null && String(client.playerId) === pirateLeaderId;
-    const teamName = (st.pirate && st.pirate.teamName) || '🏴‍☠️ Piraten';
+    const teamName = (st.pirate && st.pirate.teamName) || 'Piraten';
 
     // Piraten-Team aufgegeben/entfernt → Mechanik beendet.
     if (!st.pirate) {
-      panel.innerHTML = '<div>🏴‍☠️ <strong>Piraten</strong></div>' +
+      panel.innerHTML = '<div><i class="bi bi-flag-fill" aria-hidden="true"></i> <strong>Piraten</strong></div>' +
         '<div>Schiff: PIRATEN</div>' +
         '<div>Rolle: ' + (client.role || '—') + '</div>' +
         '<div>Status: <strong>Die Piraten haben aufgegeben — die Piraten-Mechanik ist beendet.</strong></div>';
@@ -2063,7 +2064,7 @@
     }
 
     const lines = [
-      esc(teamName),
+      '<i class="bi bi-flag-fill" aria-hidden="true"></i> <strong>' + esc(teamName) + '</strong>',
       'Schiff: PIRATEN',
       'Rolle: ' + (client.role || '—'),
       'Position: ' + (pirPlayer && pirPlayer.pos != null ? pirPlayer.pos : '—'),
@@ -2116,7 +2117,7 @@
       bar.appendChild(b);
       ACTION_BTN[id] = b;
     }
-    b.textContent = label;
+    b.innerHTML = label;
     // Handler per addEventListener einmalig binden (Duplikat-Schutz über data-wired).
     if (handler && b.getAttribute('data-wired') !== '1') {
       b.addEventListener('click', handler);
@@ -2195,7 +2196,7 @@
       ['btn-roll', 'btn-buy', 'btn-skip', 'btn-task', 'btn-next'].forEach((id) => setBtn(id, false, false));
       const pirateAlive = (game.players || []).some((pp) => (pp.role === 'pirate' || pp.isPirate) && !pp.bankrupt);
       const canAdvance = canAct() && !isSpectator() && pirateAlive;
-      const advBtn = actionBtn('btn-pirate-advance', '🏴‍☠️ Piraten ziehen lassen', onPirateAdvanceClick);
+      const advBtn = actionBtn('btn-pirate-advance', '<i class="bi bi-flag-fill" aria-hidden="true"></i> Piraten ziehen lassen', onPirateAdvanceClick);
       if (advBtn) {
         advBtn.style.display = canAdvance ? '' : 'none';
         advBtn.disabled = !canAdvance;
@@ -2208,7 +2209,7 @@
     // Optionen (jede Rolle im aktiven Spiel): öffnet das rollenabhängige Modale
     // mit "Spiel verlassen" + (Teammitglied) Aufgeben-Abstimmung bzw. (GM) Pausieren.
     const inGame = !!st.started && !st.over;
-    const optsBtn = actionBtn('btn-options', '⚙ Optionen', onOptionsClick);
+    const optsBtn = actionBtn('btn-options', '<i class="bi bi-gear" aria-hidden="true"></i> Optionen', onOptionsClick);
     if (optsBtn) {
       optsBtn.style.display = inGame ? '' : 'none';
       optsBtn.disabled = !inGame;
@@ -2221,7 +2222,7 @@
     const items = [];
     // (Bot-Pirat) Piraten können NICHT aufgeben — die Aufgeben-Option entfällt.
     if (isTeam && !isPirateTeam) {
-      items.push('<div class="opt-row" data-opt="forfeitPoll">🚩 <strong>Team-Aufgabe abstimmen</strong> — startet eine 15-Sek.-Abstimmung aller Teammitglieder (Starter stimmt automatisch dafür, Enthaltung zählt nicht).</div>');
+      items.push('<div class="opt-row" data-opt="forfeitPoll"><i class="bi bi-flag" aria-hidden="true"></i> <strong>Team-Aufgabe abstimmen</strong> — startet eine 15-Sek.-Abstimmung aller Teammitglieder (Starter stimmt automatisch dafür, Enthaltung zählt nicht).</div>');
     }
     items.push('<div class="opt-row" data-opt="leave">↩ Spiel verlassen — dein Slot wird freigegeben, du kannst jederzeit mit dem Einladungscode zurückkehren.</div>');
     if (client.isGM) {
@@ -2241,7 +2242,7 @@
           });
           if (parts.length) {
             items.push('<div class="opt-toggle">' +
-              '<div class="opt-row" data-opt="gmtransfer">🎛 GM-Rolle übertragen — ernennt ein anderes Mitglied zum GM.</div>' +
+              '<div class="opt-row" data-opt="gmtransfer"><i class="bi bi-person-gear" aria-hidden="true"></i> GM-Rolle übertragen — ernennt ein anderes Mitglied zum GM.</div>' +
               '<div class="leader-change-form opt-collapse" data-opt="gmtransfer" style="padding:8px;margin-top:4px">' +
               '<select id="gt-player" style="width:100%;margin-bottom:6px"><option value="">— Teilnehmer wählen —</option>' + parts.join('') + '</select>' +
               '<button type="button" class="btn btn-xs btn-primary" id="gt-confirm" disabled>Übertragen</button>' +
@@ -2254,16 +2255,16 @@
           const teams2 = st2 && Array.isArray(st2.teams) ? st2.teams : [];
           const leaderTeams = teams2.slice();
           if (st2 && st2.pirate && st2.pirate.players && st2.pirate.players.length) {
-            leaderTeams.push({ teamId: 'PIRATES', teamName: st2.pirate.teamName || '🏴‍☠️ Piraten', ship: 'PIRATEN', players: st2.pirate.players });
+            leaderTeams.push({ teamId: 'PIRATES', teamName: st2.pirate.teamName || 'Piraten', ship: 'PIRATEN', players: st2.pirate.players });
           }
           if (leaderTeams.length > 1) {
             const teamOpts = leaderTeams.map((t) => {
               const tid = t.teamId != null ? t.teamId : t.id;
-              const tname = t.teamName || (t.ship || '') || ('Team ' + tid);
-              return '<option value="' + tid + '">' + (tid === 'PIRATES' ? '🏴‍☠️ ' : '') + tname + '</option>';
+              const tname = (t.ship || t.teamName || ('Team ' + tid) || 'Team').replace(/\s+/g, ' ').trim();
+              return '<option value="' + tid + '">' + (tid === 'PIRATES' ? 'Piraten' : esc(tname)) + '</option>';
             }).join('');
             items.push('<div class="opt-toggle">' +
-              '<div class="opt-row" data-opt="setleader">⚔ Teamleiter ändern — wähle Team und Mitglied, um den Leiter zu wechseln.</div>' +
+              '<div class="opt-row" data-opt="setleader"><i class="bi bi-shield-check" aria-hidden="true"></i> Teamleiter ändern — wähle Team und Mitglied, um den Leiter zu wechseln.</div>' +
               '<div class="leader-change-form opt-collapse" data-opt="setleader" style="padding:8px;margin-top:4px">' +
               '<select id="lc-team" style="width:100%;margin-bottom:6px">' + teamOpts + '</select>' +
               '<select id="lc-player" style="width:100%;margin-bottom:6px"><option value="">— Team wählen —</option></select>' +
@@ -2273,7 +2274,7 @@
         }
     openModal({
       title: 'Optionen',
-      icon: '⚙',
+      icon: '<i class="bi bi-gear" aria-hidden="true"></i>',
       body: '<div class="opt-list">' + items.join('') + '</div>',
       confirmText: null,
       cancelText: 'Schließen',
@@ -2426,7 +2427,7 @@
     }).join('');
     openModal({
       title: 'Spiel-Log',
-      icon: '📜',
+      icon: '<i class="bi bi-file-text" aria-hidden="true"></i>',
       body: '<div class="log-modal-list" style="margin-top:4px">' + rows + '</div>',
       cancelText: 'Schließen',
       confirmText: null
@@ -2529,7 +2530,7 @@
       ranking = alive.concat(out).map((e, i) => Object.assign(e, { place: i + 1 }));
     }
     const rows = ranking.map((r) => {
-      const medal = r.place === 1 ? '🏆' : (r.place === 2 ? '🥈' : (r.place === 3 ? '🥉' : ''));
+      const medal = r.place === 1 ? '<i class="bi bi-trophy" aria-hidden="true"></i>' : (r.place === 2 ? '<i class="bi bi-award" aria-hidden="true"></i>' : (r.place === 3 ? '<i class="bi bi-award" aria-hidden="true"></i>' : ''));
       // (t_3d729454 P7) Status: forfeit → „durch Aufgabe verloren“ (statt normal/ausgeschieden).
       const status = r.winner ? 'Sieger' : (r.forfeited ? 'durch Aufgabe verloren' : (r.bankrupt ? 'ausgeschieden' : 'aktiv'));
       const colorDot = r.color ? '<span class="rk-dot" style="background:' + r.color + '"></span>' : '';
@@ -2541,7 +2542,7 @@
           const f = (st.game && st.game.fields && st.game.fields[fi]) ? st.game.fields[fi].name : ('Feld ' + fi);
           return f;
         }).join(', ');
-        eco = '<div class="rk-eco">💰 ' + fmtUAEC(r.budget) + ' &nbsp;·&nbsp; 🏠 ' + propKeys.length + ' ' + (propKeys.length === 1 ? 'Liegenschaft' : 'Liegenschaften') +
+        eco = '<div class="rk-eco"><i class="bi bi-cash-coin" aria-hidden="true"></i> ' + fmtUAEC(r.budget) + ' &nbsp;·&nbsp; <i class="bi bi-house" aria-hidden="true"></i> ' + propKeys.length + ' ' + (propKeys.length === 1 ? 'Liegenschaft' : 'Liegenschaften') +
           (propNames ? ' <small>(' + esc(propNames) + ')</small>' : '') + '</div>';
       }
       return '<div class="rk-row' + (r.winner ? ' rk-winner' : '') + '">' +
@@ -2552,8 +2553,8 @@
         '</div>';
     }).join('');
     openModal({
-      title: '🏆 Spiel beendet — Sieger: ' + esc(winner || '?'),
-      icon: '🏆',
+      title: '<i class="bi bi-trophy" aria-hidden="true"></i> Spiel beendet — Sieger: ' + esc(winner || '?'),
+      icon: '<i class="bi bi-trophy" aria-hidden="true"></i>',
       body: '<div class="rk-head">Platzierung (Sieger → erster Ausscheider)</div>' +
         '<div class="rk-list">' + (rows || '<div class="rk-empty">Keine Platzierung verfügbar.</div>') + '</div>',
       confirmText: null,
@@ -2672,7 +2673,7 @@
     const flash = document.createElement('div');
     flash.id = 'pirate-flash';
     flash.className = 'pirate-flash';
-    flash.textContent = '🏴‍☠️ Piraten sind aktiv!';
+    flash.innerHTML = '<i class="bi bi-flag-fill" aria-hidden="true"></i> Piraten sind aktiv!';
     document.body.appendChild(flash);
     // Piraten-Feld fokussieren (scrollen + hervorheben).
     if (typeof window.scrollToCard === 'function') window.scrollToCard(pos);
@@ -2700,8 +2701,8 @@
     seenPirateEnc = key;
     const fieldName = (st.game.fields && st.game.fields[enc.fieldIdx] && st.game.fields[enc.fieldIdx].name) || ('Feld ' + enc.fieldIdx);
     openModal({
-      title: '🏴‍☠️ Piraten-Begegnung',
-      icon: '🏴‍☠️',
+      title: '<i class="bi bi-flag-fill" aria-hidden="true"></i> Piraten-Begegnung',
+      icon: '<i class="bi bi-flag-fill" aria-hidden="true"></i>',
       // (P6) Entscheidungs-Modal: NUR über die Buttons schließbar (kein Overlay-Klick/ESC),
       // damit kein versehentlicher 'flee'-Send entsteht.
       locked: true,
@@ -2740,8 +2741,8 @@
     seenPirateVerdict = key;
     const teamName = (st.game.players && st.game.players[vd.teamIdx] && st.game.players[vd.teamIdx].name) || ('Team ' + (vd.teamIdx + 1));
     openModal({
-      title: '🏴‍☠️ Flucht — Urteil der Piraten',
-      icon: '🏴‍☠️',
+      title: '<i class="bi bi-flag-fill" aria-hidden="true"></i> Flucht — Urteil der Piraten',
+      icon: '<i class="bi bi-flag-fill" aria-hidden="true"></i>',
       kind: 'pirateVerdict',
       body: '<p><strong>' + esc(teamName) + '</strong> versucht zu fliehen. Hat das Team entwischt oder wurde es erwischt?</p>' +
         (vd.caughtFee ? '<ul><li>Erwischt → Strafgeld: <strong>' + fmtUAEC(vd.caughtFee) + ' aUEC</strong>.</li></ul>' : ''),
@@ -2777,13 +2778,13 @@
     if (pollUIKey === key) return;
     pollUIKey = key;
     openModal({
-      title: '🚩 Team-Aufgabe — Abstimmung',
-      icon: '🗳️',
+      title: '<i class="bi bi-flag" aria-hidden="true"></i> Team-Aufgabe — Abstimmung',
+      icon: '<i class="bi bi-check2-square" aria-hidden="true"></i>',
       body: '<p><strong>' + esc(poll.startedName || 'Ein Mitglied') + '</strong> schlägt vor, euer Team aufzugeben. ' +
         '<strong>15 s</strong> — wer nicht abstimmt, enthält sich (zählt nicht).</p>' +
         '<div class="poll-rows" style="margin-top:6px">' +
-        '<button type="button" class="btn btn-xs btn-danger" id="poll-yes">🗳️ JA — aufgeben</button>' +
-        '<button type="button" class="btn btn-xs btn-ok" id="poll-no">🗳️ NEIN — weiterspielen</button>' +
+        '<button type="button" class="btn btn-xs btn-danger" id="poll-yes"><i class="bi bi-check2-square" aria-hidden="true"></i> JA — aufgeben</button>' +
+        '<button type="button" class="btn btn-xs btn-ok" id="poll-no"><i class="bi bi-check2-square" aria-hidden="true"></i> NEIN — weiterspielen</button>' +
         '</div>',
       confirmText: null,
       cancelText: 'Enthalten',
@@ -2827,13 +2828,13 @@
     const interest = mc.interest != null ? fmtUAEC(mc.interest) : '—';
     const full = mc.fullClear != null ? fmtUAEC(mc.fullClear) : '—';
     openModal({
-      title: '🏦 Beliehenes Grundstück übernommen',
-      icon: '🏦',
+      title: '<i class="bi bi-bank" aria-hidden="true"></i> Beliehenes Grundstück übernommen',
+      icon: '<i class="bi bi-bank" aria-hidden="true"></i>',
       body: '<p>Dein Team hat <strong>' + esc(fname) + '</strong> übernommen — es ist noch <strong>beliehen</strong>.</p>' +
         '<p>Wie möchtest du vorgehen?</p>' +
         '<div class="mort-choice-rows" style="margin-top:6px">' +
-        '<button type="button" class="btn btn-xs btn-ok" id="mc-clear">💠 Sofort entlasten · ' + full + '</button>' +
-        '<button type="button" class="btn btn-xs" id="mc-keep">🔒 Beliehen lassen · Zins ' + interest + '</button>' +
+        '<button type="button" class="btn btn-xs btn-ok" id="mc-clear"><i class="bi bi-gem" aria-hidden="true"></i> Sofort entlasten · ' + full + '</button>' +
+        '<button type="button" class="btn btn-xs" id="mc-keep"><i class="bi bi-lock" aria-hidden="true"></i> Beliehen lassen · Zins ' + interest + '</button>' +
         '</div>' +
         '<div class="hint" style="margin-top:6px"><b>Entlasten</b> zahlt die ganze Hypothek (inkl. Zins) in einem — danach gehört dir das Feld schuldenfrei. <b>Beliehen lassen</b> zahlst du nur den Zins und kannst später entlasten.</div>',
       confirmText: null,
@@ -2861,8 +2862,8 @@
     if (seenInsolvencyWarn === key) return;
     seenInsolvencyWarn = key;
     openModal({
-      title: '🚨 BANKROTT droht',
-      icon: '⚠️',
+      title: '<i class="bi bi-exclamation-diamond" aria-hidden="true"></i> BANKROTT droht',
+      icon: '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>',
       body: '<p>Dein Team <strong>' + esc(p.name || 'Team') + '</strong> ist in Zahlungsrückstand (Konto: <strong>' + fmtUAEC(p.budget) + '</strong> aUEC).</p>' +
         '<ul><li>Baue Stufen ab, nimm eine Hypothek auf oder verkaufe Grundstücke an die Bank, um das Konto auszugleichen.</li>' +
         '<li>Der <strong>„Nächster Zug“</strong>-Button ist gesperrt, bis du saniert hast.</li>' +
@@ -2890,8 +2891,8 @@
     seenJailOffer = key;
     const bail = p.jailBail;
     openModal({
-      title: '🕳️ Du sitzt im Gefängnis',
-      icon: '⛓',
+      title: '<i class="bi bi-box-arrow-in-down" aria-hidden="true"></i> Du sitzt im Gefängnis',
+      icon: '<i class="bi bi-link-45deg" aria-hidden="true"></i>',
       // (P6) Entscheidungs-Modal: NUR über die Buttons schließbar (kein Overlay-Klick/ESC),
       // damit kein versehentlicher 'jailstay'-Send entsteht.
       locked: true,
@@ -2937,7 +2938,7 @@
       const names = teams.map((t) => (t && (t.teamName || t.ship)) || 'Team').join(', ');
       openModal({
         title: 'Leere Teams beim Fortsetzen',
-        icon: '⚠️',
+        icon: '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>',
         body: '<p>Nicht alle Teams haben Spieler' + (names ? ' (<strong>' + esc(names) + '</strong>)' : '') + '.</p>' +
           '<ul><li><strong>Warten</strong> — die Lobby bleibt offen, bis alle Teams Spieler haben.</li>' +
           '<li><strong>Trotzdem fortsetzen</strong> — leere Teams geben automatisch auf (Forfeit).</li></ul>',
@@ -3164,7 +3165,7 @@
         clearTimeout(tid); socket.off('left', onLeft); socket.off('error', onErr); socket.off('leave:confirm', onConfirm);
         openModal({
           title: 'Team gibt auf',
-          icon: '🚩',
+          icon: '<i class="bi bi-flag" aria-hidden="true"></i>',
           body: '<p>' + esc((data && data.message) || 'Wenn du das Spiel verlässt, gibt dein Team auf.') + '</p>',
           confirmText: 'Verlassen & aufgeben',
           cancelText: 'Abbrechen',
@@ -3325,16 +3326,16 @@
     if (list) list.innerHTML = '';
     resBox.classList.remove('hidden');
     const rows = (r && r.players) ? r.players.slice().sort((a, b) => (b.winner ? 1 : 0) - (a.winner ? 1 : 0)) : [];
-    const winnerLine = r && r.winner ? '<div class="result-winner">🏆 Sieger: <strong>' + esc(r.winner.name || '?') + '</strong></div>' : '';
+    const winnerLine = r && r.winner ? '<div class="result-winner"><i class="bi bi-trophy" aria-hidden="true"></i> Sieger: <strong>' + esc(r.winner.name || '?') + '</strong></div>' : '';
     // (Piraten-Fix) Der Pirat erscheint nicht in der Team-Tabelle, sondern nur als
     // Statistik-Zeile mit seiner Gesamterbeute (loot), sofern diese > 0 ist.
     const pirateLine = (r && r.pirateLoot > 0)
-      ? '<div class="result-pirate">🏴‍☠️ Piraten erbeuteten insgesamt <strong>' + fmtUAEC(r.pirateLoot) + ' aUEC</strong>.</div>'
+      ? '<div class="result-pirate"><i class="bi bi-flag-fill" aria-hidden="true"></i> Piraten erbeuteten insgesamt <strong>' + fmtUAEC(r.pirateLoot) + ' aUEC</strong>.</div>'
       : '';
     resBox.innerHTML = '<div class="result-title">Endresultat: ' + esc(r && r.name || '') + '</div>' + winnerLine + pirateLine +
       '<table class="result-table"><thead><tr><th>Team</th><th>Budget</th><th>Liegenschaften</th><th>Status</th></tr></thead><tbody>' +
       rows.map((p) => '<tr>' +
-        '<td>' + (p.winner ? '👑 ' : '') + esc(p.name || '') + (p.ship ? ' <small>(' + esc(p.ship) + ')</small>' : '') + '</td>' +
+        '<td>' + (p.winner ? '<i class="bi bi-award-fill" aria-hidden="true"></i> ' : '') + esc(p.name || '') + (p.ship ? ' <small>(' + esc(p.ship) + ')</small>' : '') + '</td>' +
         '<td>' + fmtUAEC(p.budget) + '</td>' +
         '<td>' + fmtUAEC(p.fieldValue) + '</td>' +
         '<td>' + (p.bankrupt ? 'bankrott' : (p.winner ? 'Sieger' : 'aktiv')) + '</td></tr>').join('') +

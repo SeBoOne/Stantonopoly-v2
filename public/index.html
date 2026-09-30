@@ -7,6 +7,7 @@
   <title>Stantonopoly V2 — AAWA-Event</title>
   <link rel="icon" type="image/png" sizes="48x48" href="/assets/logo/favicon-48.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/logo/favicon-180.png" />
+  <link rel="stylesheet" href="/assets/icons/bootstrap-icons.min.css" />
   <link rel="stylesheet" href="/assets/css/stantonopoly.css" />
 </head>
 <body>
@@ -18,7 +19,7 @@
       </div>
       <nav class="hd-nav" aria-label="Ansicht wählen">
         <button type="button" class="nav-item nav-games" id="nav-games">Spiele</button>
-        <button type="button" class="nav-item nav-join" id="nav-join">🎟 Beitreten</button>
+        <button type="button" class="nav-item nav-join" id="nav-join"><i class="bi bi-ticket" aria-hidden="true"></i> Beitreten</button>
         <button type="button" class="nav-item nav-setup" id="nav-setup">Anlegen</button>
       </nav>
       <div class="hd-r">
@@ -41,7 +42,7 @@
           <p class="hero-sub">Das Economy-Brettspiel im Stanton-System — Kaufe, baue, treibe Zinsen ein.</p>
           <div class="hero-actions">
             <button type="button" class="btn btn-primary btn-lg" id="nav-setup2">＋ Spiel erstellen</button>
-            <button type="button" class="btn btn-lg" id="nav-join2">🎟 Mit Code beitreten</button>
+            <button type="button" class="btn btn-lg" id="nav-join2"><i class="bi bi-ticket" aria-hidden="true"></i> Mit Code beitreten</button>
           </div>
           <div class="games-tabs seg" style="margin-top:6px">
             <button type="button" id="games-tab-active" class="btn btn-xs is-on">aktiv</button>
@@ -84,7 +85,7 @@
             <span class="hint">Schiff = Teamname "Team &lt;Schiff&gt;"</span></div>
           <div id="team-config-list" class="team-config-list"></div>
           <div class="frame-actions">
-            <button type="button" id="btn-open-preset-editor" class="btn btn-ghost">⚙ Karte &amp; Regeln bearbeiten</button>
+            <button type="button" id="btn-open-preset-editor" class="btn btn-ghost"><i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten</button>
             <button id="btn-create" type="button" class="btn btn-primary btn-lg">Spiel erstellen</button>
           <p class="screen-note">Spiel erstellen → danach GM-Code + Einladungscodes in der Lobby sehen und an die Spieler verteilen.</p>
         </form>
@@ -286,15 +287,15 @@
         </div>
         <aside class="drawer-stack">
           <div class="drawer is-open" id="econ-drawer">
-            <button type="button" class="dw-head"><span>🏗 Wirtschaft</span><span class="dw-tag">Econ</span><span class="dw-arrow">▾</span></button>
+            <button type="button" class="dw-head"><span><i class="bi bi-building" aria-hidden="true"></i> Wirtschaft</span><span class="dw-tag">Econ</span><span class="dw-arrow">▾</span></button>
             <div class="dw-body" id="econ-bar"></div>
           </div>
           <div class="drawer" id="trade-drawer">
-            <button type="button" class="dw-head"><span>🤝 Handel &amp; Auktion</span><span class="dw-tag">Angebote</span><span class="dw-arrow">▾</span></button>
+            <button type="button" class="dw-head"><span><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Handel &amp; Auktion</span><span class="dw-tag">Angebote</span><span class="dw-arrow">▾</span></button>
             <div class="dw-body" id="trade-panel"></div>
           </div>
           <div class="drawer" id="cashflow-drawer">
-            <button type="button" class="dw-head"><span>💰 Cashflow</span><span class="dw-tag">Verlauf</span><span class="dw-arrow">▾</span></button>
+            <button type="button" class="dw-head"><span><i class="bi bi-cash-coin" aria-hidden="true"></i> Cashflow</span><span class="dw-tag">Verlauf</span><span class="dw-arrow">▾</span></button>
             <div class="dw-body" id="cashflow"></div>
           </div>
           <div class="drawer" id="player-drawer">
@@ -328,7 +329,7 @@
 
     <!-- Dreh-Hinweis -->
     <div id="rotate-overlay" class="rotate-overlay">
-      <div class="ro-ico">🔄</div>
+      <div class="ro-ico"><i class="bi bi-arrow-clockwise" aria-hidden="true"></i></div>
       <strong>Bitte Gerät drehen</strong>
       <p>Das Spielfeld ist horizontal ausgelegt. Für die beste Ansicht drehe dein Gerät ins Querformat.</p>
       <button type="button" class="btn btn-xs btn-ghost" id="rotate-skip">Trotzdem zeigen</button>
