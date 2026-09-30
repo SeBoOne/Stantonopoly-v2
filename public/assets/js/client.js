@@ -320,12 +320,38 @@
     const navJoin = $('nav-join');
     if (navSetup) navSetup.addEventListener('click', () => showView('setup'));
     if (navJoin) navJoin.addEventListener('click', () => openJoinModal());
+    // Info-/Rechts-Button (ⓘ im Header) → Info-Modal (Impressum/Datenschutz/Hinweise).
+    const navInfo = $('nav-info');
+    if (navInfo) navInfo.addEventListener('click', openInfoModal);
     // Landing-Hero-Buttons (Sichtcheck-Block 2 #9): „＋ Spiel erstellen“ → Setup,
     // „🎟 Mit Code beitreten“ → Join-Modal.
     const navSetup2 = $('nav-setup2');
     const navJoin2 = $('nav-join2');
     if (navSetup2) navSetup2.addEventListener('click', () => showView('setup'));
     if (navJoin2) navJoin2.addEventListener('click', () => openJoinModal());
+
+  // ------------------------------------------------------------------
+  // Info-Modal: Fan-Projekt-Hinweis + Impressum/Datenschutz-Links.
+  // Ersetzt den früheren dauerhaften Footer — auf jeder Ansicht über ⓘ erreichbar.
+  // ------------------------------------------------------------------
+  function openInfoModal() {
+    const origin = location.origin;
+    openModal({
+      title: 'Stantonopoly V2',
+      icon: '⛧',
+      body:
+        '<div class="info-hero">' +
+        '<div class="info-brand">STANTONOPOLY · FAN-PROJEKT</div>' +
+        '<div class="info-note">Dieses Spiel ist ein inoffizielles, nicht-kommerzielles Fan-Projekt auf Basis der Star-Citizen-Community und steht in keiner Verbindung zu Cloud Imperium Rights GmbH oder Roberts Space Industries.</div>' +
+        '<div class="info-links">' +
+        '<a href="' + origin + '/impressum.html" target="_blank" rel="noopener">IMPRESSUM</a>' +
+        '<a href="' + origin + '/datenschutz.html" target="_blank" rel="noopener">DATENSCHUTZ</a>' +
+        '</div>' +
+        '<div class="info-meta">UI in deutscher Sprache · Dark-Only · Erstellt mit KI-Unterstützung.<br><b>Lizenz:</b> PolyForm Noncommercial 1.0.0 — frei für nicht-kommerzielle Nutzung.</div>' +
+        '</div>',
+      cancelText: 'Schließen'
+    });
+  }
 
   /* ---------------- Kopieren-Helfer ------------- */
   function copyText(text, btn) {
