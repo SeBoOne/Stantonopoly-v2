@@ -245,6 +245,31 @@
         </div>
       </section>
 
+      <!-- ============ SC-Daten (Star-Citizen-Wiki-Katalog) ============ -->
+      <section id="view-scdata" class="view">
+        <div class="frame">
+          <div class="frame-notch" aria-hidden="true"></div>
+          <div class="frame-head"><span class="eyebrow">ADMIN · KATALOG</span><h2>SC-Daten (Autovervollständigung)</h2></div>
+          <div class="sub"><span class="t-lbl">Schiffs- &amp; Ortsnamen für den Preset-Editor</span>
+            <span class="hint">Diese Namen dienen als Vorschläge bei der Schiffswahl und den Feldnamen. Sie werden automatisch einmal pro Woche (Mi 20:00) von der Star-Citizen-Wiki-API bezogen — oder du holst sie hier manuell neu. Du kannst Einträge umbenennen oder löschen.</span>
+          </div>
+          <div class="ad-sc-toolbar">
+            <button type="button" id="btn-sc-sync" class="btn btn-sm btn-primary">⟳ Jetzt aktualisieren</button>
+            <span id="sc-sync-result" class="sc-sync-result"></span>
+          </div>
+          <div id="sc-ships-block" class="ad-sc-block">
+            <div class="sc-block-head"><span class="eyebrow">SCHIFFE</span><span id="sc-ships-meta" class="sc-meta">—</span></div>
+            <input id="sc-ships-filter" type="text" class="ad-sc-filter" placeholder="Filtern …" />
+            <div id="ad-sc-ships" class="ad-list sc-tall-list"></div>
+          </div>
+          <div id="sc-locs-block" class="ad-sc-block">
+            <div class="sc-block-head"><span class="eyebrow">ORTE</span><span id="sc-locs-meta" class="sc-meta">—</span></div>
+            <input id="sc-locs-filter" type="text" class="ad-sc-filter" placeholder="Filtern …" />
+            <div id="ad-sc-locs" class="ad-list sc-tall-list"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- ============ Protokoll ============ -->
       <section id="view-log" class="view">
         <div class="frame">

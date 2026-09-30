@@ -96,6 +96,17 @@ db.exec(`
     name       TEXT NOT NULL,           -- internes Label (Zuordnung, wer der Manager ist)
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  -- Star-Citizen-Wiki-Kataloge für Autovervollständigung (Schiffs-/Ortsnamen).
+  CREATE TABLE IF NOT EXISTS sc_names (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind  TEXT NOT NULL,                -- 'ship' | 'location'
+    name  TEXT NOT NULL,
+    UNIQUE(kind, name)
+  );
+  CREATE TABLE IF NOT EXISTS sc_meta (
+    kind       TEXT PRIMARY KEY,        -- 'ship' | 'location'
+    updated_at TEXT                     -- ISO-Zeitstempel letzter erfolgreicher Abruf
+  );
 `);
 
 // Migrationen für Bestands-DBs: fehlende Spalten ergänzen.
@@ -386,6 +397,53 @@ function listAdminLog(limit = 100) {
   return rows || [];
 }
 
+// ----- Star-Citizen-Wiki-Katalog (Schiffs-/Ortsnamen für Autovervollständigung) -----
+function scNames(kind) {
+  const rows = db.prepare('SELECT id, name FROM sc_names WHERE kind = ? ORDER BY name COLLATE NOCASE ASC').all(kind);
+  return (rows || []).map((r) => ({ id: r.id, name: r.name }));
+}
+function scNameById(kind, id) {
+  return db.prepare('SELECT id, name FROM sc_names WHERE kind = ? AND id = ?').get(kind, id);
+}
+function scRename(kind, id, newName) {
+  const n = String(newName || '').trim();
+  if (!n) return { ok: false, reason: 'empty' };
+  const dup = db.prepare('SELECT id FROM sc_names WHERE kind = ? AND name = ? AND id != ?').get(kind, n, id);
+  if (dup) return { ok: false, reason: 'duplicate' };
+  db.prepare('UPDATE sc_names SET name = ? WHERE kind = ? AND id = ?').run(n, kind, id);
+  return { ok: true };
+}
+function scDelete(kind, id) {
+  db.prepare('DELETE FROM sc_names WHERE kind = ? AND id = ?').run(kind, id);
+  return { ok: true };
+}
+// Ersetzt den kompletten Namenskatalog eines Typs + aktualisiert den Timestamp.
+function scReplaceAll(kind, names) {
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM sc_names WHERE kind = ?').run(kind);
+    const ins = db.prepare('INSERT OR IGNORE INTO sc_names (kind, name) VALUES (?, ?)');
+    const seen = new Set();
+    for (const raw of names) {
+      const n = typeof raw === 'string' ? raw.trim() : '';
+      if (!n || seen.has(n.toLowerCase())) continue;
+      seen.add(n.toLowerCase());
+      ins.run(kind, n);
+    }
+    db.exec('COMMIT');
+    const updatedAt = new Date().toISOString();
+    db.prepare('INSERT INTO sc_meta (kind, updated_at) VALUES (?, ?) ON CONFLICT(kind) DO UPDATE SET updated_at = excluded.updated_at').run(kind, updatedAt);
+    return { ok: true, count: seen.size, updatedAt };
+  } catch (e) {
+    db.exec('ROLLBACK');
+    return { ok: false, reason: String(e.message || e) };
+  }
+}
+function scUpdatedAt(kind) {
+  const r = db.prepare('SELECT updated_at FROM sc_meta WHERE kind = ?').get(kind);
+  return r ? r.updated_at : null;
+}
+
 module.exports = {
   db,
   DB_PATH,
@@ -434,5 +492,11 @@ module.exports = {
   addManagerCode,
   deleteManagerCode,
   renameManagerCode,
-  generateManagerCode
+  generateManagerCode,
+  scNames,
+  scNameById,
+  scRename,
+  scDelete,
+  scReplaceAll,
+  scUpdatedAt
 };

@@ -475,6 +475,43 @@ server.on('listening', () => {
 
 if (require.main === module) {
   server.listen(PORT);
+
+  // ---- Star-Citizen-Wiki-Katalog-Scheduler (Schiffs-/Ortsnamen) ----
+  // Automatisch einmal pro Woche MI 20:00 (Serverzeit) aktualisieren.
+  // Zusätzlich einmalige Initialbefüllung beim Start, falls ein Katalog leer ist.
+  const scwiki = require('./scwiki.js');
+  const SYNC_INTERVAL = 60 * 1000; // 1-Minuten-Takt (prüft Zeitfenster)
+
+  function runSchedulerTick() {
+    const now = new Date();
+    const day = now.getDay();          // 3 = Mittwoch
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    if (day === 3 && minutes >= 20 * 60) {
+      const last = dbm.scUpdatedAt('ship');
+      const today = now.toISOString().slice(0, 10);
+      if (!last || last.slice(0, 10) !== today) {
+        console.log('[scwiki] wöchentlicher Katalog-Sync (MI 20:00) läuft …');
+        scwiki.syncAll().then((r) => {
+          console.log('[scwiki] Sync fertig — ok=' + r.ok + ' Schiffe=' + (r.ships ? r.ships.count : '-') + ' Orte=' + (r.locations ? r.locations.count : '-') + ' Fehler=' + r.errors.length);
+        }).catch((e) => console.error('[scwiki] Sync-Fehler:', String(e.message || e)));
+      }
+    }
+  }
+
+  // Initialbefüllung, wenn noch gar nichts gespeichert ist (frischer Server).
+  (async () => {
+    try {
+      if (!dbm.scUpdatedAt('ship') || !dbm.scUpdatedAt('location')) {
+        console.log('[scwiki] Katalog noch leer — Start-Abruf …');
+        const r = await scwiki.syncAll();
+        console.log('[scwiki] Start-Sync fertig — Schiffe=' + (r.ships ? r.ships.count : '-') + ' Orte=' + (r.locations ? r.locations.count : '-') + ' Fehler=' + r.errors.length);
+      }
+    } catch (e) { console.error('[scwiki] Start-Sync-Fehler:', String(e.message || e)); }
+  })();
+
+  const scTimer = setInterval(runSchedulerTick, SYNC_INTERVAL);
+  if (typeof scTimer.unref === 'function') scTimer.unref();
+  runSchedulerTick();
 } else {
   // Beim Einbinden in Tests nicht automatisch lauschen; exports.listen(n) zum Starten.
   module.exports = { server, io, app, rooms, start: (port) => server.listen(port) };

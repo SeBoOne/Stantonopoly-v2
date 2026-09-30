@@ -774,3 +774,26 @@ body.view-login .hd-r { margin-left: auto; }
   letter-spacing: .08em; border: 2px dashed var(--accent-dim); padding: 6px 12px; }
 .ad-preset-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
 .ad-select { width: auto; min-width: 220px; }
+
+/* ---- SC-Daten (Star-Citizen-Wiki-Katalog) Admin ---- */
+.ad-sc-toolbar { display: flex; align-items: center; gap: 10px; margin: 16px 0; flex-wrap: wrap; }
+.ad-sc-block { margin: 18px 0; border-top: 1px solid var(--line); padding-top: 16px; }
+.sc-block-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.sc-block-head .eyebrow { color: var(--accent-hi); }
+.sc-meta { color: var(--fg-faint); font: 400 12px/1 ui-monospace, monospace; }
+.ad-sc-filter { width: 100%; max-width: 320px; padding: 8px 10px; margin-bottom: 10px;
+  background: var(--bg2); border: 1px solid var(--line); color: var(--fg); border-radius: 3px; font-family: ui-monospace, monospace; }
+.ad-sc-filter:focus { border-color: var(--accent); outline: none; }
+.sc-tall-list { max-height: 340px; overflow-y: auto; padding-right: 4px; }
+.ad-sc-inline { display: flex; align-items: center; gap: 8px; width: 100%; }
+.ad-sc-inline .ad-sc-name { flex: 1; min-width: 0; }
+.ad-sc-inline input.ad-sc-edit { flex: 1; background: var(--bg2); border: 1px solid var(--line);
+  color: var(--fg); padding: 4px 8px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 13px; }
+.ad-sc-inline input.ad-sc-edit:focus { border-color: var(--accent); outline: none; }
+.ad-sc-btn { background: transparent; border: 1px solid var(--line); color: var(--fg-faint);
+  padding: 3px 9px; border-radius: 3px; cursor: pointer; font-family: ui-monospace, monospace; font-size: 12px; }
+.ad-sc-btn:hover { border-color: var(--accent); color: var(--fg); }
+.ad-sc-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.sc-sync-result { color: var(--fg-faint); font-size: 13px; font-family: ui-monospace, monospace; }
+.sc-sync-result.ok { color: var(--ok); }
+.sc-sync-result.err { color: var(--danger); }

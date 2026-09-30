@@ -323,6 +323,67 @@ function registerAdmin(app, rooms) {
     return res.json({ ok: true, code: raw, name });
   });
 
+  // ---- Star-Citizen-Wiki-Katalog (Schiffs-/Ortsnamen) ----
+  // Öffentliche Lese-Route für die Autovervollständigung im Client
+  // (nur Namensvorschläge — keine Berechtigung nötig). ?kind=ship|location
+  app.get('/api/sc-names', (req, res) => {
+    const kind = String(req.query.kind || 'ship').toLowerCase() === 'location' ? 'location' : 'ship';
+    const names = dbm.scNames(kind).map((r) => r.name);
+    return res.json({ ok: true, kind, names, updatedAt: dbm.scUpdatedAt(kind) });
+  });
+
+  // Admin: beide Kataloge + letzte Aktualisierung anzeigen.
+  router.get('/sc-data', requireAuth, (req, res) => {
+    return res.json({
+      ok: true,
+      ships: dbm.scNames('ship'),
+      locations: dbm.scNames('location'),
+      shipsUpdatedAt: dbm.scUpdatedAt('ship'),
+      locationsUpdatedAt: dbm.scUpdatedAt('location')
+    });
+  });
+
+  // Admin: manueller Abruf jetzt (holt live von der Wiki-API + ersetzt DB).
+  router.post('/sc-sync', requireAuth, async (req, res) => {
+    const scwiki = require('./scwiki.js');
+    try {
+      const r = await scwiki.syncAll();
+      dbm.logAdmin('sc_sync', null, 'Star-Citizen-Wiki-Katalog aktualisiert (' +
+        (r.ships ? 'Schiffe ' + r.ships.count + ', ' : '') +
+        (r.locations ? 'Orte ' + r.locations.count : '') + ')');
+      return res.json({ ok: r.ok, ships: r.ships, locations: r.locations, errors: r.errors });
+    } catch (e) {
+      return res.status(502).json({ ok: false, error: 'SYNC_FAILED', message: String(e.message || e) });
+    }
+  });
+
+  // Admin: Einzelnen Eintrag (Name) umbenennen. { kind, id, name }
+  router.post('/sc-name/rename', requireAuth, (req, res) => {
+    const kind = String((req.body && req.body.kind) || '').toLowerCase() === 'location' ? 'location' : 'ship';
+    const id = Number((req.body && req.body.id) || 0);
+    const name = String((req.body && req.body.name) || '').trim();
+    if (!id) return res.status(400).json({ ok: false, error: 'BAD_ID', message: 'ID fehlt.' });
+    const existing = dbm.scNameById(kind, id);
+    if (!existing) return res.status(404).json({ ok: false, error: 'NO_ENTRY', message: 'Eintrag nicht gefunden.' });
+    const r = dbm.scRename(kind, id, name);
+    if (!r.ok) return res.status(400).json({ ok: false, error: r.reason === 'empty' ? 'BAD_NAME' : 'DUP', message: r.reason === 'empty' ? 'Name darf nicht leer sein.' : 'Dieser Name existiert bereits.' });
+    const short = name.length > 40 ? name.slice(0, 40) + '…' : name;
+    dbm.logAdmin('sc_rename', kind + '#' + id, 'SC-Name umbenannt auf „' + short + '“');
+    return res.json({ ok: true, kind, id, name });
+  });
+
+  // Admin: Einzelnen Eintrag löschen. DELETE /sc-name/:kind/:id
+  router.delete('/sc-name/:kind/:id', requireAuth, (req, res) => {
+    const kind = String(req.params.kind || '').toLowerCase() === 'location' ? 'location' : 'ship';
+    const id = Number(req.params.id || 0);
+    if (!id) return res.status(400).json({ ok: false, error: 'BAD_ID', message: 'ID fehlt.' });
+    const existing = dbm.scNameById(kind, id);
+    if (!existing) return res.status(404).json({ ok: false, error: 'NO_ENTRY', message: 'Eintrag nicht gefunden.' });
+    dbm.scDelete(kind, id);
+    dbm.logAdmin('sc_delete', kind + '#' + id + ' ' + existing.name, 'SC-Name entfernt');
+    return res.json({ ok: true, kind, id });
+  });
+
   app.use('/admin', router);
 }
 

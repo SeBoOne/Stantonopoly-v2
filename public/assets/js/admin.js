@@ -261,13 +261,13 @@
   }
 
   // ---------------- Views / Nav ----------------
-  const VIEWS = ['login', 'dashboard', 'games', 'presets', 'managers', 'log'];
+  const VIEWS = ['login', 'dashboard', 'games', 'presets', 'managers', 'scdata', 'log'];
   function showView(name) {
     VIEWS.forEach((v) => {
       const el = $('view-' + v);
       if (el) { el.classList.toggle('hidden', v !== name); el.classList.toggle('active', v === name); }
     });
-    document.body.classList.remove('view-login', 'view-dashboard', 'view-games', 'view-presets', 'view-managers', 'view-log');
+    document.body.classList.remove('view-login', 'view-dashboard', 'view-games', 'view-presets', 'view-managers', 'view-scdata', 'view-log');
     document.body.classList.add('view-' + name);
     // Nav aktualisieren
     renderNav(name);
@@ -275,6 +275,7 @@
     else if (name === 'games') reloadGames();
     else if (name === 'presets') reloadPresets();
     else if (name === 'managers') reloadManagerCodes();
+    else if (name === 'scdata') reloadScdata();
     else if (name === 'log') reloadLog();
   }
 
@@ -282,7 +283,7 @@
     const nav = $('admin-nav');
     if (!nav) return;
     nav.innerHTML = '';
-    const items = [['dashboard', 'Übersicht'], ['games', 'Spiele'], ['presets', 'Presets'], ['managers', 'Manager'], ['log', 'Protokoll']];
+    const items = [['dashboard', 'Übersicht'], ['games', 'Spiele'], ['presets', 'Presets'], ['managers', 'Manager'], ['scdata', 'SC-Daten'], ['log', 'Protokoll']];
     items.forEach(([id, label]) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -742,6 +743,153 @@
     } catch (e) {}
   }
 
+  // ---------------- SC-Daten (Star-Citizen-Wiki-Katalog) ----------------
+  let scState = { ships: [], locations: [], shipsUpdatedAt: null, locationsUpdatedAt: null };
+  let scShipFilter = '';
+  let scLocFilter = '';
+  let scEditing = null; // { kind, id }
+
+  async function reloadScdata() {
+    try {
+      const d = await api('GET', '/sc-data');
+      scState.ships = d.ships || [];
+      scState.locations = d.locations || [];
+      scState.shipsUpdatedAt = d.shipsUpdatedAt;
+      scState.locationsUpdatedAt = d.locationsUpdatedAt;
+      renderScBlocks();
+    } catch (e) { /* token läuft evtl. ab */ }
+  }
+
+  function fmtScDate(iso) {
+    if (!iso) return 'noch nie aktualisiert';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  function renderScBlocks() {
+    renderScList('ship', 'ad-sc-ships', 'sc-ships-meta', 'sc-ships-filter', scState.ships, scState.shipsUpdatedAt, scShipFilter);
+    renderScList('location', 'ad-sc-locs', 'sc-locs-meta', 'sc-locs-filter', scState.locations, scState.locationsUpdatedAt, scLocFilter);
+    bindScFilter('sc-ships-filter', 'ship');
+    bindScFilter('sc-locs-filter', 'location');
+  }
+
+  function renderScList(kind, listId, metaId, filterId, items, updatedAt, filterText) {
+    const listEl = $(listId);
+    if (!listEl) return;
+    const metaEl = $(metaId);
+    if (metaEl) metaEl.textContent = items.length + ' Einträge · zuletzt aktualisiert: ' + fmtScDate(updatedAt);
+    const q = (filterText || '').trim().toLowerCase();
+    const filtered = q ? items.filter((x) => x.name.toLowerCase().includes(q)) : items;
+    listEl.innerHTML = '';
+    if (!items.length) {
+      listEl.appendChild(Object.assign(document.createElement('div'), { className: 'ad-empty', textContent: 'Katalog leer — „Jetzt aktualisieren“ holt die Namen.' }));
+      return;
+    }
+    if (!filtered.length) {
+      listEl.appendChild(Object.assign(document.createElement('div'), { className: 'ad-empty', textContent: 'Keine Einträge zum Filter.' }));
+      return;
+    }
+    filtered.forEach((it) => {
+      const row = document.createElement('div');
+      row.className = 'ad-row';
+      const main = document.createElement('div');
+      main.className = 'ad-row-main';
+      const isEditing = scEditing && scEditing.kind === kind && scEditing.id === it.id;
+      const nameEl = (() => {
+        if (!isEditing) {
+          const strong = document.createElement('strong');
+          strong.className = 'ad-sc-name';
+          strong.textContent = it.name;
+          return strong;
+        }
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.className = 'ad-sc-edit';
+        inp.value = it.name;
+        inp.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') submitScRename(kind, it.id, inp.value);
+          else if (ev.key === 'Escape') { scEditing = null; renderScBlocks(); }
+        });
+        return inp;
+      })();
+      main.appendChild(nameEl);
+      row.appendChild(main);
+      const side = document.createElement('div');
+      side.className = 'ad-row-side';
+      if (isEditing) {
+        const okBtn = document.createElement('button'); okBtn.type = 'button'; okBtn.className = 'ad-sc-btn'; okBtn.textContent = 'Speichern';
+        okBtn.addEventListener('click', () => submitScRename(kind, it.id, side.querySelector('.ad-sc-edit') ? side.querySelector('.ad-sc-edit').value : it.name));
+        const cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'ad-sc-btn'; cancelBtn.textContent = 'Abbrechen';
+        cancelBtn.addEventListener('click', () => { scEditing = null; renderScBlocks(); });
+        side.appendChild(okBtn); side.appendChild(cancelBtn);
+      } else {
+        const editBtn = document.createElement('button'); editBtn.type = 'button'; editBtn.className = 'ad-sc-btn'; editBtn.textContent = 'Bearbeiten';
+        editBtn.addEventListener('click', () => { scEditing = { kind, id: it.id }; renderScBlocks(); });
+        const delBtn = document.createElement('button'); delBtn.type = 'button'; delBtn.className = 'ad-sc-btn danger'; delBtn.textContent = 'Löschen';
+        delBtn.addEventListener('click', () => confirmScDelete(kind, it.id, it.name));
+        side.appendChild(editBtn); side.appendChild(delBtn);
+      }
+      row.appendChild(side);
+      listEl.appendChild(row);
+    });
+  }
+
+  function bindScFilter(filterId, kind) {
+    const f = $(filterId);
+    if (!f) return;
+    f.value = kind === 'ship' ? scShipFilter : scLocFilter;
+    f.oninput = () => {
+      if (kind === 'ship') scShipFilter = f.value;
+      else scLocFilter = f.value;
+      renderScBlocks();
+    };
+  }
+
+  function submitScRename(kind, id, newName) {
+    (async () => {
+      try {
+        const d = await api('POST', '/sc-name/rename', { kind, id, name: newName });
+        if (d && d.ok) { scEditing = null; showNotify('Name aktualisiert.'); await reloadScdata(); }
+        else showNotify((d && d.message) || 'Umbenennen fehlgeschlagen.', true);
+      } catch (e) { showNotify('Umbenennen fehlgeschlagen.', true); }
+    })();
+  }
+
+  function confirmScDelete(kind, id, name) {
+    if (!window.confirm('Eintrag löschen? ' + name)) return;
+    (async () => {
+      try {
+        const d = await api('DELETE', '/sc-name/' + kind + '/' + id);
+        if (d && d.ok) { showNotify('Eintrag gelöscht.'); await reloadScdata(); }
+        else showNotify((d && d.message) || 'Löschen fehlgeschlagen.', true);
+      } catch (e) { showNotify('Löschen fehlgeschlagen.', true); }
+    })();
+  }
+
+  function initScdata() {
+    const syncBtn = $('btn-sc-sync');
+    if (syncBtn) syncBtn.addEventListener('click', () => {
+      (async () => {
+        const resEl = $('sc-sync-result');
+        if (resEl) { resEl.textContent = 'aktualisiere …'; resEl.className = 'sc-sync-result'; }
+        if (syncBtn) syncBtn.disabled = true;
+        try {
+          const d = await api('POST', '/sc-sync');
+          if (d && d.ok) {
+            if (resEl) { resEl.textContent = '✓ Schiffe: ' + (d.ships ? d.ships.count : 0) + ' · Orte: ' + (d.locations ? d.locations.count : 0) + ' — aktuell gespeichert.'; resEl.className = 'sc-sync-result ok'; }
+            await reloadScdata();
+          } else {
+            if (resEl) { resEl.textContent = '✖ Sync fehlgeschlagen: ' + ((d && (d.message || (d.errors && d.errors.map((x) => x.error).join(', ')))) || 'unbekannt'); resEl.className = 'sc-sync-result err'; }
+          }
+        } catch (e) {
+          if (resEl) { resEl.textContent = '✖ Sync fehlgeschlagen.'; resEl.className = 'sc-sync-result err'; }
+        } finally {
+          if (syncBtn) syncBtn.disabled = false;
+        }
+      })();
+    });
+  }
+
   async function createManagerCode() {
     const nameIn = $('mgr-name-input');
     const name = (nameIn ? nameIn.value : '').trim();
@@ -791,6 +939,7 @@
       initLogin();
       initPresets();
       initManagers();
+      initScdata();
       // Ersteinrichtung prüfen (falls kein Admin-Konto existstiert).
       checkSetup();
     // Bei gespeichertem Token: verifizieren und Dashboard zeigen.

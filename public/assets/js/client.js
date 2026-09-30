@@ -240,6 +240,61 @@
     showNotify('Verbindung zum Server getrennt — verbinde neu…');
   });
 
+  // ---------------- Star-Citizen-Katalog-Autovervollständigung ----------------
+  // Schiffs- & Ortsnamen stammen aus der lokalen DB (regelmässig von der
+  // Star-Citizen-Wiki-API synchronisiert). Beim Laden einmalig abholen und
+  // als datalist-Vorschläge an Schiff- (Setup) und Feldname-Inputs (Editor)
+  // anbinden — keine Live-API-Abfrage pro Eingabe.
+  const scShips = [];   // string[] Schiffsnamen
+  const scLocs = [];    // string[] Ortsnamen
+  let scAutocompleteApplied = false;
+
+  function applyScAutocomplete() {
+    if (scAutocompleteApplied) return;
+    scAutocompleteApplied = true;
+    // <datalist> einmalig anlegen und im DOM halten.
+    let dlShips = $('sc-datalist-ships');
+    if (!dlShips) {
+      dlShips = document.createElement('datalist');
+      dlShips.id = 'sc-datalist-ships';
+      document.body.appendChild(dlShips);
+    }
+    let dlLocs = $('sc-datalist-locs');
+    if (!dlLocs) {
+      dlLocs = document.createElement('datalist');
+      dlLocs.id = 'sc-datalist-locs';
+      document.body.appendChild(dlLocs);
+    }
+    dlShips.innerHTML = '';
+    dlLocs.innerHTML = '';
+    scShips.forEach((n) => { const o = document.createElement('option'); o.value = n; dlShips.appendChild(o); });
+    scLocs.forEach((n) => { const o = document.createElement('option'); o.value = n; dlLocs.appendChild(o); });
+    // Bestehende Inputs (falls Setup bereits gerendert) anbinden.
+    document.querySelectorAll('[data-ship]').forEach((i) => { i.setAttribute('list', 'sc-datalist-ships'); });
+    document.querySelectorAll('.preset-field-row [data-fname]').forEach((i) => { i.setAttribute('list', 'sc-datalist-locs'); });
+  }
+
+  function refitScAutocomplete() {
+    // Nach jedem Neu-Rendern des Setup/Editors die neu erzeugten Inputs anbinden
+    // (datalists bleiben im DOM; refit ist idempotent).
+    scAutocompleteApplied = false;
+    applyScAutocomplete();
+  }
+
+  (async function loadScCatalog() {
+    try {
+      const r = await fetch('/api/sc-names?kind=ship');
+      const d = await r.json();
+      if (d && Array.isArray(d.names)) { scShips.length = 0; scShips.push(...d.names); }
+    } catch (e) { /* Katalog optional — Autocomplete einfach leer */ }
+    try {
+      const r2 = await fetch('/api/sc-names?kind=location');
+      const d2 = await r2.json();
+      if (d2 && Array.isArray(d2.names)) { scLocs.length = 0; scLocs.push(...d2.names); }
+    } catch (e) { /* ignore */ }
+    applyScAutocomplete();
+  })();
+
   /* ---------------- View-Navigation ---------------- */
   const VIEWS = ['setup', 'lobby', 'game', 'games'];
   function showView(name) {
@@ -589,9 +644,10 @@
           renderFieldEditor();
         });
         const nameIn = document.createElement('input');
-        nameIn.type = 'text';
-        nameIn.value = f.name || '';
+        nameIn.type = 'text'; nameIn.dataset.fname = '1';
+        nameIn.setAttribute('list', 'sc-datalist-locs');
         nameIn.placeholder = 'Name';
+        nameIn.value = f.name || '';
         nameIn.addEventListener('input', () => { f.name = nameIn.value; });
         const priceIn = document.createElement('input');
         priceIn.type = 'number';
@@ -937,6 +993,7 @@
         num.textContent = 'Team ' + (i + 1);
         const shipIn = document.createElement('input');
         shipIn.type = 'text'; shipIn.dataset.ship = '1';
+        shipIn.setAttribute('list', 'sc-datalist-ships');
         shipIn.placeholder = 'Schiff (z.B. ' + defaultShip + ')';
         shipIn.value = got.ship || defaultShip;
         const taskIn = document.createElement('input');
