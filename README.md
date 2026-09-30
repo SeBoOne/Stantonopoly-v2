@@ -10,6 +10,10 @@ Vermögens-Sieg) und broadcastet den Zustand in Echtzeit an alle Spieler.
 und steht in keiner Verbindung zu Cloud Imperium Rights GmbH / Roberts Space
 Industries. Siehe Lizenz, Rechtliches & Community-Richtlinien.
 
+**Erstellt mit KI-Unterstützung:** Dieses Projekt wurde maßgeblich mit Unterstützung
+moderner KI-Sprachmodelle entwickelt (Architektur, Implementierung und
+Testautomatisierung).
+
 ## Tech-Stapel
 
 - **Node.js ≥ 22.5** (getestet v26.7) — kein MySQL, kein ORM, kein Build-Schritt.
