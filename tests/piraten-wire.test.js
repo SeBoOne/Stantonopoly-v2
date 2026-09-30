@@ -414,7 +414,7 @@ test('P9: join setzt Piraten-leader → Pirat-vote setzt leader → GM-Ernennung
 // aus players entfernt (bankrupt), st.pirate verschwindet (st.pirate = null),
 // das Spiel läuft OHNE Piraten-Mechanik weiter.
 // ---------------------------------------------------------------------
-test('P7: einzelnes Piraten-Team gibt auf (sofort) → Pirat entfernt, st.pirate=null', async () => {
+test('P11: einzelnes Piraten-Team versucht aufzugeben → verweigert, Figur bleibt, Spiel läuft', async () => {
   const srv = startServer();
   const url = 'http://localhost:' + srv.port;
   const gm = await connect(url, 'gm');
@@ -444,18 +444,15 @@ test('P7: einzelnes Piraten-Team gibt auf (sofort) → Pirat entfernt, st.pirate
     await waitState(() => stGm, (s) => s.started && s.pirate && !!s.pirate.leaderId);
     assert.ok(stGm.pirate.leaderId === p.id, 'Pirat ist Leader (einzelnes Mitglied)');
 
-    // Einzelnen Piraten aufgeben lassen → sofort (keine Abstimmung).
+    // Einzelner Pirat versucht aufzugeben → wird abgelehnt, Pirat bleibt.
+    const before = stGm.pirate;
     p.emit('action:forfeit', { gameId });
-    await waitState(() => stGm, (s) => {
-      if (s.pirate) return false;
-      const pir = ((s.game && s.game.players) || []).find((pp) => pp.role === 'pirate' || pp.isPirate);
-      return !!(pir && pir.bankrupt === true);
-    });
-    assert.strictEqual(stGm.pirate, null, 'st.pirate verschwindet nach Aufgeben (st.pirate = null)');
-    // Neustarten-Gate: Das Spiel läuft OHNE Piraten weiter (normale Teams aktiv).
+    await sleep(300);
+    assert.ok(stGm.pirate !== null, 'Piraten-Team bleibt bestehen (keine Aufgabe entfernt es)');
     const pirLive = (stGm.game.players || []).find((pp) => (pp.role === 'pirate' || pp.isPirate) && !pp.bankrupt);
-    assert.ok(!pirLive, 'kein aktives Piraten-Team mehr in players[]');
-    assert.strictEqual(stGm.over, false, 'Spiel läuft ohne Piraten weiter');
+    assert.ok(pirLive, 'aktives Piraten-Team ist weiterhin da');
+    assert.strictEqual(before.teamId === stGm.pirate.teamId, true, 'gleiche Piraten-Entität unverändert');
+    assert.strictEqual(stGm.over, false, 'Spiel läuft weiter');
   } finally {
     [gm, a, d, p].forEach((c_) => c_.disconnect());
     srv.stop();
@@ -463,10 +460,11 @@ test('P7: einzelnes Piraten-Team gibt auf (sofort) → Pirat entfernt, st.pirate
 });
 
 // ---------------------------------------------------------------------
-// P7 (letzter-Leave): Der LETZTE Piraten-Spieler verlässt das Team → die
-// Piraten-Figur wird entfernt (forfeitPirates), die Piraten-Mechanik endet.
+// P7 (letzter-Leave, neue Regel): Der LETZTE Piraten-Spieler verlässt das Team →
+// die Piraten-Figur BLEIBT im Spiel (KEIN forfeit). Der Bot übernimmt ab jetzt
+// (fällt die Flucht-Urteile), die Piraten-Mechanik läuft weiter.
 // ---------------------------------------------------------------------
-test('P7: letzter Piraten-Spieler verlässt das Team → Pirat entfernt', async () => {
+test('P7: letzter Piraten-Spieler verlässt das Team → Figur bleibt, Bot übernimmt', async () => {
   const srv = startServer();
   const url = 'http://localhost:' + srv.port;
   const gm = await connect(url, 'gm');
@@ -496,13 +494,15 @@ test('P7: letzter Piraten-Spieler verlässt das Team → Pirat entfernt', async 
     await waitState(() => stGm, (s) => s.started && s.pirate && !!s.pirate.leaderId);
     assert.strictEqual(stGm.pirate.leaderId, p.id, 'Pirat ist Leader vor dem Leave');
 
-    // Letzter Piraten-Spieler verlässt (confirm=true) → Piraten-Figur wird entfernt.
+    // Letzter Piraten-Spieler verlässt (confirm=true) → Piraten-Figur BLEIBT.
     const leftP = once(p, 'left');
     p.emit('game:leave', { gameId, confirm: true });
     await leftP;
-    await waitState(() => stGm, (s) => s.started && s.pirate === null);
+    await sleep(300);
+    // Das Piraten-Team ist weiterhin aktiv (kein Forfeit) — der Bot übernimmt.
+    assert.ok(stGm.pirate !== null, 'Piraten-Team bleibt nach dem letzten Leave bestehen (Bot übernimmt)');
     const pirLive = (stGm.game.players || []).find((pp) => (pp.role === 'pirate' || pp.isPirate) && !pp.bankrupt);
-    assert.ok(!pirLive, 'kein aktives Piraten-Team nach letztem Leave');
+    assert.ok(pirLive, 'aktives Piraten-Team weiterhin da (nicht entfernt)');
     assert.strictEqual(stGm.over, false, 'Spiel läuft für die normalen Teams weiter');
   } finally {
     [gm, a, d, p].forEach((c_) => c_.disconnect());

@@ -1541,11 +1541,13 @@ class Rooms {
     // P5: Ein-Einzel-Team (nur 1 Mitglied) → Abstimmung ÜBERSPRUNGEN und sofort
     // aufgeben (kein Poll, kein Timer, kein Modal). Server-authoritativ.
     if (memberCount <= 1) {
-      // (P7) Piraten-Team: Aufgeben entfernt die Piraten-Figur + beendet die
-      // Piraten-Mechanik komplett (Begegnungen/Bewegung/oncePerLap).
-      const r = (String(me.teamId).toUpperCase() === 'PIRATES')
-        ? engine.forfeitPirates()
-        : engine.forfeitTeam(teamIdx);
+      // (Bot-Pirat) Piraten können NICHT aufgeben — sie bleiben Teil des Spiels.
+      // Ohne einzelnes Mitglied übernimmt automatisch der Bot (Urteil + Bewegung).
+      const isPirateSolo = String(me.teamId).toUpperCase() === 'PIRATES';
+      if (isPirateSolo) {
+        return { error: { code: 'FORBIDDEN', message: 'Die Piraten können nicht aufgeben. Du kannst nur das Spiel verlassen — dann übernimmt der Bot.' } };
+      }
+      const r = engine.forfeitTeam(teamIdx);
       if (!r.ok) return { error: { code: 'INACTIVE', message: 'Aufgeben nicht möglich.' } };
       this.logEngine(gameId, engine, me.name + ' ist allein im Team und gibt SOFORT auf (Einzel-Team, Abstimmung übersprungen).');
       return this._persistAndReturn(gameId, engine, true);
@@ -1607,9 +1609,11 @@ class Rooms {
     engine.forfeitPoll = null;
     let resultMsg = accepted ? 'AUFGEGEBEN' : 'nicht aufgegeben';
     if (accepted) {
-      if (poll.teamId && String(poll.teamId).toUpperCase() === 'PIRATES') {
-        // (P7) Piraten-Aufgabe entfernt die Piraten-Figur + beendet die Mechanik.
-        engine.forfeitPirates();
+      const teamId = poll.teamId ? String(poll.teamId).toUpperCase() : '';
+      if (teamId === 'PIRATES') {
+        // (Bot-Pirat) Piraten können NICHT aufgeben — selbst wenn irgendwie eine
+        // Abstimmung zustande käme, bleibt die Piraten-Figur erhalten.
+        this.logEngine(gameId, engine, 'Forfeit-Abstimmung für das Piraten-Team verworfen — die Piraten können nicht aufgeben (Bot übernimmt bei leerem Team).');
       } else {
         engine.forfeitTeam(poll.teamIdx);
       }
@@ -1749,26 +1753,33 @@ class Rooms {
         const isLast = teamMembers.length === 1 && String(teamMembers[0].id) === String(sock.id);
         if (isLast && !confirm) {
           // Bestätigungs-Abfrage an den Client senden — noch NICHT verlassen.
+          const isPirateTeam = String(me.teamId).toUpperCase() === 'PIRATES';
           this._emitTo(sock.id, 'leave:confirm', {
             gameId,
-            message: 'Wenn du das Spiel verlässt, gibt dein Team auf.'
+            message: isPirateTeam
+              ? 'Wenn du als letzter Pirat das Spiel verlässt, bleiben die Piraten im Spiel — der Bot übernimmt ab jetzt das Piraten-Team.'
+              : 'Wenn du das Spiel verlässt, gibt dein Team auf.'
           });
           return { ok: false, confirmRequired: true, gameId };
         }
         if (isLast && confirm) {
-          // Team per Forfeit-Logik ausscheiden (wie Bankrott: Eigentum/Guthaben aufgeben).
           const engine = this._loadEngine(gameId);
+          const isPirateTeam = String(me.teamId).toUpperCase() === 'PIRATES';
+          // (Bot-Pirat) Letzter Piraten-Spieler verlässt → die Piraten-Figur BLEIBT.
+          // Sobald kein Mitglied mehr im Team ist, übernimmt automatisch der Bot
+          // (fällt die Flucht-Urteile in actionPirateResolve). Kein Forfeit/Entfernen.
           if (engine) {
             const teamIdx = this._piOf(engine, me.teamId);
-            const isPirateTeam = String(me.teamId).toUpperCase() === 'PIRATES';
-            // (P7) Letzter Piraten-Spieler verlässt das Team → die Piraten-Figur
-            // wird entfernt + die Piraten-Mechanik beendet (wie Aufgeben).
-            const forf = isPirateTeam
-              ? engine.forfeitPirates()
-              : ((teamIdx >= 0 && !engine.players[teamIdx].bankrupt) ? engine.forfeitTeam(teamIdx) : { ok: false });
-            if (forf.ok) {
-              this.logEngine(gameId, engine, me.name + ' verlässt als letzter ' + (isPirateTeam ? 'Piraten-Spieler — die Piraten geben auf' : 'Spieler — Team gibt auf') + ' (Forfeit).');
+            if (isPirateTeam) {
+              this.logEngine(gameId, engine, me.name + ' verlässt als letzter Piraten-Spieler — die Piraten bleiben im Spiel, der Bot übernimmt ab jetzt.');
               dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: engine.over ? 1 : 0 });
+            } else {
+              // Normales Team: Letzter Spieler verlässt → Team per Forfeit ausscheiden.
+              const forf = (teamIdx >= 0 && !engine.players[teamIdx].bankrupt) ? engine.forfeitTeam(teamIdx) : { ok: false };
+              if (forf.ok) {
+                this.logEngine(gameId, engine, me.name + ' verlässt als letzter Spieler — Team gibt auf (Forfeit).');
+                dbm.updateState(gameId, { state: engine.serialize(), started: gameRow.started ? 1 : 0, over: engine.over ? 1 : 0 });
+              }
             }
           }
         }

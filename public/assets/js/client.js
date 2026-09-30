@@ -2173,8 +2173,10 @@
 
   function onOptionsClick() {
     const isTeam = client.role === 'leader' || client.role === 'member';
+    const isPirateTeam = client.teamId != null && String(client.teamId).toUpperCase() === 'PIRATES';
     const items = [];
-    if (isTeam) {
+    // (Bot-Pirat) Piraten können NICHT aufgeben — die Aufgeben-Option entfällt.
+    if (isTeam && !isPirateTeam) {
       items.push('<div class="opt-row" data-opt="forfeitPoll">🚩 <strong>Team-Aufgabe abstimmen</strong> — startet eine 15-Sek.-Abstimmung aller Teammitglieder (Starter stimmt automatisch dafür, Enthaltung zählt nicht).</div>');
     }
     items.push('<div class="opt-row" data-opt="leave">↩ Spiel verlassen — dein Slot wird freigegeben, du kannst jederzeit mit dem Einladungscode zurückkehren.</div>');

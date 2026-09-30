@@ -457,65 +457,47 @@ test('P3: Pirat auf steuer + piratesBusy → nur Steuer (keine Begegnung)', () =
 });
 
 // ---------------------------------------------------------------------
-// P7 (Team-Mechanik Runde): Piraten-Können-AUFGEBEN. forfeitPirates entfernt
-// die Piraten-Figur (als tote/entfernte Entität = bankrupt), löst alle offenen
-// Piraten-Zustände auf, und das Spiel läuft OHNE Piraten-Mechanik weiter:
-// keine Begegnungen mehr, keine Piraten-Bewegung; der Sieg-Pfad bleibt konsistent.
 // ---------------------------------------------------------------------
-test('P7: forfeitPirates entfernt Pirat (bankrupt), beendet Begegnung/Bewegung, Spiel läuft weiter', () => {
+// (Bot-Pirat, neue Regel) Es gibt KEIN „Aufgeben“ für das Piraten-Team.
+// Piraten bleiben immer Teil des Spiels; der letzte Piraten-Spieler kann das
+// Team verlassen (dann übernimmt der Bot), aber die Figur wird NIE entfernt.
+// ---------------------------------------------------------------------
+test('P11: Kein forfeitPirates mehr — Piraten bleiben nach „Aufgeben“-Versuchen erhalten', () => {
   const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true, pirateWaitTurns: 1 } });
   const pir = pirateOf(g);
+  assert.ok(pir, 'Pirat aktiv zu Beginn');
+  // Es gibt keine Engine-API zum Entfernen der Piraten mehr.
+  assert.strictEqual(typeof g.forfeitPirates, 'undefined', 'forfeitPirates wurde entfernt (Piraten können nicht mehr aufgeben)');
+  // Offenes Urteil/eine Begegnung ändert nichts am Überdauern der Figur.
   g.players[0].pos = 1; pir.pos = 2;
   const res = rollExact(g, 1); // A 1→2 (Pirat) → Begegnung
   assert.ok(res.pirateEncounter, 'Begegnung ausgelöst');
+  // Solange Piraten-Mitglieder da sind, bleibt die Figur.
+  assert.ok(pirateOf(g) !== null, 'Piraten bleiben aktiv (kein Aufgeben-Pfad)');
+});
 
-  const r = g.forfeitPirates();
-  assert.strictEqual(r.ok, true, 'Aufgeben erfolgreich');
-  assert.strictEqual(pir.bankrupt, true, 'Pirat als entfernte/tote Entität markiert');
-  assert.strictEqual(g.pirateEncounter, null, 'offene Begegnung aufgelöst');
-  assert.strictEqual(g.pirateVerdict, null, 'kein offenes Urteil');
-  assert.strictEqual(g.pirateWaitCounter, 0, 'Warte-Zähler zurückgesetzt');
-  assert.strictEqual(pirateOf(g), null, 'kein aktives Piraten-Team mehr');
-  assert.ok(!g.players.find((p) => (p.role === 'pirate' || p.isPirate) && !p.bankrupt), 'kein lebender Pirat');
-
-  // Spiel geht OHNE Piraten weiter: A zieht erneut AUF das ehemalige Piraten-Feld → KEINE Begegnung.
-  g.players[0].pos = 1; g.rolled = false; g.activeIdx = 0;
-  const res2 = rollExact(g, 1); // 1→2 (ehemaliges Piraten-Feld)
-  assert.strictEqual(res2.to, 2);
-  assert.ok(!res2.pirateEncounter, 'nach Aufgeben KEINE neue Begegnung (Mechanik beendet)');
-  assert.strictEqual(g.pirateEncounter, null, 'kein sync pirateEncounter');
-
-  // advancePirate bewegt nichts mehr (kein aktiver Pirat).
+test('P7: Letzter Piraten-Spieler verlässt das Team — die Figur BLEIBT, kein Forfeit', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
+  const pir = pirateOf(g);
+  // Simuliere den Bot-Übernahmepfad: Team wird NICHT entfernt, Begegnung weiter möglich.
+  assert.ok(pirateOf(g) !== null, 'Pirat bleibt aktiv (kein Entfernen)');
+  assert.strictEqual(pir.bankrupt, false, 'Pirat ist nicht bankrott/entfernt');
+  // advancePirate funktioniert weiterhin (Piraten-Bewegung aktiv).
+  pir.pos = 3; g.players[0].pos = 8;
   const adv = g.advancePirate();
-  assert.strictEqual(adv.moved, false, 'Piraten-Bewegung deaktiviert');
-
-  // Sieg-Pfad bleibt konsistent: 1 normales Team + (totes) Piraten-Team → normales Team gewinnt.
-  g.forfeitTeam(0);
-  assert.strictEqual(g.over, true, 'Spiel endet bei nur noch 1 normalem Team (Pirat zählt nicht)');
-  assert.strictEqual(g.winnerInfo.name, 'B');
-});
-
-test('P7: forfeitPirates ohne aktiven Piraten → ok:false (nicht doppel-aufgebbar)', () => {
-  const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
-  const r1 = g.forfeitPirates();
-  assert.strictEqual(r1.ok, true);
-  const r2 = g.forfeitPirates();
-  assert.strictEqual(r2.ok, false, 'zweimal Aufgeben wird abgelehnt');
-  assert.strictEqual(r2.reason, 'no_pirates');
+  assert.strictEqual(adv.moved, true, 'Piraten-Bewegung bleibt aktiv (Bot übernimmt)');
 });
 
 // ---------------------------------------------------------------------
-// P7 Wire-Persistenz: Nach einem Piraten-Aufgeben überlebt der ent-Referenz
-// state (bankrupt Pirat) den serialize↔deserialize-Round-Trip; pirateOf bleibt
-// null nach dem Reload — die Piraten-Mechanik ist dauerhaft beendet.
+// P7 Wire-Persistenz (neue Regel): Da die Piraten nie entfernt werden,
+// überlebt das Piraten-Team jeden serialize↔deserialize-Round-Trip.
 // ---------------------------------------------------------------------
-test('P7: Piraten-Aufgeben persistiert über Round-Trip (kein neues aktives Piraten-Team)', () => {
+test('P7: Piraten-Team persistiert über Round-Trip (wird nie entfernt)', () => {
   const g = makeGame([{ name: 'A' }, { name: 'B' }], { settings: { piratesEnabled: true } });
-  g.forfeitPirates();
   const s = g.serialize();
   const g2 = G.deserialize(s, D);
-  assert.strictEqual(pirateOf(g2), null, 'nach Reload weiterhin kein aktiver Pirat');
-  assert.ok(g2.players.some((p) => p.role === 'pirate' && p.bankrupt), 'entfernte Piraten-Entität persistiert');
+  assert.ok(pirateOf(g2) !== null, 'nach Reload ist das Piraten-Team weiterhin aktiv');
+  assert.strictEqual(g2.players.some((p) => p.role === 'pirate' && p.bankrupt), false, 'kein bankrotter Pirat');
 });
 
 // =====================================================================
