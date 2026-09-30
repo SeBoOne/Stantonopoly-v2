@@ -72,6 +72,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Nur Cache-Import (lesen) — KEIN cache-to: der Standard-docker-Driver auf
+          # GitHub-Runnern unterstützt type=gha nur mit containerd image store, sonst
+          # schlägt der Export fehl mit "Cache export is not supported for the docker
+          # driver" (Run 36753607868). Import bleibt harmlos.
+          cache-from: type=gha,scope=${{ github.ref_name }}
           platforms: linux/amd64
