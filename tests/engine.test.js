@@ -256,13 +256,14 @@ test('Setup-Constraints: MIN_TEAMS=2, MAX_TEAMS=8', () => {
   assert.strictEqual(D.MAX_TEAMS, 8);
 });
 
-test('Preset "Stantonopoly v1": 16 Felder, Orison LOS, Ereignis auf Index 6', () => {
+test('Preset "Stantonopoly v1": 16 Felder, Orison LOS, Spezial-Grundstück auf Index 6', () => {
   const p = D.PRESETS['Stantonopoly v1'];
   assert.strictEqual(p.fields.length, 16);
   assert.strictEqual(p.fields[0].type, 'los');
   assert.strictEqual(p.fields[0].name, 'Orison');
-  assert.strictEqual(p.fields[6].type, 'ereignis');
+  assert.strictEqual(p.fields[6].type, 'spezial');
   assert.strictEqual(p.fields[6].name, 'Covalex Hub Gundo');
+  assert.strictEqual(p.fields[6].fee, 125000);
 });
 
 test('formatUAEC: deutsche Tausenderpunkte ohne Dezimalkomma', () => {

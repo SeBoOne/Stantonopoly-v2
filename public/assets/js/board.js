@@ -112,6 +112,7 @@ window.stanGroupKey = function (key) {
     if (f.type === 'gefangnis') return 'is-jail';
     if (f.type === 'steuer') return 'is-steuer';
     if (f.type === 'freiparken') return 'is-freiparken';
+    if (f.type === 'spezial') return 'is-spezial';
     var p = (typeof f.price === 'number') ? f.price : 0;
     // (2k #5 → 2m #3) Eigene Farbgruppe (Preset-Editor) → band-g<key>; sonst Preisband-Fallback.
     var g = (typeof f.group === 'string' && f.group !== '') ? f.group : '';
@@ -120,7 +121,7 @@ window.stanGroupKey = function (key) {
     return p <= 400000 ? 'band-400' : 'band-500';
   }
   function typeLabel(f) {
-    var T = { los: 'LOS', 'gundo': 'GUNDO', ereignis: 'EREIGNIS', gefangnis: 'GEFÄNGNIS', freiparken: 'FREI PARKEN', steuer: 'STEUER' };
+    var T = { los: 'LOS', 'gundo': 'GUNDO', ereignis: 'EREIGNIS', gefangnis: 'GEFÄNGNIS', freiparken: 'FREI PARKEN', steuer: 'STEUER', spezial: 'SPEZIAL' };
     return T[f.type] || 'FELD';
   }
   function feeText(f) {
@@ -130,6 +131,7 @@ window.stanGroupKey = function (key) {
     if (f.type === 'gefangnis') return fee > 0 ? ('Lösegeld ' + fmt(fee) + ' aUEC') : 'Züge aussetzen';
     if (f.type === 'steuer') return fee > 0 ? ('Zahle ' + fmt(fee) + ' aUEC') : 'Kein Betrag';
     if (f.type === 'freiparken') return 'Nichts passiert';
+    if (f.type === 'spezial') return 'LOS: ' + (fee > 0 ? ('Strafe ' + fmt(fee)) : (fee < 0 ? ('Bonus +' + fmt(Math.abs(fee))) : 'kein Effekt')) + ' aUEC · Besitz bei Landung sofort';
     return '';
   }
 
@@ -150,7 +152,7 @@ window.stanGroupKey = function (key) {
     card.appendChild(top);
     card.appendChild(name);
 
-    if (f.type === 'los' || f.type === 'gundo' || f.type === 'ereignis' || f.type === 'gefangnis' || f.type === 'steuer' || f.type === 'freiparken') {
+    if (f.type === 'los' || f.type === 'gundo' || f.type === 'ereignis' || f.type === 'gefangnis' || f.type === 'steuer' || f.type === 'freiparken' || f.type === 'spezial') {
       var price = el('div', 'kc-price', f.type === 'los' ? ('+' + fmt(losBonus())) : feeText(f));
       price.style.fontSize = '20px';
       card.appendChild(price);

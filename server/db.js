@@ -357,6 +357,20 @@ function seedBuiltinPresets() {
       (D.PRESETS[name].levelNames ? JSON.stringify(D.PRESETS[name].levelNames) : null),
       (D.PRESETS[name].settings ? JSON.stringify(D.PRESETS[name].settings) : null), 1);
   });
+  // Migration (Spezial-Grundstück): Im Builtin-Preset „Stantonopoly v1“ ist Feld 6
+  // („Covalex Hub Gundo“) jetzt ein Spezial-Grundstück statt eines Ereignis-Felds.
+  // Nur gezielt umstellen, wenn es noch die alte Ereignis-Definition trägt.
+  const v1 = stmts.getPreset.get('Stantonopoly v1');
+  if (v1 && v1.builtin) {
+    try {
+      const fields = JSON.parse(v1.fields || '[]');
+      if (fields[6] && fields[6].type === 'ereignis' && fields[6].name === 'Covalex Hub Gundo') {
+        fields[6] = { type: 'spezial', name: 'Covalex Hub Gundo', fee: 125000 };
+        stmts.upsertPreset.run('Stantonopoly v1', JSON.stringify(fields), 1,
+          v1.level_names, v1.settings, v1.enabled !== 0 ? 1 : 0);
+      }
+    } catch (e) { /* Preset-Defekt ignorieren — nächster Start seedet sauber */ }
+  }
 }
 
 function deleteGame(gameId) {

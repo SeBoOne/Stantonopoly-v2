@@ -245,7 +245,7 @@ const StantonopolyData = {
         { type: 'grundstueck', name: 'Kudre Ore', price: 500000, group: 'gold' },               // 3
         { type: 'grundstueck', name: 'Brios Breaker Yard', price: 400000, group: 'schwarz' },   // 4
         { type: 'grundstueck', name: 'Arc Mining 141', price: 500000, group: 'gold' },          // 5
-        { type: 'ereignis', name: 'Covalex Hub Gundo', fee: 125000 },                           // 6
+        { type: 'spezial', name: 'Covalex Hub Gundo', fee: 125000 },                          // 6
         { type: 'grundstueck', name: 'Miner Lament', price: 300000, group: 'schwarz' },         // 7
         { type: 'grundstueck', name: 'Grim Hex', price: 500000, group: 'rot' },                 // 8
         { type: 'grundstueck', name: 'NT-999-XX', price: 600000, group: 'rot' },                // 9

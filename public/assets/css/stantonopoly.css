@@ -387,6 +387,7 @@ label.field-label, .field-label { display: flex; flex-direction: column; gap: 7p
 .kcard.is-jail .k-band { background: var(--alert); }
 .kcard.is-steuer .k-band { background: var(--warn); }
 .kcard.is-freiparken .k-band { background: var(--ok); }
+.kcard.is-spezial .k-band { background: linear-gradient(90deg, var(--accent), var(--pirat)); }
 .kcard.has-band { padding-bottom: 8px; }
 .kcard .k-band { height: 5px; flex: none; }
 .kcard .k-notch { position: absolute; top: 0; right: 0; width: 18px; height: 18px;

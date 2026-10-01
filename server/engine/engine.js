@@ -112,7 +112,7 @@ function normalizeField(f) {
   if (!f || typeof f !== 'object') return { type: 'los', name: 'Feld', price: 0 };
   // 'gundo' ist der alte Name des Ereignis-Feldtyps (Steuerfeld); beides wird zu 'ereignis'.
   const rawType = f.type === 'gundo' ? 'ereignis' : f.type;
-  const VALID = ['grundstueck', 'los', 'ereignis', 'gefangnis', 'freiparken', 'steuer'];
+  const VALID = ['grundstueck', 'los', 'ereignis', 'gefangnis', 'freiparken', 'steuer', 'spezial'];
   const out = {
     type: VALID.indexOf(rawType) !== -1 ? rawType : 'los',
     name: String(f.name || 'Feld')
@@ -130,7 +130,7 @@ function normalizeField(f) {
   const bonus = Number(f.bonus);
   if (out.type === 'los' && Number.isFinite(bonus)) out.bonus = Math.round(bonus);
   const fee = Number(f.fee);
-  if ((out.type === 'ereignis' || out.type === 'steuer' || out.type === 'gefangnis') && Number.isFinite(fee)) out.fee = Math.round(fee);
+  if ((out.type === 'ereignis' || out.type === 'steuer' || out.type === 'gefangnis' || out.type === 'spezial') && Number.isFinite(fee)) out.fee = Math.round(fee);
   const turns = Number(f.turns);
   if (out.type === 'gefangnis' && Number.isFinite(turns) && turns >= 0) out.turns = Math.round(turns);
   return out;
@@ -449,6 +449,19 @@ function landingEffects(game, p, landing, events) {
       log(game, p.name + ' landet auf „' + landingField.name + '“ (Ereignis) → kein Effekt, weiter.');
       turnPassed = true;
     }
+  } else if (landingField.type === 'spezial') {
+    // Spezial-Grundstück: Der Besitz geht OHNE Bedingungen/Aufgaben sofort an den
+    // Landenden über — auch wenn es einem anderen Team gehört (einfache Übertragung).
+    // Kein Kaufpreis, keine Miete, kein Handel/Bauen/Hypothek/Abbau/Bankverkauf.
+    const prevOwner = ownerOf(game, to);
+    if (prevOwner && prevOwner !== p) {
+      log(game, prevOwner.name + ' verliert das Spezial-Grundstück „' + landingField.name + '“ an ' + p.name + ' (Landung).');
+      delete prevOwner.properties[to];
+    }
+    p.properties[to] = { level: 'STANDARD' };
+    log(game, p.name + ' übernimmt das Spezial-Grundstück „' + landingField.name + '“ (sofortiger Besitz-Übergang).');
+    events.push('Spezial-Grundstück übernommen: „' + landingField.name + '“');
+    turnPassed = true;
   } else {
     log(game, p.name + ' landet auf Feld „' + landingField.name + '“ (unbekannter Typ ' + landingField.type + ') → weiter.');
     turnPassed = true;
@@ -678,6 +691,7 @@ const StantonopolyGame = {
     const from = p.pos;
     const total = from + sum;
     let lapBonus = 0;
+    let specialLapEvents = [];
     const lap = (total >= game.fields.length);
     if (lap) {
       // Orison überqueren: + Los-Bonus (individuell je Feld0, sonst global).
@@ -688,6 +702,27 @@ const StantonopolyGame = {
       p.budget += lapBonus;
       log(game, p.name + ' überquert Orison (LOS) → + ' + fmt(lapBonus) + ' Bonus.');
       this.ledgerPush(game, p, lapBonus, 'Orison-Bonus');
+
+      // (Spezial-Grundstück) Der Besitzer eines solchen Felds erhält beim
+      // Überqueren von LOS eine Strafgebühr (fee > 0, zahlt) oder einen Bonus
+      // (fee < 0, bekommt) — Summe über alle besessenen Spezial-Felder.
+      const specialIdx = game.fields
+        .map((fd, i) => (fd.type === 'spezial' && p.properties[i] ? i : null))
+        .filter((i) => i !== null);
+      if (specialIdx.length) {
+        const totalFee = specialIdx.reduce((sum, i) => sum + (typeof game.fields[i].fee === 'number' ? game.fields[i].fee : 0), 0);
+        if (totalFee > 0) {
+          const ok = pay(game, p, null, totalFee, 'Spezial-Strafgebühr „LOS-Pass“');
+          log(game, p.name + ' überquert LOS mit Spezial-Grundstück(en) → Strafgebühr ' + fmt(totalFee) + ' an die Bank.');
+          specialLapEvents.push('Spezial-Strafgebühr (LOS) ' + fmt(totalFee));
+        } else if (totalFee < 0) {
+          const bonus = Math.abs(totalFee);
+          p.budget += bonus;
+          this.ledgerPush(game, p, bonus, 'Spezial-Bonus (LOS-Pass)');
+          log(game, p.name + ' überquert LOS mit Spezial-Grundstück(en) → Bonus +' + fmt(bonus) + '.');
+          specialLapEvents.push('Spezial-Bonus (LOS) +' + fmt(bonus));
+        }
+      }
     }
     const to = total % game.fields.length;
     p.pos = to;
@@ -703,6 +738,7 @@ const StantonopolyGame = {
     log(game, p.name + ' würfelt ' + detail + ' → bewegt sich von ' + from + ' nach ' + to + ' (' + landingField.name + ').');
 
     const events = [];
+    if (specialLapEvents && specialLapEvents.length) events.push(...specialLapEvents);
     let canBuy = false;
     let turnPassed = false; // true = Aufrufer kann direkt nextTurn()
 
@@ -1531,6 +1567,9 @@ const StantonopolyGame = {
     if (game.over || seller.bankrupt) return { ok: false, reason: 'inactive' };
     const own = seller.properties[fieldIdx];
     if (!own) return { ok: false, reason: 'not_owned' };
+    // (Spezial-Grundstück) Nicht handelbar — auch nicht an die Bank.
+    const sf = game.fields[fieldIdx];
+    if (sf && sf.type === 'spezial') return { ok: false, reason: 'SPECIAL_NOT_SELLABLE', notify: '„' + sf.name + '“ ist ein Spezial-Grundstück und kann nicht verkauft werden.' };
     // Verkauf an die Bank (Sanierung): buyerIdx = -1 bzw. fehlend → Bank zahlt
     // bankPayout × Basis. Funktionssperre: settings.bankSellEnabled=false blockiert.
     // (2g#15) Ein belehntes Grundstück kann NICHT an die Bank verkauft werden.
@@ -1605,6 +1644,8 @@ const StantonopolyGame = {
     if (!(price >= 0)) return { ok: false, reason: 'bad_price' };
     if (!game.fields[fieldIdx]) return { ok: false, reason: 'bad_field' };
     const f = game.fields[fieldIdx];
+    // (Spezial-Grundstück) Nicht handelbar — weder verkaufen noch kaufen anbieten.
+    if (f.type === 'spezial') return { ok: false, reason: 'SPECIAL_NOT_TRADEABLE', notify: '„' + f.name + '“ ist ein Spezial-Grundstück und kann nicht gehandelt werden.' };
     if (kind === 'sell') {
       if (!from.properties[fieldIdx]) return { ok: false, reason: 'not_owned' };
     } else {
@@ -1678,6 +1719,9 @@ const StantonopolyGame = {
     const owner = game.players[ownerIdx];
     if (!owner || owner.bankrupt) return { ok: false, reason: 'inactive' };
     if (!owner.properties[fieldIdx]) return { ok: false, reason: 'not_owned' };
+    // (Spezial-Grundstück) Nicht versteigerbar.
+    const sfA = game.fields[fieldIdx];
+    if (sfA && sfA.type === 'spezial') return { ok: false, reason: 'SPECIAL_NOT_AUCTIONABLE', notify: '„' + sfA.name + '“ ist ein Spezial-Grundstück und kann nicht versteigert werden.' };
     // (2o-A P8) Ein bebautes Feld darf nicht versteigert werden — erst abbauen.
     if (isBuiltOwn(owner.properties[fieldIdx])) {
       return { ok: false, reason: 'BUILT_NOT_SELLABLE', notify: '„' + (game.fields[fieldIdx] ? game.fields[fieldIdx].name : 'Feld ' + fieldIdx) + '“ ist ausgebaut und kann nicht versteigert werden. Erst alle Gebäude abbauen.' };

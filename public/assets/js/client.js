@@ -392,7 +392,7 @@
       { type: 'grundstueck', name: 'Kudre Ore', price: 500000 },
       { type: 'grundstueck', name: 'Brios Breaker Yard', price: 400000 },
       { type: 'grundstueck', name: 'Arc Mining 141', price: 500000 },
-      { type: 'ereignis', name: 'Covalex Hub Gundo' },
+      { type: 'spezial', name: 'Covalex Hub Gundo', fee: 125000 },
       { type: 'grundstueck', name: 'Miner Lament', price: 300000 },
       { type: 'grundstueck', name: 'Grim Hex', price: 500000 },
       { type: 'grundstueck', name: 'NT-999-XX', price: 600000 },
@@ -641,12 +641,12 @@
       editingFields.forEach((f, i) => {
         const row = document.createElement('div');
         // Los/Gundo haben ein Zusatzfeld (Los-Bonus/Gebühr) → 8-spaltiges Grid.
-        row.className = 'preset-field-row' + ((f.type === 'los' || f.type === 'ereignis' || f.type === 'gundo' || f.type === 'gefangnis' || f.type === 'steuer') ? ' has-extra' : '') + (f.type === 'freiparken' ? ' is-plain' : '');
+        row.className = 'preset-field-row' + ((f.type === 'los' || f.type === 'ereignis' || f.type === 'gundo' || f.type === 'gefangnis' || f.type === 'steuer' || f.type === 'spezial') ? ' has-extra' : '') + (f.type === 'freiparken' ? ' is-plain' : '');
         const idx = document.createElement('span');
         idx.className = 'preset-field-idx';
         idx.textContent = i;
         const typeSel = document.createElement('select');
-        [['los', 'Los'], ['grundstueck', 'Grundstück'], ['ereignis', 'Ereignis'], ['gefangnis', 'Gefängnis'], ['freiparken', 'Frei Parken'], ['steuer', 'Steuer']].forEach(([v, l]) => {
+        [['los', 'Los'], ['grundstueck', 'Grundstück'], ['ereignis', 'Ereignis'], ['gefangnis', 'Gefängnis'], ['freiparken', 'Frei Parken'], ['steuer', 'Steuer'], ['spezial', 'Spezial-Grundstück']].forEach(([v, l]) => {
           const o = document.createElement('option');
           o.value = v; o.textContent = l;
           if (f.type === v) o.selected = true;
@@ -719,11 +719,14 @@
           bonusIn.placeholder = 'Los-Bonus';
           bonusIn.title = 'Betrag beim Überqueren von Orison (Los)';
           bonusIn.addEventListener('input', () => { f.bonus = Number(bonusIn.value) || 0; });
-        } else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis') {
+        } else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis' || f.type === 'spezial') {
           feeIn = document.createElement('input');
           feeIn.type = 'number'; feeIn.step = '10000';
           feeIn.value = typeof f.fee === 'number' ? f.fee : '';
-          if (f.type === 'ereignis' || f.type === 'gundo') {
+          if (f.type === 'spezial') {
+            feeIn.placeholder = 'Los-Strafe/Bonus';
+            feeIn.title = 'Spezial-Grundstück: Bei jeder LOS-Überquerung zahlt der Besitzer die Gebühr (positiv) bzw. erhält den Bonus (negativ)';
+          } else if (f.type === 'ereignis' || f.type === 'gundo') {
             feeIn.placeholder = 'Gebühr/Bonus';
             feeIn.title = 'Ereignis-Effekt bei Landung: Gebühr (positiv) oder Bonus (negativ)';
           } else if (f.type === 'steuer') {
@@ -940,7 +943,7 @@
           // (2k #5) Farbgruppe (nur Grundstücke) explizit speichern.
           if (f.type === 'grundstueck' && f.group !== undefined && f.group !== null && f.group !== '') out.group = String(f.group);
           else if (f.type === 'los') { if (typeof f.bonus === 'number') out.bonus = f.bonus; }
-          else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis') {
+          else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis' || f.type === 'spezial') {
             if (typeof f.fee === 'number') out.fee = f.fee;
           }
           return out;
@@ -1054,7 +1057,7 @@
           if (f.group !== undefined && f.group !== null && String(f.group) !== '') out.group = String(f.group);
         } else if (f.type === 'los') {
           if (typeof f.bonus === 'number') out.bonus = f.bonus;
-        } else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis') {
+        } else if (f.type === 'ereignis' || f.type === 'gundo' || f.type === 'steuer' || f.type === 'gefangnis' || f.type === 'spezial') {
           if (typeof f.fee === 'number') out.fee = f.fee;
         }
         // freiparken: kein Wert (neutral)
@@ -1632,7 +1635,7 @@
       ' (' + o.own.level + (o.own.mortgaged ? ', beliehen' : '') + ')</option>').join('');
     // Fremde (besessene) Felder für ein Kaufangebot an den jeweiligen Besitzer
     const foreignFields = fields.map((f, i) => ({ i, f, owner: ownerOfIdx(st, i) }))
-      .filter((o) => o.owner != null && o.owner !== idx && o.f.type !== 'ereignis' && o.f.type !== 'gundo' && o.f.type !== 'gefangnis' && o.f.type !== 'freiparken' && o.f.type !== 'steuer' && o.f.type !== 'los');
+      .filter((o) => o.owner != null && o.owner !== idx && o.f.type !== 'ereignis' && o.f.type !== 'gundo' && o.f.type !== 'gefangnis' && o.f.type !== 'freiparken' && o.f.type !== 'steuer' && o.f.type !== 'los' && o.f.type !== 'spezial');
 
     let html = '';
     // Eigene Felder: Hypothek / Entlasten / Ausbau / Abbau / Aufgeben / An Bank verkaufen
@@ -1824,6 +1827,13 @@
         const own = ownProp(fidx);
         const f = flds[fidx];
         const price = (f && typeof f.price === 'number') ? f.price : 0;
+        // (Spezial-Grundstück) Keinerlei Wirtschafts-Aktionen möglich — nur Hinweis.
+        if (f && f.type === 'spezial') {
+          const eff = (typeof f.fee === 'number') ? f.fee : 0;
+          const effTxt = eff > 0 ? ('Strafgebühr ' + fmtUAEC(eff) + ' aUEC') : (eff < 0 ? ('Bonus +' + fmtUAEC(Math.abs(eff)) + ' aUEC') : 'kein Effekt');
+          row.innerHTML = '<div class="econ-hint">Spezial-Grundstück · Besitz geht beim Landen sofort über · bei jeder LOS-Überquerung: <strong>' + esc(effTxt) + '</strong>. Kein Bau / Handel / Hypothek / Abbau / Bankverkauf.</div>';
+          return;
+        }
         const curIdx = own ? ECON_LEVELS.indexOf(own.level) : -1;
         const mortgaged = !!(own && own.mortgaged);
         // (2o-B P9) Ausgebaut (Stufe > ALLEIN) → Hypothek/Verkauf/Versteigern blockiert.
