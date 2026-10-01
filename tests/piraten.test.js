@@ -443,6 +443,35 @@ test('P3: Pirat auf steuer → Steuer + Begegnung BEIDES', () => {
   assert.ok(!g.pirateEncounter, 'Begegnung aufgelöst');
 });
 
+// ---------------------------------------------------------------------
+// Spezial-Grundstück: Piraten verhalten sich NORMAL (wie auf Grundstück) —
+// Begegnung löst aus, und nach der Auflösung greift die Spezial-Landung.
+// ---------------------------------------------------------------------
+const SPEZIAL_BOARD = [
+  { type: 'los', name: 'Orison' },
+  { type: 'spezial', name: 'Covalex Hub Gundo', fee: 125000 },
+  { type: 'grundstueck', name: 'Grundstueck', price: 100000 }
+];
+
+test('P-SPEZIAL: Pirat auf spezial → Begegnung NORMAL (wie Grundstück) + Besitz-Übergang danach', () => {
+  const g = makeGame([{ name: 'A' }, { name: 'B' }], { fields: SPEZIAL_BOARD, settings: { piratesEnabled: true } });
+  const pir = pirateOf(g);
+  pir.pos = 1;              // Piraten stehen auf dem Spezial-Feld (Feld 1)
+  g.players[0].pos = 0;     // A steht direkt davor
+  g.activeIdx = 0;
+  const before = g.players[0].budget;
+  const res = rollExact(g, 1); // A zieht 0→1 (spezial) wo die Piraten stehen
+  // 1) Begegnung wie auf einem normalen Grundstück.
+  assert.strictEqual(res.to, 1, 'Team landet auf dem Spezial-Feld');
+  assert.strictEqual(pir.pos, 1, 'Piraten stehen auf dem Spezial-Feld');
+  assert.ok(res.pirateEncounter, 'Spezial verhält sich beim Piraten wie normal (Begegnung löst aus)');
+  // 2) Nach Bezahlen läuft die Spezial-Landung (Besitz sammelt nicht an den Piraten).
+  const r = g.resolvePirateEncounter('pay');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(g.players[0].budget, before - 250000, 'nur Schutzgeld (250000) — kein Spezial-Straf-Feld-Effekt bei Landung');
+  assert.strictEqual(g.players[0].properties[1] !== undefined, true, 'Landendes Team übernimmt das Spezial-Feld nach der Begegnung');
+});
+
 // P3b — Steuer-Feld bei piratesBusy: NUR Steuer, KEINE Begegnung.
 test('P3: Pirat auf steuer + piratesBusy → nur Steuer (keine Begegnung)', () => {
   const g = makeGame([{ name: 'A' }, { name: 'B' }], { fields: TYPE_BOARD, settings: { piratesEnabled: true } });
