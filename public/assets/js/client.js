@@ -341,6 +341,7 @@
       icon: '<i class="bi bi-info-circle-fill" aria-hidden="true"></i>',
       body:
         '<div class="info-hero">' +
+        '<img src="' + origin + '/assets/img/made-by-the-community.png" alt="Made by the Community — offizielles Star-Citizen-Community-Abzeichen" class="info-community" loading="lazy" decoding="async" />' +
         '<div class="info-brand">STANTONOPOLY · FAN-PROJEKT</div>' +
         '<div class="info-note">Dieses Spiel ist ein inoffizielles, nicht-kommerzielles Fan-Projekt auf Basis der Star-Citizen-Community und steht in keiner Verbindung zu Cloud Imperium Rights GmbH oder Roberts Space Industries.</div>' +
         '<div class="info-links">' +

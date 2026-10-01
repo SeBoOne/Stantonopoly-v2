@@ -10,6 +10,12 @@ Vermögens-Sieg) und broadcastet den Zustand in Echtzeit an alle Spieler.
 und steht in keiner Verbindung zu Cloud Imperium Rights GmbH / Roberts Space
 Industries. Siehe Lizenz, Rechtliches & Community-Richtlinien.
 
+<p>
+  <img src="public/assets/img/made-by-the-community.png"
+       alt="Made by the Community — offizielles Star-Citizen-Community-Abzeichen"
+       width="120" height="120" />
+</p>
+
 **Erstellt mit KI-Unterstützung:** Dieses Projekt wurde maßgeblich mit Unterstützung
 moderner KI-Sprachmodelle entwickelt (Architektur, Implementierung und
 Testautomatisierung).

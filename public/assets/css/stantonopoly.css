@@ -819,6 +819,15 @@ body.view-login .hd-r { margin-left: auto; }
  * HUD-Kartengriffe — Links als Rahmen-Buttons, Hinweis als dezente Notiz.
  * ------------------------------------------------------------------ */
 .info-hero { display: flex; flex-direction: column; gap: 10px; }
+/* Offizielles „Made by the Community“-Abzeichen (Star-Citizen-Community-Kennzeichnung).
+   Dezente Größe, monochrom passt sich dem HUD an, transparent auch im Dark-Mode. */
+.info-community {
+  width: 108px; height: 108px;
+  align-self: flex-start;
+  margin: 2px 0 4px;
+  object-fit: contain;
+  image-rendering: auto;
+}
 .info-brand { font: 700 13px/1 ui-monospace, monospace; letter-spacing: .24em; color: var(--accent); }
 .info-note {
   font: 400 12px/1.5 ui-monospace, monospace; color: var(--fg-dim);
