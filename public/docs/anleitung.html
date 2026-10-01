@@ -58,9 +58,6 @@ th{text-align:left;font-family:var(--mono);font-size:.72rem;letter-spacing:.12em
 td{padding:.5rem .7rem;border-bottom:1px solid var(--line);color:var(--fg-dim)}
 td b{color:var(--fg)}
 
-.two{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
-@media(max-width:750px){.two{grid-template-columns:1fr}}
-
 .badge-inline{font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;border:1px solid var(--accent);color:var(--accent-hi);padding:.15rem .5rem;border-radius:2px}
 .badge-pirate{border-color:var(--pirat);color:var(--pirat)}
 .badge-norm{border-color:var(--fg-faint);color:var(--fg-faint)}
@@ -75,94 +72,130 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 <header>
   <div class="kicker">Star Citizen · Spielanleitung</div>
   <h1>STANTONOPOLY<span class="v">V2</span></h1>
-  <p class="sub">Was du als Spieler, Pirat, Teamleiter, Manager oder GM tun musst — Schritt für Schritt.</p>
+  <p class="sub">Rollen-Sicht: Was du als GM, Teamleiter, Spieler, Pirat, Preset-Editor oder Manager tun kannst — Schritt für Schritt, nur aus deiner Perspektive.</p>
 </header>
 
 <nav>
+  <a href="#gm"><i class="bi bi-mic-fill" aria-hidden="true"></i> Game Master</a>
+  <a href="#teamleiter"><i class="bi bi-award-fill" aria-hidden="true"></i> Teamleiter</a>
   <a href="#spieler"><i class="bi bi-person-fill" aria-hidden="true"></i> Normaler Spieler</a>
   <a href="#pirat"><i class="bi bi-flag-fill" aria-hidden="true"></i> Pirat</a>
-  <a href="#teamleiter"><i class="bi bi-award-fill" aria-hidden="true"></i> Teamleiter</a>
-  <a href="#manager"><i class="bi bi-wrench" aria-hidden="true"></i> Manager</a>
   <a href="#preset"><i class="bi bi-puzzle-fill" aria-hidden="true"></i> Preset-Editor</a>
-  <a href="#gm"><i class="bi bi-mic-fill" aria-hidden="true"></i> Game Master</a>
+  <a href="#manager"><i class="bi bi-wrench" aria-hidden="true"></i> Manager</a>
 </nav>
 
-<!-- ================= SPIELER ================= -->
-<section id="spieler">
-  <h2><span class="ic"><i class="bi bi-person-fill" aria-hidden="true"></i></span> Normaler Spieler</h2>
-  <div class="role-tag">Du trittst einem Team bei, würfelst, kaufst, handelst — und arbeitest im Team zusammen.</div>
+<!-- ================= GAME MASTER ================= -->
+<section id="gm">
+  <h2><span class="ic"><i class="bi bi-mic-fill" aria-hidden="true"></i></span> Game Master (GM)</h2>
+  <div class="role-tag">Du organisierst das gesamte Spiel: erstellen, Codes verteilen, starten, pausieren, den Abschluss überwachen.</div>
 
-  <h3>1. Einem Spiel beitreten</h3>
-  <p>Der <b>Game Master (GM)</b> erstellt das Spiel und gibt jedem Team einen <b>Einladungscode</b>. Den Code deines Teams erfährst du vom GM. Öffne Stantonopoly, klicke <b>„Mit Code beitreten"</b>, gib den Code und deinen Namen ein.</p>
+  <h3>1. Ein Spiel erstellen</h3>
+  <p>Klicke „<b>Spiel erstellen</b>", wähle die Anzahl <b>Teams (2–8)</b>, ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1") und gib je Team eine <b>Schiffsausstattung</b> an. Beim Eintippen eines Schiffsnamens erscheinen <b>Vorschläge echter Star-Citizen-Schiffe</b> aus dem eingebauten SC-Katalog — du musst die Namen nicht tippen. Über <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b> öffnest du den <a href="#preset" style="color:var(--accent-hi)"><i class="bi bi-puzzle-fill" aria-hidden="true"></i> Preset-Editor</a>, um optional Regeln an-/abzuschalten (Piraten, Aufgaben, Armistice …).</p>
+  <figure>
+    <img src="anleitung-img/guide-setup.png" alt="Setup-Maske">
+    <figcaption>Die Setup-Maske (GM-Sicht): Teams, Preset und Schiffe je Team festlegen, dann Spiel erstellen.</figcaption>
+  </figure>
+
+  <h3>2. Codes verteilen und starten</h3>
+  <p>In der <b>Lobby (GM-Sicht)</b> siehst du deinen privaten <b>GM-Code („NUR DU")</b> und die <b>Einladungscodes je Team</b> (und das Piraten-Team, falls aktiv). Verteile die Team-Codes an deine Spieler — jeder betritt sein Team damit. Der GM-Code bleibt bei dir. Sind alle drin: <b>SPIEL STARTEN</b>.</p>
   <figure>
     <img src="anleitung-img/guide-lobby.png" alt="Lobby mit Einladungscodes">
-    <figcaption>Die Lobby (GM-Sicht): Jedes Team hat seinen eigenen <b>Einladungscode</b> (<span class="badge-inline">UMQG</span>, <span class="badge-pirate">24HC</span> …). Den Code deines Teams gibt dir der GM.</figcaption>
+    <figcaption>Lobby (GM-Sicht): Alle Team-Einladungscodes auf einen Blick, dein <b>GM-CODE (NUR DU)</b> oben, unten <b>SPIEL STARTEN</b>.</figcaption>
   </figure>
+  <div class="note"><b>Merke als GM:</b> Die Team-Codes gibst du <b>an die Spieler weiter</b>, deinen GM-Code behältst du. Nutze z.&nbsp;B. per Lobby-Bereich „Mitspielen", wenn du selbst einem Team beitreten willst.</div>
 
-  <h3>2. Dein Team und die Teamleader-Wahl</h3>
-  <p>Nach dem Beitritt ist dein Team eine <b>Karte in der Lobby</b> mit deinem Namen. Bevor das Spiel startet, stimmt dein Team über den <b>Teamleader</b> ab — das ist die Person, die später bauen und handeln darf.</p>
+  <h3>3. Während des Spiels</h3>
+  <ul>
+    <li><b>Pausieren / Fortsetzen:</b> Ein Spiel jederzeit anhalten und später nahtlos weiterlaufen lassen.</li>
+    <li><b>Teamleader ernennen:</b> Falls ein Team streitet, kannst du per GM-Option einen Teamleader bestimmen.</li>
+    <li><b>Beobachten:</b> Du siehst das ganze Brett, alle Teams und die Logs.</li>
+    <li><b>Selbst mitspielen:</b> Du kannst einem Team beitreten und aktiv mitwürfeln.</li>
+  </ul>
 
-  <h3>3. Das Spielfeld: Würfeln und Ziehen</h3>
-  <p>Das Spielfeld ist eine <b>horizontale Kartenreihe</b> — die Orte aus Star Citizen. Ist <b>dein Team</b> am Zug, erscheint oben die Anzeige „DU BIST AM ZUG“. Das Würfeln ist eine <b>Teamleader-Aktion</b>: Nur der Teamleader sieht den <b>WÜRFELN</b>-Button (leuchtet dann orange); normale Mitglieder warten, bis der Leader gewürfelt hat. Als Leader klicke den Button, um euer Schiff über die Felder zu ziehen.</p>
+  <h3>4. Spielende</h3>
+  <p>Das Spiel endet, wenn nur noch <b>ein Team Vermögen besitzt</b>. Das <b>Endresultat</b> zeigt den Sieger und — falls Piraten aktiv waren — die <b>Piraten-Beute als Statistik</b>. Beendete Spiele findest du in der Spiele-Liste (Tab „Abgeschlossen").</p>
+</section>
+
+<!-- ================= TEAMLEITER ================= -->
+<section id="teamleiter">
+  <h2><span class="ic"><i class="bi bi-award-fill" aria-hidden="true"></i></span> Teamleiter</h2>
+  <div class="role-tag">Du bist das „Kommando" deines Teams — nur du siehst die Wirtschafts- und Handels-Panels und führst die Aktionen aus.</div>
+
+  <h3>1. Teamleader werden</h3>
+  <p>Per <b>Team-Abstimmung</b> vor dem Spielstart oder durch <b>Ernennung vom GM</b>. Der Teamleader kann die Rolle jederzeit <b>an ein anderes Teammitglied abgeben</b>.</p>
+
+  <h3>2. So sieht deine Ansicht aus</h3>
+  <p>Als Leader siehst du rechts die Panels <b>Wirtschaft (ECON)</b>, <b>Handel &amp; Auktion</b>, <b>Cashflow</b> und <b>Mein Team</b> — und du hast den <b>WÜRFELN</b>-Button, wenn euer Team am Zug ist. Normale Teammitglieder sehen diese Aktionen nicht.</p>
   <figure>
-    <img src="anleitung-img/guide-spielfeld-leader.png" alt="Spielfeld mit Aktionsleiste">
-    <figcaption>Teamleader-Sicht: Der <b>WÜRFELN</b>-Button ist aktiv, dein Kontostand steht links unten (1.500.000 aUEC), rechts findest du die Panels <b>Wirtschaft</b>, <b>Handel &amp; Auktion</b>, <b>Cashflow</b> und <b>Mein Team</b>.</figcaption>
+    <img src="anleitung-img/guide-teamleiter.png" alt="Teamleiter-Sicht mit Panels">
+    <figcaption>Teamleiter-Sicht: Rechts die Panels <b>Wirtschaft</b>, <b>Handel &amp; Auktion</b>, <b>Cashflow</b> und <b>Mein Team</b> — so steuerst du euer Team.</figcaption>
   </figure>
 
-  <h3>4. Feld auswerten: Kaufen, Gebühr, Ereignis, Gefängnis</h3>
-  <p>Jedes Feld hat seine Regeln:</p>
+  <h3>3. Deine Aktionen als Leader</h3>
   <table>
-    <tr><th>Feldtyp</th><th>Was passiert?</th></tr>
-    <tr><td><b>LOS</b></td><td>Beim Überqueren erhältst du den eingestellten Bonus z.B.<b>+500.000 aUEC</b>.</td></tr>
-    <tr><td><b>Grundstück (frei)</b></td><td>Du darfst es <b>kaufen</b> (Kaufpreis + Farbgruppe) oder skip.</td></tr>
-    <tr><td><b>Grundstück (fremd)</b></td><td>Du zahlst <b>Miete</b> an den Besitzer (je Ausbaustufe).</td></tr>
-    <tr><td><b>Ereignis</b></td><td>Ereignis-Effekt (z.&nbsp;B. Bonus <b>+125.000</b> bei "Wrack voller Gold").</td></tr>
-    <tr><td><b>Steuer</b></td><td>Steuer wird erhoben.</td></tr>
-    <tr><td><b>Gefängnis</b></td><td>Zahl <b>Freikauf</b> oder sitze Zügen ab (Modal mit Wahl).</td></tr>
-    <tr><td><b>Frei Parken</b></td><td>Neutral — nichts passiert.</td></tr>
-    <tr><td><b>Spezial-Grundstück</b></td><td>Besitz geht beim Landen <b>sofort</b> auf dich über (auch wenn es einem anderen Team gehörte). Als Besitzer erhältst du bei jeder <b>LOS-Überquerung</b> eine Strafgebühr (zahlt) oder einen Bonus (bekommt) — je eingestelltem Wert.</td></tr>
+    <tr><th>Aktion</th><th>Erklärung</th></tr>
+    <tr><td><b>Würfeln</b></td><td>Du würfelst für das Team und bewegst eure Figur über die Felder.</td></tr>
+    <tr><td><b>Kaufen</b></td><td>Landest du auf einem freien Grundstück, kannst du es kaufen oder überspringen.</td></tr>
+    <tr><td><b>Ausbauen</b> <span class="badge-opt">OPTIONAL</span></td><td>Ein eigenes Feld in der Wirtschaft auswählen → Ausbaustufe erhöhen (Miete steigt). Nur möglich, wenn die <b>Bauregel</b> im Preset aktiv ist.</td></tr>
+    <tr><td><b>Hypothek / Abbau</b></td><td>Ein eigenes Feld beleihen oder abreißen (Sanierung bei Geldnot).</td></tr>
+    <tr><td><b>Handel / Auktion</b></td><td>Eigene Felder verkaufen, Käufe anbieten, auf Angebote antworten, versteigern. <b>Verkauf an die Bank</b> nur, wenn im Preset aktiv.</td></tr>
+    <tr><td><b>Zug beenden</b></td><td>Nach deiner Aktion <b>NÄCHSTER ZUG</b> (oder <b>Überspringen</b>), um ans nächste Team zu übergeben.</td></tr>
   </table>
 
-  <h3>5. Wirtschaft, Handel &amp; Auktion nutzen</h3>
-  <p>Rechts in der Seitenleiste kannst du:</p>
-  <ul>
-    <li><b>Wirtschaft (ECON):</b> Dein Feld auswählen, ausbauen, hypothekieren, abbauen.</li>
-    <li><b>Handel &amp; Auktion:</b> Felder anbieten, auf Angebote antworten, eigene Felder versteigern.</li>
-    <li><b>Cashflow (Verlauf):</b> Alle Geldbewegungen deines Teams einsehen.</li>
-  </ul>
-  <div class="note"><b>Hinweis:</b> <b>Bauen</b>, Hypothek und Handel sind <b>Teamleiter-Aktionen</b> — als normales Mitglied siehst du Sie eventuell, kannst sie aber nicht auslösen.</div>
+  <div class="note"><b>Intention der Aufgaben-Regel:</b> Ist die <b>Aufgabenregel</b> <span class="badge-opt">OPTIONAL</span> aktiv, wird euer Team nach Kauf/Ausbau „beschäftigt": Ihr müsst die <b>in Star Citizen definierte Aufgabe</b> wirklich im Spiel erfüllen (z.&nbsp;B. einen bestimmten Ort anfliegen, eine Mission erledigen). Erst wenn ihr das geschafft habt, bestätigt ihr es hier mit <b>„Aufgabe erledigt"</b> — dann läuft euer Zug weiter. Das verbindet das Tablet-Spiel mit echten Aktivitäten im Sternsystem.</div>
 
-  <h3>6. Zug beenden</h3>
-  <p>Der Teamleader beendet den Zug (auch <b>Überspringen</b> / <b>NÄCHSTER ZUG</b>), um ans nächste Team zu übergeben. Das Ziel: das <b>letzte Team mit Vermögen gewinnen</b>.</p>
+  <div class="note"><b>Optionale Bauregel:</b> Ausbauen ist dann nur in der <b>ganzen Farbgruppe</b> und <b>gleichmäßig</b> möglich (Monopoly-Bauregel) — ihr müsst die ganze Farbreihe besitzen, um auf einem Feld zu bauen.</div>
 
-  <h3>7. Optionale Regeln im Spiel</h3>
-  <p>Nicht jedes Spiel sieht gleich aus: Manche Regeln sind im <b>Preset</b> an- oder abschaltbar und gelten nur, wenn sie für dieses Spiel aktiv sind:</p>
+  <h3>4. Leader abgeben</h3>
+  <p>Über <b>Mein Team</b> kannst du die Teamleader-Rolle an ein anderes Mitglied deines Teams übertragen — z.&nbsp;B. wenn jemand anderes die Wirtschaft übernehmen soll.</p>
+</section>
+
+<!-- ================= NORMALER SPIELER ================= -->
+<section id="spieler">
+  <h2><span class="ic"><i class="bi bi-person-fill" aria-hidden="true"></i></span> Normaler Spieler</h2>
+  <div class="role-tag">Du trittst deinem Team bei, stimmst den Teamleader ab und verfolgst das Spiel — die Spielführung übernimmt dein Teamleader.</div>
+
+  <h3>1. Einem Spiel beitreten</h3>
+  <p>Der GM hat für jedes Team einen <b>Einladungscode</b>. Eben diesen Team-Code bekommst du vom GM. Öffne Stantonopoly, klicke <b>„Mit Code beitreten"</b>, gib den Code und deinen Namen ein — du landest in der Lobby.</p>
+  <figure>
+    <img src="anleitung-img/guide-spieler-lobby.png" alt="Lobby aus Spieler-Sicht">
+    <figcaption>Lobby aus Spieler-Sicht: Du siehst dein Team (hier <b>Team Redeemer</b> mit deinem Namen) und die anderen Teams — aber <b>keine GM-Codes</b> und <b>keinen Start-Button</b>. Auf deiner Team-Karte sitzt der <b>WÄHLEN</b>-Button.</figcaption>
+  </figure>
+
+  <h3>2. Teamleader-Wahl</h3>
+  <p>Bevor das Spiel startet, stimmt euer Team über den <b>Teamleader</b> ab — die Person, die später die Züge eures Teams ausführt. Du nimmst an der Abstimmung teil; der Teamleader wird übernommen bzw. gewählt.</p>
+
+  <h3>3. Deine Sicht während des Spiels</h3>
+  <p>Als normales Mitglied <b>verfolgst du</b> das Spiel und euer Team. Du siehst das Brett, euren Kontostand, den <b>Cashflow</b> (Geldbewegungen des Teams) und <b>Mein Team</b>. Die <b>Wirtschafts- und Handels-Panels sowie Würfel-/Kauf-Aktionen</b> sind für dich <b>nicht sichtbar</b> — die führt dein Teamleader aus. Ist <b>euer Team</b> am Zug, erscheint die Anzeige „DU BIST AM ZUG"; der Teamleader würfelt dann.</p>
+  <figure>
+    <img src="anleitung-img/guide-spieler-normal.png" alt="Spielansicht aus Spieler-Sicht">
+    <figcaption>Deine Sicht als normaler Spieler: Das Brett, euer Kontostand, <b>Cashflow</b> und <b>Mein Team</b> — <b>ohne</b> die Leader-Panels (Wirtschaft/Handel/Auktion) und ohne Aktions-Buttons.</figcaption>
+  </figure>
+
+  <h3>4. Was du beiträgst</h3>
   <ul>
-    <li><i class="bi bi-globe2" aria-hidden="true"></i> <b>Armistice-Felder</b> <span class="badge-opt">OPTIONAL</span> — Schutz-/Ruhe-Felder (Bonus/Neutral), nur wenn im Preset aktiv.</li>
-    <li><i class="bi bi-wrench" aria-hidden="true"></i> <b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span> — zusätzliche Aufgaben zum Erledigen/Bestätigen.</li>
-    <li><i class="bi bi-flag-fill" aria-hidden="true"></i> <b>Piratensystem</b> <span class="badge-opt">OPTIONAL</span> — ein Piraten-Team, das Schutzgeld kassiert.</li>
-    <li><i class="bi bi-bank" aria-hidden="true"></i> <b>Verkauf an die Bank</b> <span class="badge-opt">OPTIONAL</span> — eigene Felder direkt an die Bank verkaufen.</li>
-    <li><i class="bi bi-grid-fill" aria-hidden="true"></i> <b>Bauregel (Farbreihe)</b> <span class="badge-opt">OPTIONAL</span> — Ausbauen nur in der ganzen Farbreihe und gleichmäßig.</li>
+    <li><b>Aufgaben erfüllen</b> <span class="badge-opt">OPTIONAL</span>: Ist die Aufgabenregel aktiv, kann jedes Teammitglied die <b>in Star Citizen definierte Aufgabe</b> erfüllen (z.&nbsp;B. anfliegen, erledigen). Der Teamleader bestätigt den Abschluss dann im Spiel.</li>
+    <li><b>Teamleiter wählen / übernehmen:</b> Du stimmst mit ab und kannst über die Rollen-Übergabe (dein Leader) ggf. selbst Leader werden.</li>
+    <li><b>Zuschauen &amp; mitfiebern:</b> Du verfolgst alle Züge, Handels- und Piraten-Ereignisse deines Teams live.</li>
   </ul>
-  <div class="note">Wo was einstellbar ist, erklärt der Abschnitt <b><a href="#preset" style="color:var(--accent-hi)"><i class="bi bi-puzzle-fill" aria-hidden="true"></i> Preset-Editor</a></b>.</div>
 </section>
 
 <!-- ================= PIRAT ================= -->
 <section id="pirat">
   <h2><span class="ic"><i class="bi bi-flag-fill" aria-hidden="true"></i></span> Pirat</h2>
-  <div class="role-tag">Du spielst das Piratenteam — beitreten, um Schutzgeld zu kassieren und Fluchten zu entscheiden.</div>
+  <div class="role-tag">Du spielst das Piratenteam — Schutzgeld kassieren, Fluchten entscheiden und die Wirtschafts-Teams jagen.</div>
 
   <h3>1. Als Pirat einsteigen</h3>
-  <p>Das Piratenteam ist <b>ein eigenes Team</b> und hat seinen <b>eigenen Piraten-Einladungscode</b>. Der GM verteilt ihn. Du trittst damit bei wie bei jedem anderen Team.</p>
+  <p>Das Piratenteam ist ein <b>eigenes Team</b> mit eigenem <b>Piraten-Einladungscode</b> (der GM verteilt ihn). Du trittst damit bei wie in jedem anderen Team.</p>
   <figure>
     <img src="anleitung-img/guide-piraten-lobby.png" alt="Lobby mit Piraten-Team">
-    <figcaption>Das Piratenteam erscheint in der Lobby mit eigenem Code (<span class="badge-pirate">24HC</span>) und eigener Karte — betretbar per Piraten-Einladungscode.</figcaption>
+    <figcaption>Das Piratenteam in der Lobby: eigener Code und eigene Karte — beitretbar per Piraten-Einladungscode.</figcaption>
   </figure>
 
   <h3>2. Was Piraten können — und was nicht</h3>
   <ul>
     <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <b>Eigene Würfelregel</b> — die Piraten ziehen mit eigener Würfelzahl über das Brett.</li>
-    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <b>Schutzgeld kassieren</b>, <b>Fluchten entscheiden</b> (Erwischt/Entwischt).</li>
+    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <b>Schutzgeld kassieren</b> und <b>Fluchten entscheiden</b> (Erwischt/Entwischt).</li>
     <li><i class="bi bi-x-circle-fill" aria-hidden="true"></i> <b>Keine Wirtschaft</b> (keine Felder kaufen/bauen), <b>kein Handel</b>, <b>keine Auktion</b>.</li>
     <li><i class="bi bi-x-circle-fill" aria-hidden="true"></i> Die Piraten <b>können nicht gewinnen</b> — ihr Beutegut zählt nur als Statistik am Ende.</li>
   </ul>
@@ -171,78 +204,28 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <p>Landet ein normales Team auf dem Feld der Piraten, öffnet sich ein <b>Entscheidungs-Modal</b>:</p>
   <ul>
     <li><b>Schutzgeld zahlen:</b> Das Team zahlt den festgelegten Betrag, die Runde läuft normal weiter.</li>
-    <li><b>Flucht versuchen:</b> Das Team hat bis zur nächsten Runde zeit in Star Citizen zu Fliehen. Entscheiden tust <b>du als Pirat</b> (im Urteils-Modal): <b>Erwischt</b> (höheres Strafgeld) oder <b>Entwischt</b>. Wenn das Team es bis zu seinem nächsten Zug nicht schaffen konnte zu Fliehen und <b>du als Pirat</b> es auch nicht als entwischt bestätigt hast, gilt es automatisch als erwischt. </li>
-    <li><b>Fair Play:</b> Hier wird wieder darauf vertraut das alle Fair Spielen denn selbst wenn ein team es schaft In-Game <b>vor dir als Piraten</b> zu fliehen gilt es als erwischt wenn du es nicht vor dessen nächstem zug so bestätigst.</li>
+    <li><b>Flucht versuchen:</b> Das Team versucht, in Star Citizen <b>per Quantensprung aus der Reichweite der Piraten zu fliehen</b> („Entwischt"). Entscheiden tust <b>du als Pirat</b> im Urteils-Modal: <b>Erwischt</b> (höheres Strafgeld) oder <b>Entwischt</b>. Schafft das Team den Sprung bis zu seinem nächsten Zug nicht — und du bestätigst das auch nicht als entwischt —, gilt es automatisch als <b>erwischt</b>.</li>
+    <li><b>Fair Play:</b> Entscheidend ist, dass wirklich vor euch geflohen wurde — gelang das im Spiel <b>vor</b> dem nächsten Zug nicht, wird erwischt.</li>
   </ul>
   <figure>
     <img src="anleitung-img/guide-piraten-begegnung.png" alt="Piraten-Begegnungs-Modal">
-    <figcaption>Die Begegnung: Das Team hat <b>FLIEHEN</b> oder <b>ZAHLEN (100.000 aUEC)</b>. Das Modal schließt sich nur über diese Buttons.</figcaption>
+    <figcaption>Die Begegnung: Das Team wählt <b>FLIEHEN</b> oder <b>ZAHLEN (100.000 aUEC)</b>. Das Modal schließt sich nur über diese Buttons.</figcaption>
   </figure>
+  <div class="note pirate"><b>Intention der Flucht-Regel:</b> Die Flucht ist nicht abstrakt — das Team soll <b>in Star Citizen im Quantensprung</b> wirklich vor euch als Piraten abspringen, um zu entkommen. Hier entscheidet ihr anhand dessen, ob es „Entwischt" oder „Erwischt" gilt.</div>
   <div class="note pirate"><b>Piratentipp:</b> Nach der Begegnung ziehen die Piraten weiter. Auf <b>Steuerfeldern</b> greift beides (Steuer + Begegnung), auf <b>Ereignisfeldern</b> verdrängt die Begegnung das Ereignis, auf <b>Gefängnis</b> und <b>Frei-Parken</b> sind die Piraten inaktiv.</div>
 
   <h3>4. Teamleader der Piraten</h3>
-  <p>Wie bei normalen Teams stimmen die Piraten einen <b>Teamleader</b> ab (oder der GM ernennt einen). Der Piraten-Leader führt die Team-Aktionen aus, z.&nbsp;B. das Urteil fällen ob <b>erwischt</b> oder <b>entwischt</b>. Es sollte also jemand sein der es leichter hat parallel zu Star Citizen hier die entscheidung einzugeben</p>
+  <p>Wie bei normalen Teams stimmen die Piraten einen <b>Teamleader</b> ab (oder der GM ernennt einen). Der Piraten-Leader führt die Team-Aktionen aus — auch das <b>Urteil</b> (Erwischt/Entwischt) bei einer Flucht.</p>
 
   <h3>5. Bot-Pirat: wenn niemand das Piratenteam spielt</h3>
-  <p>Ist das Piratensystem aktiv, aber <b>keinem einzigen Spieler ist das Piratenteam beigetreten</b>, übernimmt ein <b>Bot</b> die Piraten. Das Urteil (Erwischt/Entwischt) wird dann <b>automatisch und zufällig</b> gefällt — niemand muss warten.</p>
+  <p>Ist das Piratensystem aktiv, aber <b>kein Spieler dem Piratenteam beigetreten</b>, übernimmt ein <b>Bot</b> die Piraten. Das Urteil wird dann <b>automatisch und zufällig</b> gefällt — niemand wartet.</p>
   <ul>
-    <li><i class="bi bi-percent" aria-hidden="true"></i> <b>Wahrscheinlichkeit „Erwischt":</b> startet bei <b>40%</b> und steigt mit dem <b>Besitzanteil</b> des fliehenden Teams an allen kaufbaren Feldern der Karte bis <b>max. 65%</b>. Wer mehr besitzt, wird also wahrscheinlicher erwischt (je kaufbares Feld linear mehr bis zur Obergrenze).</li>
+    <li><i class="bi bi-percent" aria-hidden="true"></i> <b>Wahrscheinlichkeit „Erwischt":</b> startet bei <b>40%</b> und steigt mit dem <b>Besitzanteil</b> des fliehenden Teams bis <b>max. 65%</b> — wer mehr besitzt, wird eher erwischt.</li>
     <li><i class="bi bi-robot" aria-hidden="true"></i> <b>Der Bot erwartet keine Eingabe</b> — sobald ein Team flieht, entscheidet er sofort.</li>
-    <li><i class="bi bi-person-fill" aria-hidden="true"></i> <b>Sobald ein Spieler dem Piratenteam beitritt</b>, übernimmt er die Kontrolle und der Bot schaltet sich ab — die Entscheidung liegt dann wieder beim Piraten(team)leader wie oben beschrieben.</li>
-    <li><i class="bi bi-ban" aria-hidden="true"></i> <b>Piraten können nicht aufgeben</b>. Das Piratenteam bleibt immer Teil des Spiels. Ein Piraten-Spieler kann jederzeit das Spiel verlassen — ist er der letzte, übernimmt ab sofort der Bot das Piratenteam (die Figur bleibt auf dem Feld, niemand muss sich kümmern).</li>
+    <li><i class="bi bi-person-fill" aria-hidden="true"></i> <b>Sobald ein Spieler beitritt</b>, übernimmt er die Kontrolle und der Bot schaltet sich ab.</li>
+    <li><i class="bi bi-ban" aria-hidden="true"></i> <b>Piraten können nicht aufgeben.</b> Verlässt der letzte Spieler das Team, übernimmt der Bot (die Figur bleibt auf dem Feld).</li>
   </ul>
-  <div class="note"><b>Hinweis:</b> Die Piraten sind optional und können im Preset nach wunsch an oder abgeschalten werden. Es ist allso nicht immer zwingend ein Piratenteam dabei.</div>
-</section>
-
-<!-- ================= TEAMLEITER ================= -->
-<section id="teamleiter">
-  <h2><span class="ic"><i class="bi bi-award-fill" aria-hidden="true"></i></span> Teamleiter</h2>
-  <div class="role-tag">Du bist das „Kommando" deines Teams — mit besonderen Rechten.</div>
-
-  <h3>1. Teamleader werden</h3>
-  <p>Vom <b>Team-Vote</b> vor Spielstart oder vom <b>GM per Ernennung</b>. Der Teamleader kann die Rolle <b>jederzeit an ein anderes Teammitglied weitergeben</b>.</p>
-
-  <h3>2. Deine besonderen Aktionen</h3>
-  <table>
-    <tr><th>Aktion</th><th>Erklärung</th></tr>
-    <tr><td><b>Würfeln</b></td><td>Du würfelst für das Team und bewegst eure Figur.</td></tr>
-    <tr><td><b>Ausbauen</b> <span class="badge-opt">OPTIONAL</span></td><td>Dein Feld in der Wirtschaft auswählen <b>→</b> Ausbaustufe erhöhen (Miete steigt). Nur möglich, wenn die <b>Bauregel</b> im Preset aktiv ist — die bestimmt auch, ob man nur die ganze Farbreihe bauen darf.</td></tr>
-    <tr><td><b>Hypothek / Abbau</b></td><td>Feld beleihen oder abreißen (Sanierung bei Geldnot).</td></tr>
-    <tr><td><b>Handel / Auktion</b></td><td>Feld Verkauf anbieten, Kauf anbieten, auf Angebote antworten, versteigern. <b>Verkauf an die Bank</b> nur, wenn im Preset aktiv.</td></tr>
-    <tr><td><b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span></td><td>Abschluss einer Aufgabe bestätigen — nur wenn die <b>Aufgabenregel</b> im Preset aktiv ist.</td></tr>
-  </table>
-
-  <h3>3. Wirtschaft im Blick</h3>
-  <figure>
-    <img src="anleitung-img/guide-spielfeld.png" alt="Spielfeld Übersicht">
-    <figcaption>Das Brett mit Feldkarten (Preis, Miete, Ausbaustufe, Farbgruppe) und der Startfelder-Übersicht — als Leader siehst du zusätzlich die <b>Wirtschaft</b>-Aktionen.</figcaption>
-  </figure>
-  <div class="note"><b>Optionale Regel:</b> Ausbauen ist nur in der <b>ganzen Farbgruppe</b> und <b>gleichmäßig</b> (Monopoly-Bauregel) möglich — du musst erst die ganze Farbreihe besitzen.</div>
-
-  <h3>4. Leader abgeben</h3>
-  <p>Über <b>Mein Team</b> kannst du den Teamleader-Status an ein Mitglied deines Teams übertragen. Gut, wenn du mal keine Zeit hast oder jemand anderes die Wirtschaft übernehmen soll.</p>
-</section>
-
-<!-- ================= MANAGER ================= -->
-<section id="manager">
-  <h2><span class="ic"><i class="bi bi-wrench" aria-hidden="true"></i></span> Manager</h2>
-  <div class="role-tag">Du verwalst Presets (Spielkarten + Regeln) mit erweiterten Rechten — ohne Admin-Oberfläche.</div>
-
-  <h3>1. Wofür ist der Manager da?</h3>
-  <p>Ein normaler Spieler darf im <b>Preset-Editor</b> nur temporär für sein eigenes Spiel ändern („Standardmodus"). Ein <b>Manager</b> kann Presets <b>dauerhaft bearbeiten, neu erstellen und speichern</b>. Den Manager-Code bekommst du <b>als Person</b> vom Admin.</p>
-
-  <h3>2. Im Preset-Editor einloggen</h3>
-  <p>Beim <b>Spiel-Erstellen</b> öffnest du den Editor über <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b>. Dort unten siehst du die <b>Manager-Bar</b>: Gib deinen <b>Manager-Code</b> ein und klicke <b>AKTIVIEREN</b>.</p>
-  <figure>
-    <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
-    <figcaption>Der Preset-Editor: Feldliste (Typ, Name, Preis, Farbgruppe, <i class="bi bi-arrow-up" aria-hidden="true"></i><i class="bi bi-arrow-down" aria-hidden="true"></i><i class="bi bi-x-lg" aria-hidden="true"></i>) mit der <b>Manager-Bar</b> oben („MANAGER → Manager-Code → AKTIVIEREN"). Im Standardmodus gelten Änderungen nur für dieses Spiel.</figcaption>
-  </figure>
-
-  <h3>3. Was ein Manager darf</h3>
-  <ul>
-    <li><b>Bestehende Presets bearbeiten und speichern</b> (auch eingebaute, die bleiben als Preset erhalten).</li>
-    <li><b>Neue Presets erstellen</b> und dauerhaft speichern.</li>
-  </ul>
+  <div class="note"><b>Hinweis:</b> Die Piraten sind optional — im Preset nach Wunsch an- oder abschaltbar. Es ist nicht immer zwingend ein Piratenteam dabei.</div>
 </section>
 
 <!-- ================= PRESET-EDITOR ================= -->
@@ -251,95 +234,85 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <div class="role-tag">Ein Preset bündelt Spielkarte + Regeln. Hier stellst du beides ein — von den Feldern bis zu jeder optionalen Regel.</div>
 
   <h3>1. Was ist ein Preset?</h3>
-  <p>Ein Preset ist eine <b>komplett vorgefertigte Spielkonfiguration</b>: die <b>Feldreihe</b> (Karte) plus alle <b>Regel-Einstellungen</b>. Beim „Spiel erstellen" wählst du ein Preset aus (z.&nbsp;B. „Stantonopoly v1") und erhältst damit die Standard-Karte und Standard-Regeln dieses Presets.</p>
+  <p>Ein Preset ist eine <b>komplett vorgefertigte Spielkonfiguration</b>: die <b>Feldreihe</b> (Karte) plus alle <b>Regel-Einstellungen</b>. Beim „Spiel erstellen" wählst du ein Preset (z.&nbsp;B. „Stantonopoly v1") und erhältst damit dessen Standard-Karte und -Regeln.</p>
 
   <h3>2. So öffnest du den Editor</h3>
-  <p>Beim <b>Spiel-Erstellen</b> klickst du <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b>. Ohne Manager-Code arbeiten alle im <b>Standardmodus</b>: Deine Änderungen gelten <b>nur für das Spiel, das du gerade erstellst</b>. Gibst du einen <b>Manager-Code</b> ein (siehe Abschnitt Manager), kannst du Presets auch <b>dauerhaft speichern</b>.</p>
+  <p>Beim <b>Spiel-Erstellen</b> klickst du <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b>. Ohne Manager-Code arbeitest du im <b>Standardmodus</b>: Deine Änderungen gelten <b>nur für das Spiel, das du gerade erstellst</b>. Gibst du einen <b>Manager-Code</b> ein (siehe Abschnitt <a href="#manager" style="color:var(--accent-hi)"><i class="bi bi-wrench" aria-hidden="true"></i> Manager</a>), kannst du Presets dauerhaft speichern.</p>
   <figure>
     <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
-    <figcaption>Der Preset-Editor: Die Feldliste oben, darunter die Regel-Gruppen. Oben die <b>Manager-Bar</b> („MANAGER → Code → AKTIVIEREN").</figcaption>
+    <figcaption>Der Preset-Editor: Feldliste oben (Typ, Name, Preis, Farbgruppe, <i class="bi bi-arrow-up" aria-hidden="true"></i><i class="bi bi-arrow-down" aria-hidden="true"></i><i class="bi bi-x-lg" aria-hidden="true"></i>), darunter die Regel-Gruppen. Oben die <b>Manager-Bar</b> („MANAGER → Code → AKTIVIEREN").</figcaption>
   </figure>
 
   <h3>3. Die Karte bearbeiten (Felder)</h3>
-  <p>Oben im Editor siehst du die <b>Feldliste</b>. Jedes Feld hat einen <b>Typ</b>, <b>Namen</b>, <b>Preis</b> und eine <b>Farbgruppe</b>. Per <b><i class="bi bi-arrow-up" aria-hidden="true"></i> / <i class="bi bi-arrow-down" aria-hidden="true"></i></b> verschiebst du die Position, per <b><i class="bi bi-x-lg" aria-hidden="true"></i></b> löschst du ein Feld. Beim <b>Namen</b> tippen erscheinen automatisch <b>Vorschläge echter Star-Citizen-Orte</b> (aus dem eingebauten SC-Katalog) — du musst den vollen Namen nicht eintippen.</p>
+  <p>Jedes Feld hat einen <b>Typ</b>, <b>Namen</b>, <b>Preis</b> und (bei Grundstücken) eine <b>Farbgruppe</b>. Per <b>↑ / ↓</b> verschiebst du die Position, per <b>×</b> löschst du ein Feld. Beim <b>Namen</b> erscheinen automatisch <b>Vorschläge echter Star-Citizen-Orte</b> — du musst den vollen Namen nicht eintippen.</p>
   <table>
     <tr><th>Feldtyp</th><th>Bedeutung</th><th>Einstellbar</th></tr>
-    <tr><td><b>LOS</b></td><td>Startfeld mit Bonus beim Überqueren.</td><td>Name, BONUS-Betrag (ab „Stantonopoly v1" frei wählbar).</td></tr>
+    <tr><td><b>LOS</b></td><td>Startfeld mit Bonus beim Überqueren.</td><td>Name, BONUS-Betrag.</td></tr>
     <tr><td><b>Grundstück</b></td><td>Kaufbares Feld (wie im Monopoly).</td><td>Name, Kaufpreis, Farbgruppe.</td></tr>
-    <tr><td><b>Ereignis</b></td><td>Man kann auf diesen felder Geld Verdienen oder Verlieren.</td><td>Name und Effekt also ob man hier geld bekommt oder zahlen muss (Bonus wird negativ eingetragen.).</td></tr>
-    <tr><td><b>Steuer</b></td><td>Man muss einen Betrag zahlen</td><td>Name, Steuerhöhe in aUEC</td></tr>
-    <tr><td><b>Gefängnis</b></td><td>Nächste runde aussetzen oder sofort freikaufen.</td><td>Name, Preis zum Freikaufen</td></tr>
+    <tr><td><b>Ereignis</b></td><td>Geld verdienen oder verlieren bei Landung.</td><td>Name, Effekt (positiv = Gebühr, negativ = Bonus).</td></tr>
+    <tr><td><b>Steuer</b></td><td>Betrag bei Landung zahlen.</td><td>Name, Steuerhöhe in aUEC.</td></tr>
+    <tr><td><b>Gefängnis</b></td><td>Nächste Runde aussetzen oder sofort freikaufen.</td><td>Name, Freikauf-Preis.</td></tr>
     <tr><td><b>Frei Parken</b></td><td>Neutrales Feld.</td><td>Name.</td></tr>
     <tr><td><b>Spezial-Grundstück</b></td><td>Besitz geht beim Landen sofort an das landende Team über — auch wenn es einem anderen gehört. Nicht handelbar/ausbaubar/hypothekierbar.</td><td>Name, LOS-Strafe/Bonus (positiv = Strafgebühr, negativ = Bonus).</td></tr>
   </table>
   <div class="note"><b>Wichtig:</b> In jedem Preset gibt es <b>genau ein LOS-Feld</b>, und es ist <b>immer das erste Feld</b>. Der Editor setzt das automatisch richtig.</div>
 
-  <h3>4. Die Regeln — alles was du einstellen kannst</h3>
-  <p>Im unteren Teil des Editors findest du die Regel-Gruppen. Spielregeln, die nur optional aktiv sind, sind im Editor per <b>Schalter/Häkchen</b> an- und abschaltbar — in dieser Anleitung sind sie mit <span class="badge-opt">OPTIONAL</span> gekennzeichnet. Was in dieser Anleitung als fest beschrieben ist (z.&nbsp;B. „der Teamleader würfelt"), gilt nur, solange die zugehörige Option aktiv ist.</p>
-
+  <h3>4. Die Regeln — was du einstellst</h3>
+  <p>Im unteren Teil des Editors findest du die <b>Regel-Gruppen</b>. Optionale Regeln sind per <b>Schalter/Häkchen</b> an-/abschaltbar und in dieser Anleitung mit <span class="badge-opt">OPTIONAL</span> gekennzeichnet.</p>
   <table>
     <tr><th>Gruppe / Option</th><th>Was es steuert</th><th>Status</th></tr>
-    <tr><td><b>Würfel</b></td><td>Würfel-Konfiguration (z.&nbsp;B. 1W6, 2W6, freier Wert).</td><td>Standard</td></tr>
+    <tr><td><b>Würfel</b></td><td>Würfel-Konfiguration (1W6, 2W6, freier Wert).</td><td>Standard</td></tr>
     <tr><td><b>Zugzeit</b></td><td>Zeit pro Teamzug in Sekunden (Timer).</td><td>Standard</td></tr>
-    <tr><td><b>Mieten (Ausbaustufen)</b></td><td>Mietmultiplikator je Ausbaustufe (ALLEIN, CYCLONE, STORM, BALLISTA, ARMISTICE).</td><td>Standard</td></tr>
+    <tr><td><b>Mieten (Ausbaustufen)</b></td><td>Mietmultiplikator je Ausbaustufe.</td><td>Standard</td></tr>
     <tr><td><b>Baukosten</b></td><td>Kosten pro Ausbaustufe.</td><td>Standard</td></tr>
-    <tr><td><b>Hypothek / Entlasten</b></td><td>Satz für das Beleihen und das Entlasten eines Feldes.</td><td>Standard</td></tr>
-    <tr><td><b>Abbau / Rückerstattung</b></td><td>Was du beim Abriss (Abbau) eines Feldes zurückbekommst.</td><td>Standard</td></tr>
-    <tr><td><b>Verkauf an die Bank</b></td><td>Eigene Felder direkt an die Bank verkaufen (Bank-Auszahlung).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Hypothek / Entlasten</b></td><td>Satz für das Beleihen und Entlasten.</td><td>Standard</td></tr>
+    <tr><td><b>Abbau / Rückerstattung</b></td><td>Rückerstattung beim Abbau eines Feldes.</td><td>Standard</td></tr>
+    <tr><td><b>Verkauf an die Bank</b></td><td>Eigene Felder an die Bank verkaufen.</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
     <tr><td><b>Auktion</b></td><td>Zeitdauer einer Versteigerung.</td><td>Standard</td></tr>
-    <tr><td><b>Abstimmung</b></td><td>Zeitdauer von Abstimmungen (z.&nbsp;B. Team-Aufgabe).</td><td>Standard</td></tr>
-    <tr><td><b>Armistice</b></td><td>Schutz-/Ruhe-Zone-Feld im Spiel (Bonus/Neutral).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
-    <tr><td><b>Bauregel (Farbreihe)</b></td><td>Ausbauen nur in der ganzen Farbreihe und gleichmäßig (Monopoly-Bauregel).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
-    <tr><td><b>Aufgaben</b></td><td>Aufgabenregel aktiv (Aufgaben abschließen/bestätigen).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Abstimmung</b></td><td>Zeitdauer von Abstimmungen.</td><td>Standard</td></tr>
+    <tr><td><b>Armistice</b></td><td>Schutz-/Ruhe-Zone-Felder im Spiel.</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Bauregel (Farbreihe)</b></td><td>Ausbauen nur in der ganzen Farbreihe und gleichmäßig.</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
+    <tr><td><b>Aufgaben</b></td><td>Aufgabenregel aktiv (in SC erledigen, hier bestätigen).</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
     <tr><td><b>Aufgaben-Timer</b></td><td>Zeitlimit pro Aufgabe.</td><td>nur bei Aufgaben</td></tr>
     <tr><td><b>Aufgaben brauchen Handel</b></td><td>Aufgaben setzen eine Handels-Aktion voraus.</td><td>nur bei Aufgaben</td></tr>
     <tr><td><b>Piratensystem</b></td><td>Piraten-Team im Spiel.</td><td><span class="badge-opt">OPTIONAL</span></td></tr>
     <tr><td><b>Piraten-Würfel</b></td><td>Eigene Würfelregel der Piraten.</td><td>nur bei Piraten</td></tr>
-    <tr><td><b>Schutzgeld</b></td><td>Betrag, den Teams bei einer Piraten-Begegnung zahlen.</td><td>nur bei Piraten</td></tr>
-    <tr><td><b>Strafgeld (Erwischt)</b></td><td>Multiplikator für die „Erwischt"-Flucht (Strafgeld).</td><td>nur bei Piraten</td></tr>
-    <tr><td><b>Piraten-Wartezeit</b></td><td>Wie viele Teamzüge die Piraten auf einem Feld warten, ehe sie weiterziehen.</td><td>nur bei Piraten</td></tr>
-    <tr><td><b>Piraten einmal pro Runde</b></td><td>Ein Team wird pro Durchgang nur einmal von den Piraten angegangen.</td><td><span class="badge-opt">OPTIONAL</span> (nur bei Piraten)</td></tr>
+    <tr><td><b>Schutzgeld</b></td><td>Betrag bei Piraten-Begegnung.</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Strafgeld (Erwischt)</b></td><td>Multiplikator für die „Erwischt"-Flucht.</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Piraten-Wartezeit</b></td><td>Teamzüge, die die Piraten auf einem Feld warten.</td><td>nur bei Piraten</td></tr>
+    <tr><td><b>Piraten einmal pro Runde</b></td><td>Ein Team wird pro Durchgang nur einmal angegangen.</td><td><span class="badge-opt">OPTIONAL</span> (nur bei Piraten)</td></tr>
   </table>
 
-  <div class="note"><b>Der Knüpfpunkt:</b> Viele „Regeln" in dieser Anleitung (Armistice-Felder, Aufgaben, Bauregel, Piratensystem, Bank-Verkauf) sind <b>nicht immer aktiv</b> — sie sind im Preset an-/abschaltbar. Wenn von ihnen die Rede ist, gilt: <b>aktiv im Preset = Regel greift; aus = Teil entfällt.</b></div>
+  <div class="note"><b>Der Knüpfpunkt:</b> Viele optionale Regeln (Armistice, Aufgaben, Bauregel, Piratensystem, Bank-Verkauf) sind <b>im Preset an-/abschaltbar</b>. Wenn von ihnen die Rede ist, gilt: <b>aktiv im Preset = Regel greift; aus = Teil entfällt.</b></div>
 
   <h3>5. Farbgruppen und Ausbaustufen</h3>
-  <p>Die <b>Farbgruppe</b> eines Grundstücks bestimmt, wie es aussieht und (bei aktiver Bauregel) ob es ausbaufähig ist. Die <b>Ausbaustufen</b> (ALLEIN → CYCLONE → STORM → BALLISTA → ARMISTICE) bestimmen, wie stark Miete und Baukosten wachsen — du stellst je Stufe den Multiplikator ein.</p>
+  <p>Die <b>Farbgruppe</b> eines Grundstücks bestimmt die Optik und (bei aktiver Bauregel) das Ausbauen. Die <b>Ausbaustufen</b> (ALLEIN → CYCLONE → STORM → BALLISTA → ARMISTICE) bestimmen, wie stark Miete und Baukosten wachsen — je Stufe stellt du den Multiplikator ein.</p>
 </section>
 
-<!-- ================= GM ================= -->
-<section id="gm">
-  <h2><span class="ic"><i class="bi bi-mic-fill" aria-hidden="true"></i></span> Game Master (GM)</h2>
-  <div class="role-tag">Du organisierst das Spiel: erstellen, Codes verteilen, starten, pausieren, Abschluss.</div>
+<!-- ================= MANAGER ================= -->
+<section id="manager">
+  <h2><span class="ic"><i class="bi bi-wrench" aria-hidden="true"></i></span> Manager</h2>
+  <div class="role-tag">Du verwaltest Presets mit erweiterten Rechten — ohne Admin-Oberfläche.</div>
 
-  <h3>1. Ein Spiel erstellen</h3>
-  <p>Klicke <b>„Spiel erstellen"</b>, wähle die Anzahl Teams (2–8), ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1"), und gib eine <b>Schiffsausstattung</b> je Team an. Beim Eintippen des Schiffsnamens erscheinen <b>Vorschläge echter Star-Citizen-Schiffe</b> (aus dem SC-Katalog). Optional im Preset-Editor (<a href="#preset" style="color:var(--accent-hi)"><i class="bi bi-puzzle-fill" aria-hidden="true"></i></a>) schaltest du Regeln an/aus: Piratensystem <span class="badge-opt">OPT</span>, Aufgaben <span class="badge-opt">OPT</span>, Armistice <span class="badge-opt">OPT</span>, Bank-Verkauf <span class="badge-opt">OPT</span>, Bauregel <span class="badge-opt">OPT</span>.</p>
+  <h3>1. Wofür ist der Manager da?</h3>
+  <p>Ein normaler Spieler darf im <b>Preset-Editor</b> nur temporär für sein eigenes Spiel ändern (<b>Standardmodus</b>). Ein <b>Manager</b> kann Presets <b>dauerhaft bearbeiten, neu erstellen und speichern</b>. Den Manager-Code bekommst du <b>als Person</b> vom Admin.</p>
+
+  <h3>2. Im Preset-Editor einloggen</h3>
+  <p>Beim <b>Spiel-Erstellen</b> öffnest du den Editor über <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b>. Dort oben siehst du die <b>Manager-Bar</b>: Gib deinen <b>Manager-Code</b> ein und klicke <b>AKTIVIEREN</b>.</p>
   <figure>
-    <img src="anleitung-img/guide-setup.png" alt="Setup-Maske">
-    <figcaption>Die Setup-Maske: Teams wählen, GM-Name, Preset, Schiffe je Team. So kommst du zur Lobby.</figcaption>
+    <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
+    <figcaption>Die Manager-Bar im Preset-Editor (oben): Manager-Code eingeben → <b>AKTIVIEREN</b> → dauerhaft speichern.</figcaption>
   </figure>
 
-  <h3>2. Codes verteilen und starten</h3>
-  <p>In der Lobby siehst du den <b>GM-CODE („NUR DU")</b> und die <b>Einladungscodes je Team</b>. Verteile die Team-Codes an deine Spieler (und den Piraten-Code ans Piratenteam). Wenn alle drin sind: <b>SPIEL STARTEN</b>.</p>
-  <figure>
-    <img src="anleitung-img/guide-setup-filled.png" alt="Setup ausgefüllt">
-    <figcaption>Spiel-Erstellen ausgefüllt: Teams, Preset, Schiffe — bereit zum Erstellen.</figcaption>
-  </figure>
-
-  <h3>3. Während des Spiels</h3>
+  <h3>3. Was ein Manager darf</h3>
   <ul>
-    <li><b>Pausieren / Fortsetzen:</b> Das Spiel anhalten und später weiterlaufen lassen.</li>
-    <li><b>Teamleader ernennen:</b> Falls ein Team streitet, kannst du per GM-Option einen Teamleader bestimmen.</li>
-    <li><b>Beobachten:</b> Du siehst das ganze Brett und die Logs.</li>
+    <li><b>Bestehende Presets bearbeiten und speichern</b> (auch eingebaute — sie bleiben als Preset erhalten).</li>
+    <li><b>Neue Presets erstellen</b> und dauerhaft speichern.</li>
   </ul>
-  <div class="note"><b>GM-Hinweis:</b> Als GM kannst du per <b>Mietspielen</b> selbst einem Team beitreten und mitspielen</div>
-
-  <h3>4. Spielende</h3>
-  <p>Das Spiel endet, wenn nur noch ein Team Vermögen besitzt. Das <b>Endresultat</b> zeigt den Sieger und — falls Piraten aktiv waren — die <b>Piraten-Beute als Statistik</b>. Beendete Spiele findest du in der Spiele-Liste (Tab „Abgeschlossen").</p>
 </section>
 
 <footer>
-  STANTONOPOLY V2 · Spielanleitung · für Spieler, Piraten, Teamleiter, Manager &amp; GM
+  STANTONOPOLY V2 · Spielanleitung · Rollen-Sicht für GM, Teamleiter, Spieler, Piraten, Preset-Editor &amp; Manager
 </footer>
 
 </div>
