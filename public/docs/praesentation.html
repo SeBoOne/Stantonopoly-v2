@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stantonopoly V2 — Präsentation</title>
+<link rel="stylesheet" href="/assets/icons/bootstrap-icons.min.css" />
 <style>
 :root{
   --bg:#0a0d12; --bg2:#0e141c; --panel:#121a24; --line:#1e2937;
@@ -86,7 +87,8 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
 }
 .card h4{margin-bottom:.4rem}
 .card p{font-size:.95rem;line-height:1.55;color:var(--fg-dim)}
-.card .ic{font-size:1.5rem;margin-bottom:.5rem;display:block}
+.card .ic{font-size:1.55rem;margin-bottom:.5rem;display:block;color:var(--accent-hi)}
+.bi{vertical-align:-.12em;display:inline-block;line-height:1}
 
 /* Specs / feature blocks */
 .specs{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:2rem}
@@ -103,7 +105,7 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
 
 /* Feature highlight (Pirates) */
 .pirate-bar{display:flex;align-items:center;gap:.8rem;background:rgba(255,106,82,.08);border:1px solid rgba(255,106,82,.35);padding:.9rem 1.2rem;border-radius:2px;margin-top:1.5rem}
-.pirate-bar .ic{font-size:1.4rem}
+.pirate-bar .ic{font-size:1.4rem;color:var(--pirat)}
 .pirate-bar .tx{font-size:1.05rem;color:var(--pirat);font-weight:600}
 
 .quote{border-left:3px solid var(--accent);padding:.6rem 0 .6rem 1.4rem;margin-top:2rem;font-style:italic;color:var(--fg-dim);font-size:1.15rem}
@@ -156,9 +158,9 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <h2>Was ist Stantonopoly?</h2>
     <p class="lead sub" style="margin-bottom:2rem">Ein digitales Brettspiel im Browser — die Star-Citizen-<strong>Variante</strong> des Klassikers. Ihr steuert Schiffe als „Teams", zieht über die Felder eurer gewählten Spielkarte und baut euch euer Wirtschaftsimperium auf.</p>
     <div class="grid g3">
-      <div class="card"><span class="ic">🛰️</span><h4>Felder aus Star Citizen</h4><p>Standardmäßig bringt Stantonopoly das vorkonfigurierte „Stanton-Preset" mit — über den Preset-Editor lassen sich aber Standorte aus <strong>allen Systemen</strong> als Felder anlegen.</p></div>
-      <div class="card"><span class="ic">🚀</span><h4>Teams &amp; Schiffe</h4><p>Jedes Team wählt sein Schiff (Redeemer, Hammerhead, …) — der Schiffstyp ist euer „Token" auf dem Brett.</p></div>
-      <div class="card"><span class="ic">🛡️</span><h4>Echte Entscheidungen</h4><p>Kaufen, Bauen, Handeln, Versteigern — oder Risiko gegen die Piraten. Jede Runde zählt.</p></div>
+      <div class="card"><span class="ic"><i class="bi bi-map-fill" aria-hidden="true"></i></span><h4>Felder aus Star Citizen</h4><p>Standardmäßig bringt Stantonopoly das vorkonfigurierte „Stanton-Preset" mit — über den Preset-Editor lassen sich aber Standorte aus <strong>allen Systemen</strong> als Felder anlegen.</p></div>
+      <div class="card"><span class="ic"><i class="bi bi-rocket-takeoff" aria-hidden="true"></i></span><h4>Teams &amp; Schiffe</h4><p>Jedes Team wählt sein Schiff (Redeemer, Hammerhead, …) — der Schiffstyp ist euer „Token" auf dem Brett.</p></div>
+      <div class="card"><span class="ic"><i class="bi bi-shield-fill" aria-hidden="true"></i></span><h4>Echte Entscheidungen</h4><p>Kaufen, Bauen, Handeln, Versteigern — oder Risiko gegen die Piraten. Jede Runde zählt.</p></div>
     </div>
   </section>
 
@@ -184,12 +186,12 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <h2>Wirtschaft &amp; Strategie</h2>
     <p class="sub" style="margin-bottom:1rem">Eine volle Monopoly-Ökonomie — aber mit Star-Citizen-Charakter.</p>
     <div class="grid g3">
-      <div class="card"><h4>🏗️ Kaufen &amp; Ausbauen</h4><p>Felder erwerben, in Gebäudeniveaus ausbauen, Miete nach Ausbaustufe kassieren.</p></div>
-      <div class="card"><h4>💳 Hypothek &amp; Abbau</h4><p>In Geldnot? Felder beliehen, an die Bank verkauft oder abgebaut — mit Sanierungs-Regeln.</p></div>
-      <div class="card"><h4>⚖️ Bankrott &amp; Insolvenz</h4><p>Wer nicht zahlen kann, bekommt eine Sanierungs-Phase, sonst scheidet das Team aus.</p></div>
-      <div class="card"><h4>🤝 Handel</h4><p>Felder anbieten, kaufen oder zwischen Teams tauschen — Preis frei verhandelbar.</p></div>
-      <div class="card"><h4>🔨 Auktion</h4><p>Eigene Felder versteigern, mitbieten, automatische Auslösung nach Timer.</p></div>
-      <div class="card"><h4>🏆 Sieg</h4><p>Das letzte Team mit Vermögen gewinnt — vorab per Aufgeben-Abstimmung möglich.</p></div>
+      <div class="card"><h4><i class="bi bi-building-fill" aria-hidden="true"></i> Kaufen &amp; Ausbauen</h4><p>Felder erwerben, in Gebäudeniveaus ausbauen, Miete nach Ausbaustufe kassieren.</p></div>
+      <div class="card"><h4><i class="bi bi-credit-card" aria-hidden="true"></i> Hypothek &amp; Abbau</h4><p>In Geldnot? Felder beliehen, an die Bank verkauft oder abgebaut — mit Sanierungs-Regeln.</p></div>
+      <div class="card"><h4><i class="bi bi-exclamation-diamond" aria-hidden="true"></i> Bankrott &amp; Insolvenz</h4><p>Wer nicht zahlen kann, bekommt eine Sanierungs-Phase, sonst scheidet das Team aus.</p></div>
+      <div class="card"><h4><i class="bi bi-arrow-left-right" aria-hidden="true"></i> Handel</h4><p>Felder anbieten, kaufen oder zwischen Teams tauschen — Preis frei verhandelbar.</p></div>
+      <div class="card"><h4><i class="bi bi-hammer" aria-hidden="true"></i> Auktion</h4><p>Eigene Felder versteigern, mitbieten, automatische Auslösung nach Timer.</p></div>
+      <div class="card"><h4><i class="bi bi-trophy-fill" aria-hidden="true"></i> Sieg</h4><p>Das letzte Team mit Vermögen gewinnt — vorab per Aufgeben-Abstimmung möglich.</p></div>
     </div>
   </section>
 
@@ -201,9 +203,9 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <h2>Die Aufgabenregel</h2>
     <p class="lead sub" style="margin-bottom:1.5rem">Wer bauen will, muss erst leisten — optional zuschaltbar.</p>
     <div class="steps">
-      <div class="step"><div class="n">☑</div><div><div class="t">Nach Kauf oder Ausbau steht eine Aufgabe an</div><div class="d">Das Team ist ab da „beschäftigt" und kann erst weiterspielen, wenn die Aufgabe erledigt wurde.</div></div></div>
-      <div class="step"><div class="n">⏳</div><div><div class="t">Aktive Aufgabe suspendiert den Zug</div><div class="d">Zum Zugaufruf läuft ein Timer — wer die Aufgabe nicht rechtzeitig bestätigt, überspringt.</div></div></div>
-      <div class="step"><div class="n">✅</div><div><div class="t">„Aufgabe erledigt"</div><div class="d">Das Team bestätigt per Button — Vertrauensprinzip, denn nur die Teams wissen, ob die Mission wirklich in Star Citizen erledigt wurde.</div></div></div>
+      <div class="step"><div class="n"><i class="bi bi-check2-square" aria-hidden="true"></i></div><div><div class="t">Nach Kauf oder Ausbau steht eine Aufgabe an</div><div class="d">Das Team ist ab da „beschäftigt" und kann erst weiterspielen, wenn die Aufgabe erledigt wurde.</div></div></div>
+      <div class="step"><div class="n"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div><div><div class="t">Aktive Aufgabe suspendiert den Zug</div><div class="d">Zum Zugaufruf läuft ein Timer — wer die Aufgabe nicht rechtzeitig bestätigt, überspringt.</div></div></div>
+      <div class="step"><div class="n"><i class="bi bi-check-circle-fill" aria-hidden="true"></i></div><div><div class="t">„Aufgabe erledigt"</div><div class="d">Das Team bestätigt per Button — Vertrauensprinzip, denn nur die Teams wissen, ob die Mission wirklich in Star Citizen erledigt wurde.</div></div></div>
     </div>
     <div class="specs">
       <span class="tag">Trade kann Aufgaben auslösen (optional)</span>
@@ -217,7 +219,7 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <div class="corner c-tl"></div><div class="corner c-tr"></div>
     <div class="corner c-bl"></div><div class="corner c-br"></div>
     <div class="kicker">05 · Das Herzstück</div>
-    <h2>🏴‍☠️ Das Piratensystem</h2>
+    <h2><i class="bi bi-flag-fill" aria-hidden="true"></i> Das Piratensystem</h2>
     <p class="lead sub" style="margin-bottom:1rem">Ein eigenes, beitretbares Piraten-Team zieht unabhängig über das Brett und gefährdet alle anderen.</p>
     <div class="grid g2">
       <div class="card"><h4>Begegnung auf dem Feld</h4><p>Landet ein Team dort, wo die Piraten stehen: Schutzgeld zahlen ODER die Flucht versuchen.</p></div>
@@ -241,9 +243,9 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <h2>Gebaut wie ein Flotten-HUD</h2>
     <p class="lead sub" style="margin-bottom:2rem">Dark-Only-Design mit Scanlines und MFD-Typografie — es fühlt sich an, als säße man im Cockpit, nicht in einer Excel-Tabelle. Und der Look bleibt euer: <strong>drei Farbpaletten</strong> stehen zur Auswahl.</p>
     <div class="grid g3">
-      <div class="card"><h4>🌑 Vollständig Dark Mode</h4><p>Kein helles Weiß — alles im RSI-Dunkelblau. Dein Kopf bleibt beim Spiel, nicht beim Bildschirm.</p></div>
-      <div class="card"><h4>🎨 Drei Farbpaletten</h4><p>Zwischen <strong>Cargo</strong>, <strong>Ion</strong> und <strong>Uplink</strong> umschaltbar — die Akzentfarbe der gesamten Oberfläche passt sich eurem Geschmack an.</p></div>
-      <div class="card"><h4>🖥️ Horizontale Feldkarte</h4><p>Statt des klassischen Rings eine scrollbare Kartenreihe mit Scroll-Snap und Fokus auf das aktive Feld.</p></div>
+      <div class="card"><h4><i class="bi bi-moon-fill" aria-hidden="true"></i> Vollständig Dark Mode</h4><p>Kein helles Weiß — alles im RSI-Dunkelblau. Dein Kopf bleibt beim Spiel, nicht beim Bildschirm.</p></div>
+      <div class="card"><h4><i class="bi bi-palette-fill" aria-hidden="true"></i> Drei Farbpaletten</h4><p>Zwischen <strong>Cargo</strong>, <strong>Ion</strong> und <strong>Uplink</strong> umschaltbar — die Akzentfarbe der gesamten Oberfläche passt sich eurem Geschmack an.</p></div>
+      <div class="card"><h4><i class="bi bi-display" aria-hidden="true"></i> Horizontale Feldkarte</h4><p>Statt des klassischen Rings eine scrollbare Kartenreihe mit Scroll-Snap und Fokus auf das aktive Feld.</p></div>
     </div>
     <div class="quote">„Stantonopoly riecht nach Star Citizen — nicht nach altem Monopoly."</div>
   </section>
@@ -256,9 +258,9 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <h2>Spieler, GM &amp; Admin</h2>
     <p class="sub" style="margin-bottom:2rem">Jede Rolle hat ihren Platz — vom Mitspieler bis zum Organisator.</p>
     <div class="grid g3">
-      <div class="card"><h4>🎮 Spieler</h4><p>Tritt einem Team per Einladungscode bei, stimmt über den Teamleader ab, würfelt und handelt.</p></div>
-      <div class="card"><h4>🎤 Game-Master</h4><p>Erstellt das Spiel, verteilt Codes, erntet Leiter, pausiert/fortsetzt und sieht alles.</p></div>
-      <div class="card"><h4>🛠️ Admin</h4><p>Presets anpassen, Manager-Codes vergeben, Audit-Log einsehen, Spiele verwalten.</p></div>
+      <div class="card"><h4><i class="bi bi-controller" aria-hidden="true"></i> Spieler</h4><p>Tritt einem Team per Einladungscode bei, stimmt über den Teamleader ab, würfelt und handelt.</p></div>
+      <div class="card"><h4><i class="bi bi-mic-fill" aria-hidden="true"></i> Game-Master</h4><p>Erstellt das Spiel, verteilt Codes, erntet Leiter, pausiert/fortsetzt und sieht alles.</p></div>
+      <div class="card"><h4><i class="bi bi-wrench" aria-hidden="true"></i> Admin</h4><p>Presets anpassen, Manager-Codes vergeben, Audit-Log einsehen, Spiele verwalten.</p></div>
     </div>
     <div class="specs">
       <span class="tag">Teamleader-Wahl per Abstimmung</span>
@@ -275,10 +277,10 @@ p.lead{font-size:1.4rem;color:var(--fg);font-weight:500}
     <div class="kicker">08 · Soon</div>
     <h2>Wohin die Reise geht</h2>
     <div class="grid g2">
-      <div class="card"><h4>✅ Feature-Complete</h4><p>Kern-Ökonomie, Handel, Auktion, Piraten, Aufgaben, Admin — alles spielbar und getestet.</p></div>
-      <div class="card"><h4>🚀 Ausblick</h4><p>Weitere Sondergregeln auf Piratenfeldern, mehr Presets, noch tieferes Balancing.</p></div>
+      <div class="card"><h4><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Feature-Complete</h4><p>Kern-Ökonomie, Handel, Auktion, Piraten, Aufgaben, Admin — alles spielbar und getestet.</p></div>
+      <div class="card"><h4><i class="bi bi-rocket-takeoff" aria-hidden="true"></i> Ausblick</h4><p>Weitere Sondergregeln auf Piratenfeldern, mehr Presets, noch tieferes Balancing.</p></div>
     </div>
-    <div class="pirate-bar"><span class="ic">🏴</span><span class="tx">Danke — und mögen eure Würfel günstig fallen.</span></div>
+    <div class="pirate-bar"><span class="ic"><i class="bi bi-flag-fill" aria-hidden="true"></i></span><span class="tx">Danke — und mögen eure Würfel günstig fallen.</span></div>
   </section>
 
 </div>

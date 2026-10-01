@@ -345,6 +345,7 @@
         '<div class="info-brand">STANTONOPOLY · FAN-PROJEKT</div>' +
         '<div class="info-note">Dieses Spiel ist ein inoffizielles, nicht-kommerzielles Fan-Projekt auf Basis der Star-Citizen-Community und steht in keiner Verbindung zu Cloud Imperium Rights GmbH oder Roberts Space Industries.</div>' +
         '<div class="info-links">' +
+        '<a href="' + origin + '/docs/anleitung.html" target="_blank" rel="noopener"><i class="bi bi-book-fill" aria-hidden="true"></i> ANLEITUNG</a>' +
         '<a href="' + origin + '/impressum.html" target="_blank" rel="noopener">IMPRESSUM</a>' +
         '<a href="' + origin + '/datenschutz.html" target="_blank" rel="noopener">DATENSCHUTZ</a>' +
         '</div>' +

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stantonopoly V2 — Spielanleitung</title>
+<link rel="stylesheet" href="/assets/icons/bootstrap-icons.min.css" />
 <style>
 :root{
   --bg:#0a0d12; --bg2:#0e141c; --panel:#121a24; --line:#1e2937;
@@ -25,18 +26,21 @@ h1 .v{color:var(--accent);font-size:1.1rem;border:1px solid var(--accent);paddin
 p.sub{color:var(--fg-faint);margin-top:.5rem;font-size:1.05rem}
 
 nav{margin:1.5rem 0 2.5rem;display:flex;flex-wrap:wrap;gap:.5rem}
-nav a{color:var(--accent-hi);font-family:var(--mono);font-size:.85rem;text-decoration:none;border:1px solid var(--line);padding:.4rem .9rem;border-radius:2px}
+nav a{color:var(--accent-hi);font-family:var(--mono);font-size:.85rem;text-decoration:none;border:1px solid var(--line);padding:.4rem .9rem;border-radius:2px;display:inline-flex;align-items:center;gap:.45rem}
+nav a .bi{font-size:.95rem}
 nav a:hover{border-color:var(--accent)}
 
 section{margin-bottom:3.5rem}
 h2{font-size:2rem;font-weight:700;color:#fff;margin-bottom:.3rem;display:flex;align-items:center;gap:.7rem}
-h2 .ic{font-size:1.6rem}
+h2 .ic{font-size:1.5rem;color:var(--accent-hi);display:inline-flex;align-items:center}
+h2 .ic .bi{color:var(--accent-hi)}
 h2::after{content:"";flex:1;height:1px;background:var(--line);margin-left:.8rem}
 .role-tag{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;color:var(--fg-faint);text-transform:uppercase;margin-bottom:1.2rem}
 h3{font-size:1.2rem;color:var(--accent-hi);margin:1.8rem 0 .6rem}
 
 p{color:var(--fg-dim);max-width:70rem;margin-bottom:.8rem}
 p b{color:var(--fg)}
+.bi{vertical-align:-.12em;display:inline-block;line-height:1}
 ol,ul{margin:.4rem 0 1rem 1.4rem;color:var(--fg-dim)}
 li{margin-bottom:.5rem}
 li b{color:var(--fg)}
@@ -75,17 +79,17 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 </header>
 
 <nav>
-  <a href="#spieler">👤 Normaler Spieler</a>
-  <a href="#pirat">🏴‍☠️ Pirat</a>
-  <a href="#teamleiter">👑 Teamleiter</a>
-  <a href="#manager">🛠️ Manager</a>
-  <a href="#preset">♟ Preset-Editor</a>
-  <a href="#gm">🎤 Game Master</a>
+  <a href="#spieler"><i class="bi bi-person-fill" aria-hidden="true"></i> Normaler Spieler</a>
+  <a href="#pirat"><i class="bi bi-flag-fill" aria-hidden="true"></i> Pirat</a>
+  <a href="#teamleiter"><i class="bi bi-award-fill" aria-hidden="true"></i> Teamleiter</a>
+  <a href="#manager"><i class="bi bi-wrench" aria-hidden="true"></i> Manager</a>
+  <a href="#preset"><i class="bi bi-puzzle-fill" aria-hidden="true"></i> Preset-Editor</a>
+  <a href="#gm"><i class="bi bi-mic-fill" aria-hidden="true"></i> Game Master</a>
 </nav>
 
 <!-- ================= SPIELER ================= -->
 <section id="spieler">
-  <h2><span class="ic">👤</span> Normaler Spieler</h2>
+  <h2><span class="ic"><i class="bi bi-person-fill" aria-hidden="true"></i></span> Normaler Spieler</h2>
   <div class="role-tag">Du trittst einem Team bei, würfelst, kaufst, handelst — und arbeitest im Team zusammen.</div>
 
   <h3>1. Einem Spiel beitreten</h3>
@@ -133,18 +137,18 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <h3>7. Optionale Regeln im Spiel</h3>
   <p>Nicht jedes Spiel sieht gleich aus: Manche Regeln sind im <b>Preset</b> an- oder abschaltbar und gelten nur, wenn sie für dieses Spiel aktiv sind:</p>
   <ul>
-    <li>🌐 <b>Armistice-Felder</b> <span class="badge-opt">OPTIONAL</span> — Schutz-/Ruhe-Felder (Bonus/Neutral), nur wenn im Preset aktiv.</li>
-    <li>🛠️ <b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span> — zusätzliche Aufgaben zum Erledigen/Bestätigen.</li>
-    <li>🏴‍☠️ <b>Piratensystem</b> <span class="badge-opt">OPTIONAL</span> — ein Piraten-Team, das Schutzgeld kassiert.</li>
-    <li>🏦 <b>Verkauf an die Bank</b> <span class="badge-opt">OPTIONAL</span> — eigene Felder direkt an die Bank verkaufen.</li>
-    <li>🧱 <b>Bauregel (Farbreihe)</b> <span class="badge-opt">OPTIONAL</span> — Ausbauen nur in der ganzen Farbreihe und gleichmäßig.</li>
+    <li><i class="bi bi-globe2" aria-hidden="true"></i> <b>Armistice-Felder</b> <span class="badge-opt">OPTIONAL</span> — Schutz-/Ruhe-Felder (Bonus/Neutral), nur wenn im Preset aktiv.</li>
+    <li><i class="bi bi-wrench" aria-hidden="true"></i> <b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span> — zusätzliche Aufgaben zum Erledigen/Bestätigen.</li>
+    <li><i class="bi bi-flag-fill" aria-hidden="true"></i> <b>Piratensystem</b> <span class="badge-opt">OPTIONAL</span> — ein Piraten-Team, das Schutzgeld kassiert.</li>
+    <li><i class="bi bi-bank" aria-hidden="true"></i> <b>Verkauf an die Bank</b> <span class="badge-opt">OPTIONAL</span> — eigene Felder direkt an die Bank verkaufen.</li>
+    <li><i class="bi bi-grid-fill" aria-hidden="true"></i> <b>Bauregel (Farbreihe)</b> <span class="badge-opt">OPTIONAL</span> — Ausbauen nur in der ganzen Farbreihe und gleichmäßig.</li>
   </ul>
-  <div class="note">Wo was einstellbar ist, erklärt der Abschnitt <b><a href="#preset" style="color:var(--accent-hi)">♟ Preset-Editor</a></b>.</div>
+  <div class="note">Wo was einstellbar ist, erklärt der Abschnitt <b><a href="#preset" style="color:var(--accent-hi)"><i class="bi bi-puzzle-fill" aria-hidden="true"></i> Preset-Editor</a></b>.</div>
 </section>
 
 <!-- ================= PIRAT ================= -->
 <section id="pirat">
-  <h2><span class="ic">🏴‍☠️</span> Pirat</h2>
+  <h2><span class="ic"><i class="bi bi-flag-fill" aria-hidden="true"></i></span> Pirat</h2>
   <div class="role-tag">Du spielst das Piratenteam — beitreten, um Schutzgeld zu kassieren und Fluchten zu entscheiden.</div>
 
   <h3>1. Als Pirat einsteigen</h3>
@@ -156,10 +160,10 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 
   <h3>2. Was Piraten können — und was nicht</h3>
   <ul>
-    <li>✅ <b>Eigene Würfelregel</b> — die Piraten ziehen mit eigener Würfelzahl über das Brett.</li>
-    <li>✅ <b>Schutzgeld kassieren</b>, <b>Fluchten entscheiden</b> (Erwischt/Entwischt).</li>
-    <li>❌ <b>Keine Wirtschaft</b> (keine Felder kaufen/bauen), <b>kein Handel</b>, <b>keine Auktion</b>.</li>
-    <li>❌ Die Piraten <b>können nicht gewinnen</b> — ihr Beutegut zählt nur als Statistik am Ende.</li>
+    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <b>Eigene Würfelregel</b> — die Piraten ziehen mit eigener Würfelzahl über das Brett.</li>
+    <li><i class="bi bi-check-circle-fill" aria-hidden="true"></i> <b>Schutzgeld kassieren</b>, <b>Fluchten entscheiden</b> (Erwischt/Entwischt).</li>
+    <li><i class="bi bi-x-circle-fill" aria-hidden="true"></i> <b>Keine Wirtschaft</b> (keine Felder kaufen/bauen), <b>kein Handel</b>, <b>keine Auktion</b>.</li>
+    <li><i class="bi bi-x-circle-fill" aria-hidden="true"></i> Die Piraten <b>können nicht gewinnen</b> — ihr Beutegut zählt nur als Statistik am Ende.</li>
   </ul>
 
   <h3>3. Begegnung: Schutzgeld oder Flucht</h3>
@@ -181,17 +185,17 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <h3>5. Bot-Pirat: wenn niemand das Piratenteam spielt</h3>
   <p>Ist das Piratensystem aktiv, aber <b>keinem einzigen Spieler ist das Piratenteam beigetreten</b>, übernimmt ein <b>Bot</b> die Piraten. Das Urteil (Erwischt/Entwischt) wird dann <b>automatisch und zufällig</b> gefällt — niemand muss warten.</p>
   <ul>
-    <li>⚖️ <b>Wahrscheinlichkeit „Erwischt":</b> startet bei <b>40%</b> und steigt mit dem <b>Besitzanteil</b> des fliehenden Teams an allen kaufbaren Feldern der Karte bis <b>max. 65%</b>. Wer mehr besitzt, wird also wahrscheinlicher erwischt (je kaufbares Feld linear mehr bis zur Obergrenze).</li>
-    <li>🤖 <b>Der Bot erwartet keine Eingabe</b> — sobald ein Team flieht, entscheidet er sofort.</li>
-    <li>👤 <b>Sobald ein Spieler dem Piratenteam beitritt</b>, übernimmt er die Kontrolle und der Bot schaltet sich ab — die Entscheidung liegt dann wieder beim Piraten(team)leader wie oben beschrieben.</li>
-    <li>🚫 <b>Piraten können nicht aufgeben</b>. Das Piratenteam bleibt immer Teil des Spiels. Ein Piraten-Spieler kann jederzeit das Spiel verlassen — ist er der letzte, übernimmt ab sofort der Bot das Piratenteam (die Figur bleibt auf dem Feld, niemand muss sich kümmern).</li>
+    <li><i class="bi bi-percent" aria-hidden="true"></i> <b>Wahrscheinlichkeit „Erwischt":</b> startet bei <b>40%</b> und steigt mit dem <b>Besitzanteil</b> des fliehenden Teams an allen kaufbaren Feldern der Karte bis <b>max. 65%</b>. Wer mehr besitzt, wird also wahrscheinlicher erwischt (je kaufbares Feld linear mehr bis zur Obergrenze).</li>
+    <li><i class="bi bi-robot" aria-hidden="true"></i> <b>Der Bot erwartet keine Eingabe</b> — sobald ein Team flieht, entscheidet er sofort.</li>
+    <li><i class="bi bi-person-fill" aria-hidden="true"></i> <b>Sobald ein Spieler dem Piratenteam beitritt</b>, übernimmt er die Kontrolle und der Bot schaltet sich ab — die Entscheidung liegt dann wieder beim Piraten(team)leader wie oben beschrieben.</li>
+    <li><i class="bi bi-ban" aria-hidden="true"></i> <b>Piraten können nicht aufgeben</b>. Das Piratenteam bleibt immer Teil des Spiels. Ein Piraten-Spieler kann jederzeit das Spiel verlassen — ist er der letzte, übernimmt ab sofort der Bot das Piratenteam (die Figur bleibt auf dem Feld, niemand muss sich kümmern).</li>
   </ul>
   <div class="note"><b>Hinweis:</b> Die Piraten sind optional und können im Preset nach wunsch an oder abgeschalten werden. Es ist allso nicht immer zwingend ein Piratenteam dabei.</div>
 </section>
 
 <!-- ================= TEAMLEITER ================= -->
 <section id="teamleiter">
-  <h2><span class="ic">👑</span> Teamleiter</h2>
+  <h2><span class="ic"><i class="bi bi-award-fill" aria-hidden="true"></i></span> Teamleiter</h2>
   <div class="role-tag">Du bist das „Kommando" deines Teams — mit besonderen Rechten.</div>
 
   <h3>1. Teamleader werden</h3>
@@ -201,7 +205,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
   <table>
     <tr><th>Aktion</th><th>Erklärung</th></tr>
     <tr><td><b>Würfeln</b></td><td>Du würfelst für das Team und bewegst eure Figur.</td></tr>
-    <tr><td><b>Ausbauen</b> <span class="badge-opt">OPTIONAL</span></td><td>Dein Feld in der Wirtschaft auswählen → Ausbaustufe erhöhen (Miete steigt). Nur möglich, wenn die <b>Bauregel</b> im Preset aktiv ist — die bestimmt auch, ob man nur die ganze Farbreihe bauen darf.</td></tr>
+    <tr><td><b>Ausbauen</b> <span class="badge-opt">OPTIONAL</span></td><td>Dein Feld in der Wirtschaft auswählen <b>→</b> Ausbaustufe erhöhen (Miete steigt). Nur möglich, wenn die <b>Bauregel</b> im Preset aktiv ist — die bestimmt auch, ob man nur die ganze Farbreihe bauen darf.</td></tr>
     <tr><td><b>Hypothek / Abbau</b></td><td>Feld beleihen oder abreißen (Sanierung bei Geldnot).</td></tr>
     <tr><td><b>Handel / Auktion</b></td><td>Feld Verkauf anbieten, Kauf anbieten, auf Angebote antworten, versteigern. <b>Verkauf an die Bank</b> nur, wenn im Preset aktiv.</td></tr>
     <tr><td><b>Aufgaben</b> <span class="badge-opt">OPTIONAL</span></td><td>Abschluss einer Aufgabe bestätigen — nur wenn die <b>Aufgabenregel</b> im Preset aktiv ist.</td></tr>
@@ -220,17 +224,17 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 
 <!-- ================= MANAGER ================= -->
 <section id="manager">
-  <h2><span class="ic">🛠️</span> Manager</h2>
+  <h2><span class="ic"><i class="bi bi-wrench" aria-hidden="true"></i></span> Manager</h2>
   <div class="role-tag">Du verwalst Presets (Spielkarten + Regeln) mit erweiterten Rechten — ohne Admin-Oberfläche.</div>
 
   <h3>1. Wofür ist der Manager da?</h3>
   <p>Ein normaler Spieler darf im <b>Preset-Editor</b> nur temporär für sein eigenes Spiel ändern („Standardmodus"). Ein <b>Manager</b> kann Presets <b>dauerhaft bearbeiten, neu erstellen und speichern</b>. Den Manager-Code bekommst du <b>als Person</b> vom Admin.</p>
 
   <h3>2. Im Preset-Editor einloggen</h3>
-  <p>Beim <b>Spiel-Erstellen</b> öffnest du den Editor über <b>„⚙ Karte &amp; Regeln bearbeiten"</b>. Dort unten siehst du die <b>Manager-Bar</b>: Gib deinen <b>Manager-Code</b> ein und klicke <b>AKTIVIEREN</b>.</p>
+  <p>Beim <b>Spiel-Erstellen</b> öffnest du den Editor über <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b>. Dort unten siehst du die <b>Manager-Bar</b>: Gib deinen <b>Manager-Code</b> ein und klicke <b>AKTIVIEREN</b>.</p>
   <figure>
     <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
-    <figcaption>Der Preset-Editor: Feldliste (Typ, Name, Preis, Farbgruppe, ↑↓×) mit der <b>Manager-Bar</b> oben („MANAGER → Manager-Code → AKTIVIEREN"). Im Standardmodus gelten Änderungen nur für dieses Spiel.</figcaption>
+    <figcaption>Der Preset-Editor: Feldliste (Typ, Name, Preis, Farbgruppe, <i class="bi bi-arrow-up" aria-hidden="true"></i><i class="bi bi-arrow-down" aria-hidden="true"></i><i class="bi bi-x-lg" aria-hidden="true"></i>) mit der <b>Manager-Bar</b> oben („MANAGER → Manager-Code → AKTIVIEREN"). Im Standardmodus gelten Änderungen nur für dieses Spiel.</figcaption>
   </figure>
 
   <h3>3. Was ein Manager darf</h3>
@@ -242,21 +246,21 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 
 <!-- ================= PRESET-EDITOR ================= -->
 <section id="preset">
-  <h2><span class="ic">♟</span> Preset-Editor</h2>
+  <h2><span class="ic"><i class="bi bi-puzzle-fill" aria-hidden="true"></i></span> Preset-Editor</h2>
   <div class="role-tag">Ein Preset bündelt Spielkarte + Regeln. Hier stellst du beides ein — von den Feldern bis zu jeder optionalen Regel.</div>
 
   <h3>1. Was ist ein Preset?</h3>
   <p>Ein Preset ist eine <b>komplett vorgefertigte Spielkonfiguration</b>: die <b>Feldreihe</b> (Karte) plus alle <b>Regel-Einstellungen</b>. Beim „Spiel erstellen" wählst du ein Preset aus (z.&nbsp;B. „Stantonopoly v1") und erhältst damit die Standard-Karte und Standard-Regeln dieses Presets.</p>
 
   <h3>2. So öffnest du den Editor</h3>
-  <p>Beim <b>Spiel-Erstellen</b> klickst du <b>„⚙ Karte &amp; Regeln bearbeiten"</b>. Ohne Manager-Code arbeiten alle im <b>Standardmodus</b>: Deine Änderungen gelten <b>nur für das Spiel, das du gerade erstellst</b>. Gibst du einen <b>Manager-Code</b> ein (siehe Abschnitt Manager), kannst du Presets auch <b>dauerhaft speichern</b>.</p>
+  <p>Beim <b>Spiel-Erstellen</b> klickst du <b>„<i class="bi bi-gear" aria-hidden="true"></i> Karte &amp; Regeln bearbeiten"</b>. Ohne Manager-Code arbeiten alle im <b>Standardmodus</b>: Deine Änderungen gelten <b>nur für das Spiel, das du gerade erstellst</b>. Gibst du einen <b>Manager-Code</b> ein (siehe Abschnitt Manager), kannst du Presets auch <b>dauerhaft speichern</b>.</p>
   <figure>
     <img src="anleitung-img/guide-preset-editor.png" alt="Preset-Editor mit Manager-Bar">
     <figcaption>Der Preset-Editor: Die Feldliste oben, darunter die Regel-Gruppen. Oben die <b>Manager-Bar</b> („MANAGER → Code → AKTIVIEREN").</figcaption>
   </figure>
 
   <h3>3. Die Karte bearbeiten (Felder)</h3>
-  <p>Oben im Editor siehst du die <b>Feldliste</b>. Jedes Feld hat einen <b>Typ</b>, <b>Namen</b>, <b>Preis</b> und eine <b>Farbgruppe</b>. Per <b>↑ / ↓</b> verschiebst du die Position, per <b>×</b> löschst du ein Feld. Beim <b>Namen</b> tippen erscheinen automatisch <b>Vorschläge echter Star-Citizen-Orte</b> (aus dem eingebauten SC-Katalog) — du musst den vollen Namen nicht eintippen.</p>
+  <p>Oben im Editor siehst du die <b>Feldliste</b>. Jedes Feld hat einen <b>Typ</b>, <b>Namen</b>, <b>Preis</b> und eine <b>Farbgruppe</b>. Per <b><i class="bi bi-arrow-up" aria-hidden="true"></i> / <i class="bi bi-arrow-down" aria-hidden="true"></i></b> verschiebst du die Position, per <b><i class="bi bi-x-lg" aria-hidden="true"></i></b> löschst du ein Feld. Beim <b>Namen</b> tippen erscheinen automatisch <b>Vorschläge echter Star-Citizen-Orte</b> (aus dem eingebauten SC-Katalog) — du musst den vollen Namen nicht eintippen.</p>
   <table>
     <tr><th>Feldtyp</th><th>Bedeutung</th><th>Einstellbar</th></tr>
     <tr><td><b>LOS</b></td><td>Startfeld mit Bonus beim Überqueren.</td><td>Name, BONUS-Betrag (ab „Stantonopoly v1" frei wählbar).</td></tr>
@@ -303,11 +307,11 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--line);color
 
 <!-- ================= GM ================= -->
 <section id="gm">
-  <h2><span class="ic">🎤</span> Game Master (GM)</h2>
+  <h2><span class="ic"><i class="bi bi-mic-fill" aria-hidden="true"></i></span> Game Master (GM)</h2>
   <div class="role-tag">Du organisierst das Spiel: erstellen, Codes verteilen, starten, pausieren, Abschluss.</div>
 
   <h3>1. Ein Spiel erstellen</h3>
-  <p>Klicke <b>„Spiel erstellen"</b>, wähle die Anzahl Teams (2–8), ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1"), und gib eine <b>Schiffsausstattung</b> je Team an. Beim Eintippen des Schiffsnamens erscheinen <b>Vorschläge echter Star-Citizen-Schiffe</b> (aus dem SC-Katalog). Optional im Preset-Editor (<a href="#preset" style="color:var(--accent-hi)">♟</a>) schaltest du Regeln an/aus: Piratensystem <span class="badge-opt">OPT</span>, Aufgaben <span class="badge-opt">OPT</span>, Armistice <span class="badge-opt">OPT</span>, Bank-Verkauf <span class="badge-opt">OPT</span>, Bauregel <span class="badge-opt">OPT</span>.</p>
+  <p>Klicke <b>„Spiel erstellen"</b>, wähle die Anzahl Teams (2–8), ein <b>Preset</b> (z.&nbsp;B. „Stantonopoly v1"), und gib eine <b>Schiffsausstattung</b> je Team an. Beim Eintippen des Schiffsnamens erscheinen <b>Vorschläge echter Star-Citizen-Schiffe</b> (aus dem SC-Katalog). Optional im Preset-Editor (<a href="#preset" style="color:var(--accent-hi)"><i class="bi bi-puzzle-fill" aria-hidden="true"></i></a>) schaltest du Regeln an/aus: Piratensystem <span class="badge-opt">OPT</span>, Aufgaben <span class="badge-opt">OPT</span>, Armistice <span class="badge-opt">OPT</span>, Bank-Verkauf <span class="badge-opt">OPT</span>, Bauregel <span class="badge-opt">OPT</span>.</p>
   <figure>
     <img src="anleitung-img/guide-setup.png" alt="Setup-Maske">
     <figcaption>Die Setup-Maske: Teams wählen, GM-Name, Preset, Schiffe je Team. So kommst du zur Lobby.</figcaption>

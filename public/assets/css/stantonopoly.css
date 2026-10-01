@@ -834,6 +834,7 @@ body.view-login .hd-r { margin-left: auto; }
   border-left: 2px solid var(--line-bright); padding-left: 10px; margin: 2px 0 14px;
 }
 .info-links { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
+.info-links a .bi { margin-right: 4px; vertical-align: -.08em; font-size: 1.05em; }
 .info-links a {
   flex: 1 1 auto; min-width: 0; text-align: center;
   font: 600 12px/1 ui-monospace, monospace; letter-spacing: .16em;
